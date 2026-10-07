@@ -6,9 +6,5 @@
 .tone-4 { --tile-bg: #f7e3e7; --tile-fg: #8c2f45; } .tone-5 { --tile-bg: #dcf1ef; --tile-fg: #1f6461; }
 .tone-6 { --tile-bg: #e7eaee; --tile-fg: #3d4a5c; } .tone-7 { --tile-bg: #fae6da; --tile-fg: #8a4317; }
 .tone-key { --tile-bg: var(--accent); --tile-fg: var(--accent-text); }
-@media (prefers-color-scheme: dark) {
-  .tone-0 { --tile-bg: #24392d; --tile-fg: #a8dcbc; } .tone-1 { --tile-bg: #22324a; --tile-fg: #a9c6ee; }
-  .tone-2 { --tile-bg: #33294a; --tile-fg: #cbb6f0; } .tone-3 { --tile-bg: #43341a; --tile-fg: #f0cf8a; }
-  .tone-4 { --tile-bg: #46242d; --tile-fg: #f0aabb; } .tone-5 { --tile-bg: #1f3b3a; --tile-fg: #9edbd6; }
-  .tone-6 { --tile-bg: #2e343d; --tile-fg: #c3ccd8; } .tone-7 { --tile-bg: #45301f; --tile-fg: #f2b98f; }
-}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tone-0 { --tile-bg: #24392d; --tile-fg: #a8dcbc; } :root:not([data-theme="light"]) .tone-1 { --tile-bg: #22324a; --tile-fg: #a9c6ee; } :root:not([data-theme="light"]) .tone-2 { --tile-bg: #33294a; --tile-fg: #cbb6f0; } :root:not([data-theme="light"]) .tone-3 { --tile-bg: #43341a; --tile-fg: #f0cf8a; } :root:not([data-theme="light"]) .tone-4 { --tile-bg: #46242d; --tile-fg: #f0aabb; } :root:not([data-theme="light"]) .tone-5 { --tile-bg: #1f3b3a; --tile-fg: #9edbd6; } :root:not([data-theme="light"]) .tone-6 { --tile-bg: #2e343d; --tile-fg: #c3ccd8; } :root:not([data-theme="light"]) .tone-7 { --tile-bg: #45301f; --tile-fg: #f2b98f; } }
+:root[data-theme="dark"] .tone-0 { --tile-bg: #24392d; --tile-fg: #a8dcbc; } :root[data-theme="dark"] .tone-1 { --tile-bg: #22324a; --tile-fg: #a9c6ee; } :root[data-theme="dark"] .tone-2 { --tile-bg: #33294a; --tile-fg: #cbb6f0; } :root[data-theme="dark"] .tone-3 { --tile-bg: #43341a; --tile-fg: #f0cf8a; } :root[data-theme="dark"] .tone-4 { --tile-bg: #46242d; --tile-fg: #f0aabb; } :root[data-theme="dark"] .tone-5 { --tile-bg: #1f3b3a; --tile-fg: #9edbd6; } :root[data-theme="dark"] .tone-6 { --tile-bg: #2e343d; --tile-fg: #c3ccd8; } :root[data-theme="dark"] .tone-7 { --tile-bg: #45301f; --tile-fg: #f2b98f; }

@@ -8,7 +8,8 @@ export class VaultClient {
     this.onChange = onChange;
     this.listener = message => { if (message?.event === "vault-state") this.update(message.state); };
     chrome.runtime.onMessage.addListener(this.listener);
-    this.poll = setInterval(() => { if (!document.hidden) void this.refresh(); }, 5000);
+    // Changes arrive as vault-state events; the poll only catches an expired auto-lock or a restarted worker.
+    this.poll = setInterval(() => { if (!document.hidden) void this.refresh(); }, 10000);
     document.addEventListener("visibilitychange", async () => {
       if (document.hidden) document.body.classList.add("suspended");
       else { await this.refresh(); document.body.classList.remove("suspended"); }
@@ -42,7 +43,7 @@ export class VaultClient {
     this.state = { ...state, ready: true };
     clearTimeout(this.expiry);
     if (state.unlocked && state.deadline) this.expiry = setTimeout(() => { void this.lock(); }, Math.max(0, state.deadline - Date.now()));
-    if (!previous.ready || previous.session !== state.session || previous.exists !== state.exists || previous.revision !== state.revision) this.onChange(this.state, previous);
+    if (!previous.ready || previous.session !== state.session || previous.exists !== state.exists || previous.revision !== state.revision || !!previous.biometric !== !!state.biometric) this.onChange(this.state, previous);
   }
   async refresh() {
     try { this.update(await this.request("STATUS")); }

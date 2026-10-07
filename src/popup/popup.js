@@ -4,12 +4,14 @@ import { loginRow } from "../ui/items.js";
 import { element, announce, openPage, siteTile, copyText, showReloadBanner } from "../ui/common.js";
 import { parseWebsite, scopeLabel, scopeUrl, isLocalHost } from "../matching/url-matcher.js";
 import { openLoginDialog, closeLoginDialog } from "../ui/login-form.js";
-import { generatePassword } from "../generator/password-generator.js";
+import { loadPrefs, savePrefs, generate as generateWith } from "../generator/prefs.js";
 
+/** @type {(selector: string) => any} Page elements are looked up by known IDs. */
 const $ = selector => document.querySelector(selector);
 let page = null;
 let listRequest = 0;
 let generated = "";
+let prefs = null;
 const matches = $("#matches");
 const client = new VaultClient(state => {
   $("#vault-state").textContent = state.unlocked ? "Unlocked" : "Locked";
@@ -36,7 +38,8 @@ async function renderLists() {
     if (!client.is(session) || request !== listRequest) return;
     matches.replaceChildren(...here.map(item => loginRow(item, client, { action: fillAction, disabled: page.forms !== 1 })));
     if (!here.length) matches.append(element("p", { className: "empty" }, !page ? "Open a website to see its saved logins." : query ? "No logins for this site match your search." : "No saved login for this site yet."));
-    const others = everywhere.filter(item => !here.some(match => match.id === item.id)).slice(0, 30);
+    // Secure notes have nothing to fill or copy here; they open in the KeyBit window.
+    const others = everywhere.filter(item => item.type === "login" && !here.some(match => match.id === item.id)).slice(0, 30);
     $("#results").replaceChildren(...others.map(item => loginRow(item, client)));
     $("#others").hidden = !query;
     if (query && !others.length) $("#results").append(element("p", { className: "empty" }, "No other logins match."));
@@ -66,17 +69,25 @@ async function checkPage() {
     $("#detection-status").textContent = "KeyBit works on regular HTTP and HTTPS websites.";
   } finally { button.disabled = false; if (client.state.unlocked) await renderLists(); }
 }
-function generate() {
-  generated = generatePassword({ length: 20, symbols: $("#symbols").getAttribute("aria-pressed") === "true" });
+// The quick generator uses (and remembers) the same settings as KeyBit's Generator.
+async function generate() {
+  prefs ??= await loadPrefs();
+  const memorable = prefs.mode === "memorable";
+  $("#symbols").setAttribute("aria-pressed", String(!memorable && prefs.symbols)); $("#symbols").disabled = memorable;
+  $("#words").setAttribute("aria-pressed", String(memorable));
+  $("#generated-length").textContent = memorable ? `${prefs.words} words` : `${prefs.length} characters`;
+  generated = await generateWith(prefs);
   $("#generated").textContent = generated;
 }
+async function updatePrefs(change) { prefs = { ...prefs, ...change }; await savePrefs(prefs); await generate(); }
 $("#toggle-generator").addEventListener("click", event => {
   const open = $("#generator").hidden;
   $("#generator").hidden = !open; event.currentTarget.setAttribute("aria-expanded", String(open));
-  if (open && !generated) generate();
+  if (open && !generated) void generate();
 });
-$("#regenerate").addEventListener("click", generate);
-$("#symbols").addEventListener("click", event => { event.currentTarget.setAttribute("aria-pressed", String(event.currentTarget.getAttribute("aria-pressed") !== "true")); generate(); });
+$("#regenerate").addEventListener("click", () => void generate());
+$("#symbols").addEventListener("click", () => void updatePrefs({ symbols: !prefs.symbols }));
+$("#words").addEventListener("click", () => void updatePrefs({ mode: prefs.mode === "memorable" ? "random" : "memorable" }));
 $("#copy-generated").addEventListener("click", async () => {
   try { await copyText(generated); announce("Password copied. Clipboard is not cleared automatically."); } catch (error) { announce(error.message, true); }
 });
@@ -100,14 +111,33 @@ $("#manage").addEventListener("click", () => void openPage("src/vault-ui/vault.h
 // Add a login without leaving the popup, starting from the current site.
 $("#add-login").addEventListener("click", async () => {
   const site = page ? parseWebsite(page.url) : null;
-  const existing = site ? await client.request("LIST", { url: page.url }).catch(() => []) : [];
-  openLoginDialog({ client, revision: client.state.revision, existing,
+  const [existing, projects] = await Promise.all([site ? client.request("LIST", { url: page.url }).catch(() => []) : [], client.request("PROJECTS").catch(() => [])]);
+  openLoginDialog({ client, revision: client.state.revision, existing, projects,
     prefill: site ? { website: scopeUrl(site), environment: isLocalHost(site) ? "local" : "other" } : {},
     onSaved: async state => { client.update(state); announce("Login saved and encrypted."); await renderLists(); } });
 });
 $("#lock").addEventListener("click", () => void client.lock());
 $("#settings").addEventListener("click", () => void openPage("src/vault-ui/vault.html#backup"));
 window.addEventListener("pagehide", () => { generated = ""; $("#generated").textContent = ""; });
+// Keyboard: "/" searches, ↑ ↓ move between logins, Enter fills (or copies the password when it can't fill).
+document.addEventListener("keydown", event => {
+  if ($("#login-dialog")?.open) return;
+  const rows = [...document.querySelectorAll("#unlocked .login-item")];
+  const target = /** @type {HTMLElement} */ (event.target);
+  const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+  if (event.key === "/" && !typing && !$("#unlocked").hidden) { event.preventDefault(); $("#search").focus(); return; }
+  if ((event.key === "ArrowDown" || event.key === "ArrowUp") && rows.length && (target === $("#search") || rows.includes(target))) {
+    event.preventDefault();
+    const index = rows.indexOf(target);
+    /** @type {HTMLElement} */ (rows[index < 0 ? (event.key === "ArrowDown" ? 0 : rows.length - 1) : (index + (event.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length]).focus();
+    return;
+  }
+  if (event.key === "Enter" && rows.includes(target)) {
+    event.preventDefault();
+    const fill = target.querySelector('[data-action="fill"]:not(:disabled)');
+    /** @type {HTMLElement | null} */ (fill ?? target.querySelector('[data-action="copy-password"]'))?.click();
+  }
+});
 showReloadBanner($("main"));
 await client.refresh();
 await checkPage();

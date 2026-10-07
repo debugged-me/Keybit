@@ -58,5 +58,30 @@
     }
     return result;
   }
-  globalThis.__keybit = { find, findNew, usable };
+  const describe = input => `${input.name} ${input.id} ${input.placeholder} ${input.getAttribute("aria-label") ?? ""} ${[...(input.labels ?? [])].map(label => label.textContent).join(" ")}`;
+  const IDENTIFIER = /user|e-?mail|login|account|identifier|phone|mobile|member|customer|student/i;
+  // The first page of a two-step sign-in: one identifier field and no password field on the page.
+  function findUsernameOnly() {
+    if ([...document.querySelectorAll('input[type="password" i]')].some(usable)) return [];
+    const inputs = /** @type {HTMLInputElement[]} */ ([...document.querySelectorAll('input[type="text" i], input[type="email" i], input[type="tel" i], input:not([type])')]);
+    const fields = inputs.filter(input =>
+      usable(input) && !input.closest('[role="search"]') && !/search|query|^q$/i.test(`${input.name} ${input.id}`) &&
+      (tokens(input).includes("username") || tokens(input).includes("email") || input.type === "email" || IDENTIFIER.test(describe(input))));
+    // Prefer a field marked as a username; if it is still ambiguous, offer nothing.
+    const marked = fields.filter(input => tokens(input).includes("username"));
+    const candidates = marked.length ? marked : fields;
+    return candidates.length === 1 ? [{ username: candidates[0] }] : [];
+  }
+  const OTP = /one.?time|otp|totp|2fa|mfa|two.?factor|verification.?code|security.?code|auth(?:entication|enticator)?.?code|passcode/i;
+  // A 2FA code field, or four to eight one-character boxes in one container.
+  function findOtp() {
+    const inputs = /** @type {HTMLInputElement[]} */ ([...document.querySelectorAll('input[type="text" i], input[type="tel" i], input[type="number" i], input:not([type])')]).filter(usable);
+    const marked = inputs.filter(input => tokens(input).includes("one-time-code") || (OTP.test(describe(input)) && input.maxLength !== 1));
+    if (marked.length === 1) return [{ fields: marked }];
+    const boxes = inputs.filter(input => input.maxLength === 1);
+    const container = boxes[0]?.closest("form") ?? boxes[0]?.parentElement?.parentElement;
+    if (boxes.length >= 4 && boxes.length <= 8 && boxes.every(box => container?.contains(box))) return [{ fields: boxes }];
+    return [];
+  }
+  globalThis.__keybit = { find, findNew, findUsernameOnly, findOtp, usable };
 })();

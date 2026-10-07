@@ -19,10 +19,15 @@
   let placing = 0;
   let refocusing = false;
   // "login" fields get saved accounts; new-password fields on sign-up and change forms get a generated password.
+  // Also: the username step of a two-step sign-in, and 2FA code fields. Only field types that can match are scanned.
+  const CANDIDATE_TYPES = ["text", "email", "tel", "password", "number"];
   function modeFor(input) {
-    if (!(input instanceof HTMLInputElement)) return null;
-    if (globalThis.__keybit.find().some(fields => fields.username === input || fields.password === input)) return "login";
-    if (globalThis.__keybit.findNew().some(form => form.fields.includes(input))) return "new";
+    if (!(input instanceof HTMLInputElement) || !CANDIDATE_TYPES.includes(input.type)) return null;
+    const keybit = globalThis.__keybit;
+    if (keybit.find().some(fields => fields.username === input || fields.password === input)) return "login";
+    if (input.type === "password") return keybit.findNew().some(form => form.fields.includes(input)) ? "new" : null;
+    if (keybit.findOtp().some(form => form.fields.includes(input))) return "otp";
+    if (keybit.findUsernameOnly().some(step => step.username === input)) return "username";
     return null;
   }
   const supported = input => modeFor(input) !== null;
@@ -103,6 +108,11 @@
       event.preventDefault(); frame.focus();
       frame.contentWindow.postMessage({ type: "KEYBIT_KEYBOARD" }, new URL(frame.src).origin);
     }
+  }, { capture: true, signal: lifecycle.signal });
+  // Typing in the username field narrows the account list. Password values are never sent.
+  document.addEventListener("input", event => {
+    if (!host || event.target !== activeInput || activeInput.type === "password" || !["login", "username"].includes(activeMode)) return;
+    frame?.contentWindow?.postMessage({ type: "KEYBIT_FILTER", text: activeInput.value.slice(0, 200) }, new URL(frame.src).origin);
   }, { capture: true, signal: lifecycle.signal });
   window.addEventListener("scroll", schedulePlace, { capture: true, passive: true, signal: lifecycle.signal });
   window.addEventListener("resize", schedulePlace, { signal: lifecycle.signal });

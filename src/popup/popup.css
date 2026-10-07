@@ -30,7 +30,8 @@ main { max-height: 520px; padding: 14px 16px 16px; overflow-y: auto; }
 .section-title h2 { color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .6px; text-transform: uppercase; }
 .rows { display: flex; flex-direction: column; gap: 2px; }
 .login-item { display: flex; align-items: center; gap: 10px; padding: 7px 6px 7px 8px; border-radius: 10px; }
-.login-item:hover { background: var(--hover); }
+.login-item:hover, .login-item:focus-visible { background: var(--hover); }
+.login-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .login-item .details { flex: 1; min-width: 0; }
 .login-item .primary, .login-item .secondary { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .login-item .primary { font-weight: 600; }
@@ -53,5 +54,4 @@ html.dialog-open body.popup { min-height: 590px; }
 .popup .modal .scope-preview { margin-top: 6px; }
 .popup .modal .strength { margin-top: 10px; }
 .footer { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--border); }
-/* The popup is short, so messages sit in the flow above the footer instead of covering the list. */
-.popup .message { position: static; width: auto; max-width: none; margin: 0 16px 12px; transform: none; box-shadow: none; }
+.popup .message { top: 10px; width: calc(100% - 24px); max-width: none; text-align: center; }

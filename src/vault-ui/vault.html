@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KeyBit</title>
+  <script src="../ui/theme.js"></script><title>KeyBit</title>
   <link rel="stylesheet" href="../ui/base.css"><link rel="stylesheet" href="../ui/tiles.css"><link rel="stylesheet" href="vault.css">
   <script src="vault.js" type="module"></script>
 </head>
 <body class="app">
   <header class="app-header">
     <div class="brand"><img class="brand-icon" src="../../icons/keybit.svg" alt=""><h1>KeyBit</h1></div>
-    <label id="search-box" class="search" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" type="search" placeholder="Search logins" aria-label="Search logins" maxlength="200" autocomplete="off"></label>
+    <label id="search-box" class="search" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" type="search" placeholder="Search logins and notes" aria-label="Search logins and notes" maxlength="200" autocomplete="off"></label>
     <div id="header-actions" class="header-actions" hidden>
       <div class="menu-anchor">
         <button id="autolock" class="icon-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="autolock-menu" title="Auto-lock: Never" aria-label="Auto-lock: Never"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg></button>
@@ -29,29 +29,48 @@
   </header>
 
   <div id="locked" class="locked">
-    <div class="auth-card"><div id="auth"></div><button id="restore-instead" class="text-button" type="button">Restore from a backup instead</button></div>
+    <div class="auth-card">
+      <div id="welcome" class="welcome" hidden>
+        <h2>Welcome to KeyBit</h2>
+        <p class="muted">A password manager that keeps everything on this device. Three quick steps:</p>
+        <ol class="steps"><li><strong>Create your vault</strong> with a master password below.</li><li><strong>Import</strong> logins from Chrome, Apple Passwords, Bitwarden, 1Password, or LastPass.</li><li><strong>Pin KeyBit</strong>: click the puzzle icon in the toolbar, then the pin next to KeyBit.</li></ol>
+      </div>
+      <div id="auth"></div>
+      <button id="restore-instead" class="text-button" type="button">Restore from a backup instead</button>
+    </div>
   </div>
 
   <div id="app" class="app-layout" hidden>
     <nav id="sidebar" class="sidebar" aria-label="KeyBit sections">
       <button class="nav-item" type="button" data-view="logins"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>All logins</span><span id="count-logins" class="count"></span></button>
+      <button class="nav-item" type="button" data-view="favorites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9z"/></svg><span>Favorites</span><span id="count-favorites" class="count"></span></button>
+      <button class="nav-item" type="button" data-view="notes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg><span>Secure notes</span><span id="count-notes" class="count"></span></button>
+      <div id="projects-nav" class="nav-group" hidden><p class="nav-heading">Projects</p><div id="project-items"></div></div>
+      <hr class="nav-divider">
       <button class="nav-item" type="button" data-view="health"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg><span>Weak &amp; reused</span><span id="count-health" class="count warn" hidden></span></button>
       <button class="nav-item" type="button" data-view="generator"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M14 9l2 2"/></svg><span>Generator</span></button>
+      <button class="nav-item" type="button" data-view="import"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg><span>Import</span></button>
       <button class="nav-item" type="button" data-view="backup"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg><span>Backup</span><span id="backup-dot" class="dot" title="No recent backup" hidden></span></button>
+      <button class="nav-item" type="button" data-view="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
       <button id="nav-sites" class="nav-item" type="button" data-view="sites" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span>Sites turned off</span><span id="count-sites" class="count"></span></button>
     </nav>
 
     <main class="content">
       <section id="view-logins" class="view logins-view">
         <div class="list-pane">
-          <div class="view-header"><h2 id="list-title">All logins</h2><button id="add-login" class="primary-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add login</button></div>
+          <div class="view-header"><h2 id="list-title">All logins</h2>
+            <div class="view-tools">
+              <select id="sort" aria-label="Sort by"><option value="name">Name</option><option value="used">Recently used</option><option value="updated">Recently updated</option></select>
+              <button id="add-login" class="primary-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span id="add-label">Add login</span></button>
+            </div>
+          </div>
           <div id="backup-banner" class="banner" hidden>
             <p><strong>Back up your vault.</strong> Your logins survive restarts, but removing KeyBit from the browser deletes them. An encrypted backup lets you restore them anywhere.</p>
             <div class="banner-actions"><button id="banner-export" class="primary-button" type="button">Export backup</button><button id="banner-later" class="text-button" type="button">Remind me later</button></div>
           </div>
           <div id="items" class="item-list"></div>
         </div>
-        <aside id="detail" class="detail-pane" aria-label="Login details" hidden>
+        <aside id="detail" class="detail-pane" aria-label="Details" hidden>
           <div id="detail-view"></div>
         </aside>
       </section>
@@ -65,15 +84,36 @@
       <section id="view-generator" class="view narrow" hidden>
         <div class="view-header"><h2>Generator</h2></div>
         <div class="card">
+          <div class="segmented" role="radiogroup" aria-label="Password style">
+            <button type="button" role="radio" data-mode="random" aria-checked="true">Random</button>
+            <button type="button" role="radio" data-mode="memorable" aria-checked="false">Memorable</button>
+          </div>
           <p id="gen-output" class="generated gen-output" aria-live="polite"></p>
           <div class="button-row"><button id="gen-copy" class="primary-button" type="button">Copy password</button><button id="gen-again" class="secondary-button" type="button">Generate another</button></div>
-          <div class="label-row"><label for="gen-length">Length</label><span id="gen-length-value" class="muted">20</span></div>
-          <input id="gen-length" type="range" min="8" max="64" value="20">
-          <div class="generator-groups">
-            <label class="check"><input id="uppercase" type="checkbox" checked>A–Z</label><label class="check"><input id="lowercase" type="checkbox" checked>a–z</label>
-            <label class="check"><input id="numbers" type="checkbox" checked>0–9</label><label class="check"><input id="symbols" type="checkbox" checked>!@#$</label>
+          <div id="random-options">
+            <div class="label-row"><label for="gen-length">Length</label><span id="gen-length-value" class="muted">20</span></div>
+            <input id="gen-length" type="range" min="8" max="64" value="20">
+            <div class="generator-groups">
+              <label class="check"><input id="uppercase" type="checkbox" checked>A–Z</label><label class="check"><input id="lowercase" type="checkbox" checked>a–z</label>
+              <label class="check"><input id="numbers" type="checkbox" checked>0–9</label><label class="check"><input id="symbols" type="checkbox" checked>!@#$</label>
+            </div>
           </div>
-          <p class="notice">Generated on this device with the browser's secure random generator. The Generate button in the login form uses these settings.</p>
+          <div id="memorable-options" hidden>
+            <div class="label-row"><label for="gen-words">Words</label><span id="gen-words-value" class="muted">5</span></div>
+            <input id="gen-words" type="range" min="3" max="10" value="5">
+          </div>
+          <p class="notice">Made on this device with the browser's secure random generator. KeyBit remembers this choice for every Generate button and for sign-up fields.</p>
+        </div>
+      </section>
+
+      <section id="view-import" class="view narrow" hidden>
+        <div class="view-header"><h2>Import</h2></div>
+        <div class="card">
+          <h3>From another password manager</h3>
+          <p class="muted">Export your passwords as a CSV file from Chrome, Helium, Edge, Apple Passwords, 1Password, LastPass, Dashlane, or Bitwarden (CSV or unencrypted JSON), then choose it here.</p>
+          <label for="import-file">Exported file</label><input id="import-file" type="file" accept=".csv,.json,text/csv,application/json">
+          <div id="import-preview" hidden><p id="import-summary" class="callout info"></p><div class="button-row"><button id="import-confirm" class="primary-button" type="button">Import</button><button id="import-cancel" class="text-button" type="button">Cancel</button></div></div>
+          <p class="notice">Duplicates already in KeyBit are skipped. Entries without a website are kept as secure notes. Afterwards, delete the exported file: it holds your passwords unencrypted.</p>
         </div>
       </section>
 
@@ -85,19 +125,46 @@
           <p id="last-backup" class="notice"></p>
           <button id="export" class="primary-button" type="button" disabled>Export encrypted backup</button>
         </div>
+        <div class="card" id="auto-backup-card">
+          <h3>Automatic backup</h3>
+          <p class="muted">Pick a folder, for example in iCloud Drive, Dropbox, or Google Drive. KeyBit saves an encrypted copy there every time your vault changes. On another computer, merge it in below.</p>
+          <p id="auto-backup-status" class="notice"></p>
+          <div class="button-row"><button id="auto-backup-choose" class="secondary-button" type="button">Choose folder</button><button id="auto-backup-reconnect" class="primary-button" type="button" hidden>Reconnect</button><button id="auto-backup-off" class="text-button" type="button" hidden>Turn off</button></div>
+        </div>
         <div class="card">
           <h3>Restore</h3>
-          <p class="muted">Replaces every login in this vault with the backup's logins. It does not merge.</p>
-          <form id="import-form" autocomplete="off"><label for="backup-file">Encrypted backup file</label><input id="backup-file" type="file" accept=".kvault,.cvault,application/json" required><label for="backup-password">Backup's master password</label><input id="backup-password" type="password" autocomplete="off" maxlength="1024" required><div class="button-row"><button id="validate-import" class="secondary-button" type="submit">Validate backup</button></div></form>
+          <p class="muted">Merge adds the backup's logins and keeps yours; newer copies win, nothing is deleted. Replace swaps your whole vault for the backup.</p>
+          <form id="import-form" autocomplete="off"><label for="backup-file">KeyBit backup file (.kvault)</label><input id="backup-file" type="file" accept=".kvault,.cvault,application/json" required><label for="backup-password">Backup's master password</label><input id="backup-password" type="password" autocomplete="off" maxlength="1024" required>
+            <div class="button-row"><button id="merge-backup" class="primary-button" type="button">Merge into vault</button><button id="validate-import" class="secondary-button" type="submit">Replace vault…</button></div></form>
           <div id="import-confirmation" hidden><p id="import-description" class="callout"></p><div class="button-row"><button id="confirm-import" class="primary-button danger-fill" type="button">Replace vault with this backup</button><button id="cancel-import" class="text-button" type="button">Cancel</button></div></div>
         </div>
         <div class="card quiet">
           <h3>What keeps your logins</h3>
           <ul class="facts">
             <li>Restarting the browser or computer keeps them. They are saved on disk, encrypted.</li>
-            <li>Removing KeyBit from the browser deletes its vault. Export a backup first.</li>
+            <li>Removing KeyBit from the browser deletes its vault. Keep a backup.</li>
             <li>A copy of KeyBit installed another way (moved folder, Chrome Web Store) starts empty. Restore your backup there.</li>
           </ul>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view narrow" hidden>
+        <div class="view-header"><h2>Settings</h2></div>
+        <div class="card settings-list">
+          <h3>Security</h3>
+          <label class="switch-row setting"><span><span class="switch-title">Lock when the computer locks or sleeps</span><span class="switch-hint muted">Recommended, especially with auto-lock set to Never.</span></span><input id="lock-on-sleep" type="checkbox" role="switch" checked></label>
+          <label class="switch-row setting" id="biometric-row" hidden><span><span class="switch-title" id="biometric-title">Unlock with Touch ID</span><span class="switch-hint muted">Your master password still works and is never stored.</span></span><input id="biometric" type="checkbox" role="switch"></label>
+          <div class="setting setting-action"><span><span class="switch-title">Master password</span><span class="switch-hint muted">Older backups still need the password they were made with.</span></span><button id="change-password" class="secondary-button" type="button">Change</button></div>
+        </div>
+        <div class="card settings-list">
+          <h3>Appearance</h3>
+          <div class="setting setting-action"><span class="switch-title">Theme</span>
+            <div class="segmented" role="radiogroup" aria-label="Theme"><button type="button" role="radio" data-theme-choice="system">System</button><button type="button" role="radio" data-theme-choice="light">Light</button><button type="button" role="radio" data-theme-choice="dark">Dark</button></div></div>
+        </div>
+        <div class="card settings-list">
+          <h3>Keyboard shortcuts</h3>
+          <div id="shortcuts"></div>
+          <div class="setting setting-action"><span class="switch-hint muted">In the popup: / searches, ↑ ↓ move, Enter fills.</span><button id="edit-shortcuts" class="secondary-button" type="button">Change shortcuts</button></div>
         </div>
       </section>
 
@@ -107,6 +174,20 @@
       </section>
     </main>
   </div>
+
+  <dialog id="password-dialog" class="modal small" aria-labelledby="password-dialog-title">
+    <form id="password-form" autocomplete="off" novalidate>
+      <header class="modal-header"><h2 id="password-dialog-title">Change master password</h2></header>
+      <div class="modal-body">
+        <div id="current-field" class="form-field"><label for="current-password">Current master password</label><input id="current-password" type="password" autocomplete="current-password" maxlength="1024"></div>
+        <div id="next-fields"><div class="form-field"><label for="next-password">New master password</label><input id="next-password" type="password" autocomplete="new-password" maxlength="1024"></div>
+          <div class="form-field"><label for="next-confirm">Confirm new master password</label><input id="next-confirm" type="password" autocomplete="new-password" maxlength="1024"></div></div>
+        <p id="password-dialog-note" class="hint"></p>
+        <p id="password-error" class="form-error" role="alert" hidden></p>
+      </div>
+      <footer class="modal-footer"><span class="spacer"></span><button id="password-cancel" class="secondary-button" type="button">Cancel</button><button id="password-save" class="primary-button" type="submit">Change password</button></footer>
+    </form>
+  </dialog>
   <p id="message" class="message" role="status" hidden></p>
   <footer class="app-footer"><span>Stored only on this device · AES-256-GCM · No network</span><span id="version"></span></footer>
 </body>

@@ -38,19 +38,32 @@ export function scopeLabel(value) {
   return url.host + (scope === "/" ? "" : scope.slice(0, -1));
 }
 
-export function matchesUrl(saved, current) {
-  try {
-    const login = parseWebsite(saved);
-    const page = parseWebsite(current);
-    if (login.origin !== page.origin) return false;
-    const scope = loginScope(login);
-    return scope === "/" || page.pathname === scope.slice(0, -1) || page.pathname.startsWith(scope);
-  } catch { return false; }
+// Saved URLs are parsed once and remembered; lists of thousands of logins are matched on every field focus.
+const savedCache = new Map();
+function saved(url) {
+  let entry = savedCache.get(url);
+  if (!entry) {
+    const parsed = parseWebsite(url);
+    entry = { origin: parsed.origin, scope: loginScope(parsed) };
+    if (savedCache.size > 100000) savedCache.clear();
+    savedCache.set(url, entry);
+  }
+  return entry;
 }
-
-export function matchesCredential(item, current) {
-  return item.urls.some(url => matchesUrl(url, current));
+// Parses the page once and returns a fast test for many logins.
+export function matcherFor(current) {
+  let page;
+  try { page = parseWebsite(current); } catch { return () => false; }
+  const fits = url => {
+    try {
+      const login = saved(url);
+      return login.origin === page.origin && (login.scope === "/" || page.pathname === login.scope.slice(0, -1) || page.pathname.startsWith(login.scope));
+    } catch { return false; }
+  };
+  return item => item.urls.some(fits);
 }
+export function matchesUrl(savedUrl, current) { return matcherFor(current)({ urls: [savedUrl] }); }
+export function matchesCredential(item, current) { return matcherFor(current)(item); }
 
 // More specific logins (a project folder) sort before whole-site logins.
-export function specificity(item) { return Math.max(...item.urls.map(url => { try { return loginScope(url).length; } catch { return 0; } })); }
+export function specificity(item) { return Math.max(0, ...item.urls.map(url => { try { return saved(url).scope.length; } catch { return 0; } })); }

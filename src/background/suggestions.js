@@ -1,4 +1,5 @@
-import { parseWebsite, scopeLabel } from "../matching/url-matcher.js";
+import { parseWebsite, scopeLabel, specificity } from "../matching/url-matcher.js";
+import { totpCode } from "../vault/totp.js";
 
 export const SITE_SCRIPTS = ["src/content/form-detector.js", "src/content/autofill.js", "src/content/inline.js", "src/content/save.js"];
 export const sitePattern = origin => {
@@ -6,11 +7,20 @@ export const sitePattern = origin => {
   return `${url.protocol}//${url.hostname}/*`;
 };
 const MAX_DISABLED = 1000;
+const MODES = ["login", "username", "new", "otp"];
 // KeyBit runs on every HTTP/HTTPS site unless the user turns it off for that exact origin.
 export class Suggestions {
   disabled = [];
   panels = new Map();
-  constructor(vault, fill) { this.vault = vault; this.fill = fill; }
+  constructor(vault, fill, { usage = null, steps = null } = {}) { this.vault = vault; this.fill = fill; this.usage = usage; this.steps = steps; }
+  // Matching logins for a page: the account chosen on a previous sign-in step first, then project-folder logins,
+  // then the most recently used.
+  ranked(session, url, tabId, origin) {
+    const items = this.usage ? this.usage.annotate(this.vault.list(session, "", url)) : this.vault.list(session, "", url);
+    const step = this.steps?.recall(tabId, origin);
+    const next = items.filter(item => item.type === "login").map(item => ({ ...item, continue: !!step && (item.id === step.id || (!step.id && item.username === step.username)) }));
+    return next.sort((a, b) => (b.continue - a.continue) || (specificity(b) - specificity(a)) || ((b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0)));
+  }
   async refresh() {
     const saved = await chrome.storage.local.get(["disabledOrigins", "suggestionOrigins"]);
     this.disabled = [];
@@ -57,11 +67,18 @@ export class Suggestions {
     if (!(await this.allows(origin))) return { enabled: false };
     const tab = await chrome.tabs.get(sender.tab.id);
     if (parseWebsite(tab.url).origin !== origin) return { enabled: false };
+    mode = MODES.includes(mode) ? mode : "login";
+    // Username-only steps and 2FA fields also appear on pages that are not sign-ins; offer KeyBit there only
+    // when it has something to fill.
+    if (mode === "username" || mode === "otp") {
+      const state = await this.vault.status();
+      if (!state.unlocked || !this.ranked(state.session, url, tab.id, origin).some(item => mode !== "otp" || item.hasTotp)) return { enabled: false };
+    }
     for (const [key, value] of this.panels) if (value.expires < Date.now() || value.tabId === tab.id) this.panels.delete(key);
     if (this.panels.size > 100) this.panels.clear();
     const token = crypto.randomUUID();
     // "new" panels offer a generated password for sign-up and change-password fields.
-    this.panels.set(token, { origin, url, mode: mode === "new" ? "new" : "login", tabId: tab.id, documentId: sender.documentId, expires: Date.now() + 120000 });
+    this.panels.set(token, { origin, url, mode, tabId: tab.id, documentId: sender.documentId, expires: Date.now() + 120000 });
     return { enabled: true, token };
   }
   async panel(message, sender) {
@@ -78,13 +95,17 @@ export class Suggestions {
     switch (message.type) {
       case "PANEL_STATE": {
         const state = await this.vault.status();
-        const items = state.unlocked && context.mode === "login" ? this.vault.list(state.session, "", context.url) : [];
+        let items = state.unlocked && context.mode !== "new" ? this.ranked(state.session, context.url, context.tabId, context.origin) : [];
+        if (context.mode === "otp") {
+          // Codes are short-lived; secrets never leave the worker.
+          items = await Promise.all(items.filter(item => item.hasTotp).map(async item => ({ ...item, ...(await totpCode(this.vault.item(state.session, item.id).totp)) })));
+        }
         return { state, origin: context.origin, site: scopeLabel(context.url), mode: context.mode, items };
       }
       case "PANEL_FILL": {
-        if (context.mode !== "login") throw new Error("Unsupported suggestion action.");
+        if (context.mode === "new") throw new Error("Unsupported suggestion action.");
         this.vault.touch(message.session);
-        return this.fill({ session: message.session, id: message.id, url: context.url, tabId: context.tabId, expectedDocumentId: context.documentId });
+        return this.fill({ session: message.session, id: message.id, url: context.url, tabId: context.tabId, expectedDocumentId: context.documentId, otp: context.mode === "otp" });
       }
       case "PANEL_FILL_NEW": {
         // The password was generated in the extension frame; the page receives it only on this explicit choice.

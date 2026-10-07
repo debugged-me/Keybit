@@ -5,11 +5,26 @@ const KINDS = ["login", "signup", "change"];
 export class SavePrompts {
   pending = new Map();
   timer = null;
-  constructor(vault, suggestions, now = Date.now) { this.vault = vault; this.suggestions = suggestions; this.now = now; }
-  clear() { this.pending.clear(); clearTimeout(this.timer); this.timer = null; }
+  #watching = false;
+  constructor(vault, suggestions, now = Date.now, steps = null) { this.vault = vault; this.suggestions = suggestions; this.now = now; this.steps = steps; }
+  clear() { this.pending.clear(); clearTimeout(this.timer); this.timer = null; this.#watch(); }
+  // Pages never ask on load whether a prompt is waiting (that would wake KeyBit on every page). Instead, while a
+  // prompt is pending, KeyBit watches for its tab to finish loading and tells that page to show the card.
+  #onUpdated = (tabId, change) => {
+    if (change.status === "complete" && [...this.pending.values()].some(entry => entry.tabId === tabId)) {
+      chrome.tabs.sendMessage(tabId, { event: "keybit-save-prompt" }, { frameId: 0 }).catch(() => {});
+    }
+  };
+  #watch() {
+    const events = globalThis.chrome?.tabs?.onUpdated;
+    if (!events) return;
+    if (this.pending.size && !this.#watching) { events.addListener(this.#onUpdated); this.#watching = true; }
+    else if (!this.pending.size && this.#watching) { events.removeListener(this.#onUpdated); this.#watching = false; }
+  }
   forgetTab(tabId) { for (const [token, entry] of this.pending) if (entry.tabId === tabId) this.pending.delete(token); this.schedule(); }
   schedule() {
     clearTimeout(this.timer);
+    this.#watch();
     if (!this.pending.size) { this.timer = null; return; }
     const expires = Math.min(...[...this.pending.values()].map(entry => entry.expires));
     this.timer = setTimeout(() => {
@@ -30,6 +45,8 @@ export class SavePrompts {
     if (!page) return { available: false };
     this.forgetTab(sender.tab.id);
     const kind = KINDS.includes(message.kind) ? message.kind : "login";
+    // The password page of a two-step sign-in has no username field; use the one from the step before.
+    if (kind === "login" && message.username === "") message = { ...message, username: this.steps?.recall(sender.tab.id, page.origin)?.username ?? "" };
     if (typeof message.username !== "string" || message.username.length > 1024 ||
         typeof message.password !== "string" || message.password.length > 4096 || !message.password.trim()) return { available: false };
     const state = await this.vault.status();
@@ -54,6 +71,13 @@ export class SavePrompts {
       username: message.username || (candidates.length === 1 ? candidates[0].username : ""), password: message.password, expires: this.now() + 120000 });
     this.schedule();
     return { available: true };
+  }
+  // First step of a two-step sign-in: remember the username for the password page.
+  async captureUsername(message, sender) {
+    const page = await this.allowed(sender);
+    if (!page || typeof message.username !== "string" || !message.username.trim() || message.username.length > 1024) return { remembered: false };
+    this.steps?.remember(sender.tab.id, page.origin, { username: message.username.trim(), id: null });
+    return { remembered: true };
   }
   async open(sender) {
     const page = await this.allowed(sender);

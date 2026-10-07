@@ -12,6 +12,14 @@ export function loginRow(item, client, fill = null) {
     });
     actions.append(button);
   }
+  if (item.hasTotp) {
+    const button = iconButton("timer", "Copy 2FA code", { "data-action": "copy-totp" });
+    button.addEventListener("click", async () => {
+      try { await copyText((await client.request("TOTP", { id: item.id })).code); announce("2FA code copied."); }
+      catch (error) { announce(error.message, true); }
+    });
+    actions.append(button);
+  }
   for (const field of ["username", "password"]) {
     const button = iconButton(field === "username" ? "user" : "copy", `Copy ${field}`, { "data-action": `copy-${field}` });
     button.addEventListener("click", async () => {
@@ -28,7 +36,8 @@ export function loginRow(item, client, fill = null) {
     actions.append(button);
   }
   const secondary = [item.username || "No username", item.environment === "production" ? "Production" : null].filter(Boolean).join(" · ");
-  return element("article", { className: "login-item", "data-id": item.id }, siteTile(item.scope),
+  // Rows are focusable so the popup can be used from the keyboard (↑ ↓ to move, Enter to fill).
+  return element("article", { className: "login-item", "data-id": item.id, tabindex: "0", "aria-label": `${item.name}, ${item.username || "no username"}` }, siteTile(item.scope),
     element("div", { className: "details" }, element("span", { className: "primary", title: item.scope }, item.name), element("span", { className: "secondary" }, secondary)),
     actions);
 }

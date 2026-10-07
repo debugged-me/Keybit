@@ -1,5 +1,6 @@
 import { element, siteTile, needsReload } from "../ui/common.js";
 const token = location.hash.slice(1);
+/** @type {(selector: string) => any} Page elements are looked up by known IDs. */
 const $ = selector => document.querySelector(selector);
 const save = $("#save");
 const alternate = $("#alternate");

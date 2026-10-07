@@ -1,5 +1,5 @@
-# Local test files and generated reports
-/tests/
+# Generated framework bundles for optional browser checks, reports
+/tests/frameworks/
 /test-results/
 /playwright-report/
 /coverage/
@@ -27,3 +27,4 @@ $RECYCLE.BIN/
 
 # Store upload package
 keybit.zip
+keybit-*.zip

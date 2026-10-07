@@ -1,5 +1,6 @@
 import { fromBase64, toBase64, MAX_BACKUP_BYTES, MAX_VAULT_BYTES } from "./encoding.js";
 import { deriveKey, newKdf, ITERATIONS } from "./kdf.js";
+export { newKdf };
 import { validatePayload } from "../vault/schema.js";
 
 const invalid = () => { throw new Error("The selected backup is invalid or corrupted."); };
@@ -39,7 +40,10 @@ export async function createEncryptedVault(payload, password) {
 
 export async function decryptVault(value, password) {
   const envelope = validateEnvelope(value);
-  const key = await deriveKey(password, envelope.kdf);
+  return decryptWithKey(envelope, await deriveKey(password, envelope.kdf));
+}
+export async function decryptWithKey(value, key) {
+  const envelope = validateEnvelope(value);
   let bytes;
   try {
     bytes = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromBase64(envelope.cipher.iv, 12), additionalData: aad(envelope), tagLength: 128 }, key, fromBase64(envelope.ciphertext)));

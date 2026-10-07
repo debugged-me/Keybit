@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KeyBit</title>
+  <script src="../ui/theme.js"></script><title>KeyBit</title>
   <link rel="stylesheet" href="../ui/base.css">
   <link rel="stylesheet" href="../ui/tiles.css">
   <link rel="stylesheet" href="popup.css">
@@ -25,7 +25,8 @@
         <button id="copy-generated" class="primary-button" type="button">Copy</button>
         <button id="regenerate" class="secondary-button" type="button">Another</button>
         <button id="symbols" class="chip" type="button" aria-pressed="true">Symbols</button>
-        <span class="muted length">20 characters</span>
+        <button id="words" class="chip" type="button" aria-pressed="false">Words</button>
+        <span id="generated-length" class="muted length">20 characters</span>
       </div>
     </section>
     <section class="site-card" aria-labelledby="site-name">

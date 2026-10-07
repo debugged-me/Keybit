@@ -16,6 +16,8 @@ export function showReloadBanner(container) {
     reload));
   return true;
 }
+/** Elements matching a selector, as an array (page code looks them up by known selectors). @returns {any[]} */
+export function all(selector, root = document) { return [...root.querySelectorAll(selector)]; }
 export function element(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
   for (const [name, value] of Object.entries(attributes)) {
@@ -26,7 +28,7 @@ export function element(tag, attributes = {}, ...children) {
 }
 let toastTimer;
 export function announce(text, error = false) {
-  const node = document.querySelector("#message");
+  const node = /** @type {HTMLElement} */ (document.querySelector("#message"));
   clearTimeout(toastTimer);
   node.textContent = text; node.classList.toggle("error", error); node.hidden = !text;
   node.onclick = () => { node.hidden = true; };
@@ -66,7 +68,10 @@ const ICONS = {
   archive: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
-  back: '<path d="M19 12H5M11 6l-6 6 6 6"/>'
+  back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  note: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>',
+  folder: '<path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>',
+  star: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9z"/>'
 };
 // Inline SVG icons are built from fixed markup above, never from user data.
 export function icon(name) {
@@ -77,4 +82,14 @@ export function icon(name) {
 }
 export function iconButton(name, label, attributes = {}) {
   return element("button", { type: "button", className: "icon-button", title: label, "aria-label": label, ...attributes }, icon(name));
+}
+// "just now", "5 min ago", "3 days ago": short, for last-used hints.
+export function relativeTime(time, now = Date.now()) {
+  const minutes = Math.round((now - time) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  return days < 30 ? `${days} day${days === 1 ? "" : "s"} ago` : new Date(time).toLocaleDateString();
 }
