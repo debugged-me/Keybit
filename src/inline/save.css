@@ -1,0 +1,14 @@
+body { height: auto; }
+main { flex: none; padding: 16px; overflow: visible; }
+h1 { margin: 0 0 10px; font-size: 17px; font-weight: 600; letter-spacing: -.3px; }
+main > p { margin: 4px 0; overflow-wrap: anywhere; }
+#site { color: var(--muted); font-size: 12px; }
+.credential { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+.credential .details span { white-space: normal; overflow-wrap: anywhere; }
+.masked { letter-spacing: 2px; color: var(--muted); }
+#status { padding: 8px 0 0; }
+footer { margin-top: 0; padding: 12px 16px; justify-content: flex-end; }
+footer button { padding: 7px 14px; border: 0; border-radius: 7px; background: transparent; font-weight: 500; }
+#dismiss:hover { background: var(--hover); }
+#save { background: var(--accent); color: var(--accent-text); }
+#save:disabled { opacity: .5; cursor: default; }

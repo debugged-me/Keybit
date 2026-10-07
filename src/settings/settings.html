@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings · KeyBit</title>
+  <link rel="stylesheet" href="../popup/popup.css"><link rel="stylesheet" href="../ui/vault.css"><link rel="stylesheet" href="settings.css">
+  <script src="settings.js" type="module"></script>
+</head>
+<body>
+  <header class="header"><div class="brand"><img class="brand-icon" src="../../icons/keybit.svg" alt=""><h1>KeyBit</h1></div><div class="item-actions"><a href="../vault-ui/vault.html">Open vault</a><button id="lock" class="text-button" type="button" hidden>Lock</button></div></header>
+  <main>
+    <h2 class="page-heading">Settings</h2>
+    <div class="tabs" role="tablist" aria-label="Settings sections">
+      <button class="tab" role="tab" type="button" id="tab-security" aria-controls="security" aria-selected="true">Security</button>
+      <button class="tab" role="tab" type="button" id="tab-websites" aria-controls="websites" aria-selected="false" tabindex="-1">Websites</button>
+      <button class="tab" role="tab" type="button" id="tab-backup" aria-controls="backup" aria-selected="false" tabindex="-1">Backup</button>
+      <button class="tab" role="tab" type="button" id="tab-privacy" aria-controls="privacy" aria-selected="false" tabindex="-1">Privacy</button>
+    </div>
+
+    <section id="security" class="tab-panel" role="tabpanel" aria-labelledby="tab-security">
+      <h3>Auto-lock</h3>
+      <p class="muted">Choose how long KeyBit stays unlocked while you are not using it.</p>
+      <div id="auth"></div>
+      <div id="preferences" hidden>
+        <div class="setting-row"><label for="auto-lock">Lock after inactivity</label><select id="auto-lock"><option value="0">Never</option><option value="1">1 minute</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></div>
+        <p id="never-warning" class="notice caution" hidden>KeyBit stays unlocked until you lock it or quit the browser. Anyone using this browser profile can fill your logins meanwhile.</p>
+        <p class="notice">Changes save automatically. KeyBit always locks when you quit the browser or reload the extension.</p>
+      </div>
+    </section>
+
+    <section id="websites" class="tab-panel" role="tabpanel" aria-labelledby="tab-websites" hidden>
+      <h3>Login suggestions</h3>
+      <p class="muted">KeyBit appears when you click a login field on any website, and offers to save passwords while unlocked. To turn it off for one site, open the KeyBit popup on that site.</p>
+      <h4 class="subheading">Turned off on</h4>
+      <div id="disabled-sites"></div>
+    </section>
+
+    <section id="backup" class="tab-panel" role="tabpanel" aria-labelledby="tab-backup" hidden>
+      <div class="settings-section">
+        <h3>Export</h3>
+        <p class="muted">Keep an encrypted backup somewhere safe. Restoring it requires the master password used for that backup.</p>
+        <button id="export" class="small-button generate-button" type="button" disabled>Export encrypted backup</button>
+      </div>
+      <div class="settings-section">
+        <h3>Restore</h3>
+        <p class="muted">Restoring replaces every login in this vault. It does not merge.</p>
+        <form id="import-form" autocomplete="off"><label for="backup-file">Encrypted backup file</label><input id="backup-file" type="file" accept=".kvault,.cvault,application/json" required><label for="backup-password">Backup's master password</label><input id="backup-password" type="password" autocomplete="off" maxlength="1024" required><button id="validate-import" class="small-button generate-button" type="submit">Validate backup</button></form>
+        <div id="import-confirmation" hidden><p id="import-description" class="notice"></p><div class="button-row"><button id="confirm-import" class="small-button danger" type="button">Replace vault with this backup</button><button id="cancel-import" class="text-button" type="button">Cancel</button></div></div>
+      </div>
+    </section>
+
+    <section id="privacy" class="tab-panel" role="tabpanel" aria-labelledby="tab-privacy" hidden>
+      <h3>Privacy</h3>
+      <p class="muted">Your vault stays on this device, encrypted with your master password. There is no account, sync, or telemetry.</p>
+      <dl class="privacy-list">
+        <div><dt>Stored</dt><dd>On this device only</dd></div>
+        <div><dt>Encryption</dt><dd>AES-256-GCM · PBKDF2 600,000</dd></div>
+        <div><dt>Network requests</dt><dd>None</dd></div>
+      </dl>
+      <p class="notice">Copying puts a value on the system clipboard. KeyBit does not automatically clear it because it cannot safely verify that you have not copied something else.</p>
+    </section>
+    <p id="message" class="message" role="status" hidden></p>
+  </main>
+  <footer class="footer"><span class="muted">KeyBit <span id="version"></span></span><span class="muted">Local only · No account needed</span></footer>
+</body>
+</html>

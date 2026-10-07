@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KeyBit</title>
+  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="../ui/vault.css">
+  <script src="popup.js" type="module"></script>
+</head>
+<body class="popup">
+  <header class="header">
+    <div class="brand"><img class="brand-icon" src="../../icons/keybit.svg" alt=""><h1>KeyBit</h1></div>
+    <div class="header-actions">
+      <span id="vault-state" class="status-pill">Locked</span>
+      <button id="lock" class="icon-button" type="button" aria-label="Lock vault" title="Lock vault" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
+    </div>
+  </header>
+  <main>
+    <section class="site-card" aria-labelledby="site-name">
+      <div class="site-row">
+        <span id="site-avatar" class="site-avatar" aria-hidden="true">?</span>
+        <div class="site-text"><p id="site-name" class="site-name">Current tab</p><p id="detection-status" class="muted" role="status">Checking page…</p></div>
+        <button id="check-page" class="icon-button" type="button" aria-label="Check this page again" title="Check again"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+      </div>
+      <label id="site-toggle" class="switch-row" hidden>
+        <span><span class="switch-title">Show KeyBit in login fields on this site</span><span class="switch-hint muted">Suggest saved logins and offer to save new passwords.</span></span>
+        <input id="site-enabled" type="checkbox" role="switch" checked>
+      </label>
+    </section>
+    <section id="auth" class="locked-panel"></section>
+    <section id="unlocked" hidden>
+      <div class="section-heading list-heading"><h2>Logins for this site</h2><button id="add-login" class="text-button" type="button">+ Add login</button></div>
+      <div id="matches"></div>
+    </section>
+    <p id="message" class="message" role="status" hidden></p>
+  </main>
+  <footer class="footer">
+    <button id="manage" class="text-button" type="button">Open vault ↗</button>
+    <button id="settings" class="text-button" type="button">Settings</button>
+  </footer>
+</body>
+</html>

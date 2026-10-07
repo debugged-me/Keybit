@@ -1,0 +1,26 @@
+# Local test files and generated reports
+/tests/
+/test-results/
+/playwright-report/
+/coverage/
+
+# Dependencies and local logs
+node_modules/
+*.log
+
+# macOS metadata
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100/
+.Trashes/
+
+# Windows and Linux desktop metadata
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.directory
+*~

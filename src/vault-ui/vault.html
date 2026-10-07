@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vault · KeyBit</title>
+  <link rel="stylesheet" href="../popup/popup.css"><link rel="stylesheet" href="../ui/vault.css"><link rel="stylesheet" href="vault.css">
+  <script src="vault.js" type="module"></script>
+</head>
+<body>
+  <header class="header"><div class="brand"><img class="brand-icon" src="../../icons/keybit.svg" alt=""><h1>KeyBit</h1></div><div class="item-actions"><a href="../settings/settings.html">Settings</a><button id="lock" class="text-button" type="button" hidden>Lock</button></div></header>
+  <main>
+    <section id="auth"></section>
+    <section id="dashboard" hidden>
+      <div class="section-heading"><div><h2>Your vault</h2><p class="muted intro">Saved on this device. Encrypted with your master password.</p></div><button id="add-login" class="small-button" type="button">+ Add login</button></div>
+      <label for="search">Find a login</label><input id="search" type="search" placeholder="Search name, website, or username" maxlength="200" autocomplete="off">
+      <section id="editor" hidden aria-labelledby="editor-title">
+        <div class="section-heading"><h3 id="editor-title">Add login</h3><button id="cancel" class="text-button" type="button">Cancel</button></div>
+        <form id="login-form" autocomplete="off">
+          <div class="field-row"><div><label for="name">Name</label><input id="name" required maxlength="200" placeholder="SRMS Production"></div><div><label for="website">Website</label><input id="website" type="url" required maxlength="2048" placeholder="https://example.com"></div></div>
+          <div class="field-row"><div><label for="username">Username or email</label><input id="username" maxlength="1024" autocapitalize="off" spellcheck="false"></div><div><label for="environment">Environment</label><select id="environment"><option value="other">Other</option><option value="local">Local</option><option value="development">Development</option><option value="staging">Staging</option><option value="production">Production</option></select></div></div>
+          <label for="password">Password</label><input id="password" type="password" autocomplete="new-password" required maxlength="4096">
+          <label class="inline-check"><input id="reveal" type="checkbox">Show password</label>
+          <details><summary>Generate a password</summary><label for="length">Length</label><input id="length" type="number" min="8" max="128" value="24"><div class="generator-groups"><label class="inline-check"><input id="uppercase" type="checkbox" checked>Uppercase</label><label class="inline-check"><input id="lowercase" type="checkbox" checked>Lowercase</label><label class="inline-check"><input id="numbers" type="checkbox" checked>Numbers</label><label class="inline-check"><input id="symbols" type="checkbox" checked>Symbols</label></div><button id="generate" class="small-button generate-button" type="button">Generate and use</button></details>
+          <label for="notes">Notes</label><textarea id="notes" maxlength="20000" spellcheck="false"></textarea>
+          <p class="notice">KeyBit suggests this login when you click a login field on its website.</p>
+          <div class="button-row"><button id="save" class="primary-button" type="submit">Save login</button><button id="delete" class="text-button danger" type="button" hidden>Delete login</button></div>
+        </form>
+      </section>
+      <div id="items"></div>
+    </section>
+    <p id="message" class="message" role="status" hidden></p>
+  </main>
+  <footer class="footer"><span class="muted">Local only · No telemetry</span><a href="../settings/settings.html">Backup &amp; settings</a></footer>
+</body>
+</html>
