@@ -25,7 +25,7 @@
     const currentToken = token;
     host = document.createElement("div");
     Object.assign(host.style, { all: "initial", position: "fixed", display: "block", zIndex: "2147483647", top: "12px", right: "12px",
-      width: "min(340px, calc(100vw - 24px))", height: "260px", maxHeight: "calc(100vh - 24px)" });
+      width: "min(360px, calc(100vw - 24px))", height: "260px", maxHeight: "calc(100vh - 24px)" });
     const shadow = host.attachShadow({ mode: "closed" });
     const frame = document.createElement("iframe");
     frame.title = "Save login to KeyBit";
@@ -39,24 +39,31 @@
       if (event.source !== frameWindow || event.data?.token !== currentToken) return;
       if (event.data?.type === "KEYBIT_SAVE_CLOSE") close();
       if (event.data?.type === "KEYBIT_SAVE_RESIZE" && Number.isFinite(event.data.height) && host) {
-        host.style.height = `${Math.max(180, Math.min(420, event.data.height))}px`;
+        host.style.height = `${Math.max(160, Math.min(480, event.data.height))}px`;
       }
     }, { signal: events.signal });
   }
   document.addEventListener("submit", event => {
     if (!enabled || !event.isTrusted || !(event.target instanceof HTMLFormElement)) return;
     const form = event.target;
-    const fields = globalThis.__keybit.find().filter(candidate => candidate.password.form === form);
-    if (fields.length !== 1 || [...form.elements].some(input => input instanceof HTMLInputElement &&
-        input.type === "password" && input.autocomplete.toLowerCase().split(/\s+/).includes("new-password"))) return;
     const action = event.submitter?.hasAttribute("formaction") ? event.submitter.formAction : form.action;
     try { if (new URL(action, location.href).origin !== location.origin) return; } catch { return; }
     if (form.method === "dialog" || !["", "_self", "_top"].includes(event.submitter?.getAttribute("formtarget") ?? form.target)) return;
-    const { username, password } = fields[0];
-    if (!password.value || password.value.length > 4096 || (username?.value.length ?? 0) > 1024) return;
+    const created = globalThis.__keybit.findNew().filter(candidate => candidate.fields[0].form === form);
+    const logins = globalThis.__keybit.find().filter(candidate => candidate.password.form === form);
+    let capture;
+    if (created.length === 1) {
+      // Sign-up or password change: the new password, only when its confirmation matches.
+      const { fields, current, username } = created[0];
+      if (fields.length === 2 && fields[0].value !== fields[1].value) return;
+      capture = { kind: current ? "change" : "signup", username: username?.value ?? "", password: fields[0].value };
+    } else if (logins.length === 1 && !created.length) {
+      capture = { kind: "login", username: logins[0].username?.value ?? "", password: logins[0].password.value };
+    } else return;
+    if (!capture.password || capture.password.length > 4096 || capture.username.length > 1024) return;
     // Read only at submission. Do not intercept, delay, or resubmit the site's form.
     try {
-      void chrome.runtime.sendMessage({ type: "CAPTURE_LOGIN", username: username?.value ?? "", password: password.value })
+      void chrome.runtime.sendMessage({ type: "CAPTURE_LOGIN", ...capture })
         .then(response => { if (response?.ok && response.data?.available) void show(); else close(); }).catch(() => {});
     } catch { /* Orphaned after an extension reload. */ }
   }, { capture: true, signal: lifecycle.signal });

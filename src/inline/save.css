@@ -1,14 +1,26 @@
 body { height: auto; }
-main { flex: none; padding: 16px; overflow: visible; }
-h1 { margin: 0 0 10px; font-size: 17px; font-weight: 600; letter-spacing: -.3px; }
-main > p { margin: 4px 0; overflow-wrap: anywhere; }
-#site { color: var(--muted); font-size: 12px; }
-.credential { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
-.credential .details span { white-space: normal; overflow-wrap: anywhere; }
+main { flex: none; padding: 14px 16px 12px; overflow: visible; }
+h1 { margin: 0 0 12px; font-size: 16px; font-weight: 600; letter-spacing: -.2px; }
+.credential { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 9px; }
+.credential .details { min-width: 0; flex: 1; }
+.credential .details span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .masked { letter-spacing: 2px; color: var(--muted); }
-#status { padding: 8px 0 0; }
-footer { margin-top: 0; padding: 12px 16px; justify-content: flex-end; }
-footer button { padding: 7px 14px; border: 0; border-radius: 7px; background: transparent; font-weight: 500; }
-#dismiss:hover { background: var(--hover); }
+.explain { margin: 10px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.explain strong { color: var(--text); font-weight: 600; }
+fieldset { margin: 12px 0 0; padding: 0; border: 0; min-width: 0; }
+legend { margin-bottom: 6px; padding: 0; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; }
+.choice { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.choice + .choice { margin-top: 6px; }
+.choice:has(input:checked) { border-color: var(--accent); background: var(--hover); }
+.choice input { margin: 0; accent-color: var(--accent); }
+.choice .tile { width: 26px; height: 26px; font-size: 12px; border-radius: 7px; }
+.choice .details span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#status { padding: 10px 0 0; }
+footer { margin-top: 0; padding: 10px 12px; gap: 6px; }
+.spacer { flex: 1; }
+footer button { padding: 7px 12px; border: 0; border-radius: 7px; background: transparent; font-weight: 500; white-space: nowrap; }
+#dismiss { color: var(--muted); }
+#dismiss:hover, #alternate:hover { background: var(--hover); color: var(--text); }
+#alternate { color: var(--accent); }
 #save { background: var(--accent); color: var(--accent-text); }
 #save:disabled { opacity: .5; cursor: default; }

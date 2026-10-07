@@ -1,5 +1,6 @@
-import { parseWebsite } from "../matching/url-matcher.js";
+import { parseWebsite, loginScope, scopeLabel, scopeUrl, isLocalHost } from "../matching/url-matcher.js";
 
+const KINDS = ["login", "signup", "change"];
 // Submitted credentials are short-lived worker memory, never browser storage.
 export class SavePrompts {
   pending = new Map();
@@ -19,42 +20,63 @@ export class SavePrompts {
   }
   async allowed(sender) {
     if (sender.frameId !== 0 || !sender.documentId || !Number.isInteger(sender.tab?.id)) throw new Error("Unsupported frame.");
-    const origin = parseWebsite(sender.url).origin;
-    if (!(await this.suggestions.allows(origin))) return null;
+    const url = parseWebsite(sender.url);
+    if (!(await this.suggestions.allows(url.origin))) return null;
     const tab = await chrome.tabs.get(sender.tab.id);
-    return parseWebsite(tab.url).origin === origin ? origin : null;
+    return parseWebsite(tab.url).origin === url.origin ? url : null;
   }
   async capture(message, sender) {
-    const origin = await this.allowed(sender);
-    if (!origin) return { available: false };
+    const page = await this.allowed(sender);
+    if (!page) return { available: false };
     this.forgetTab(sender.tab.id);
+    const kind = KINDS.includes(message.kind) ? message.kind : "login";
     if (typeof message.username !== "string" || message.username.length > 1024 ||
         typeof message.password !== "string" || message.password.length > 4096 || !message.password.trim()) return { available: false };
     const state = await this.vault.status();
     if (!state.unlocked) return { available: false };
-    const matches = this.vault.list(state.session, "", origin).filter(item => item.username === message.username);
-    if (matches.some(item => this.vault.item(state.session, item.id).password === message.password)) return { available: false };
-    // Never guess which duplicate account to overwrite.
-    if (matches.length > 1) return { available: false };
+    const scope = loginScope(page);
+    const sameScope = item => loginScope(item.urls[0]) === scope;
+    const onPage = this.vault.list(state.session, "", page.href);
+    // A change-password form often has no username field. It may only update a login of this exact site or project.
+    const related = kind === "change"
+      ? onPage.filter(item => sameScope(item) && (!message.username || item.username === message.username))
+      : onPage.filter(item => item.username === message.username);
+    if (related.some(item => this.vault.item(state.session, item.id).password === message.password)) return { available: false };
+    if (kind === "change" && !related.length) return { available: false };
+    // Only a login for this exact site or project folder is offered as the default update.
+    // A whole-site login on a project-folder page (another app on the same server) defaults to "Save as new".
+    const exact = related.filter(sameScope);
+    const candidates = (exact.length ? exact : related).slice(0, 8);
     if (this.pending.size >= 20) this.clear();
     const token = crypto.randomUUID();
-    this.pending.set(token, { tabId: sender.tab.id, origin, session: state.session, revision: state.revision,
-      id: matches[0]?.id, username: message.username, password: message.password, expires: this.now() + 120000 });
+    this.pending.set(token, { tabId: sender.tab.id, origin: page.origin, url: scopeUrl(page), kind, session: state.session, revision: state.revision,
+      candidates: candidates.map(item => item.id), preferNew: !exact.length && kind !== "change",
+      username: message.username || (candidates.length === 1 ? candidates[0].username : ""), password: message.password, expires: this.now() + 120000 });
     this.schedule();
     return { available: true };
   }
   async open(sender) {
-    const origin = await this.allowed(sender);
-    if (!origin) return { available: false };
+    const page = await this.allowed(sender);
+    if (!page) return { available: false };
     const state = await this.vault.status();
     for (const [token, entry] of this.pending) {
       if (entry.expires <= this.now() || entry.session !== state.session) { this.pending.delete(token); continue; }
-      if (entry.tabId !== sender.tab.id || entry.origin !== origin) continue;
+      if (entry.tabId !== sender.tab.id || entry.origin !== page.origin) continue;
       // Rebind after a same-origin login redirect. Old frames become unusable.
       if (entry.documentId !== sender.documentId) { entry.documentId = sender.documentId; entry.panelId = null; }
       return { enabled: true, available: true, token };
     }
     return { enabled: true, available: false };
+  }
+  describe(entry) {
+    const candidates = entry.candidates.flatMap(id => {
+      try {
+        const { name, urls, environment, updatedAt } = this.vault.item(entry.session, id);
+        return [{ id, name, scope: scopeLabel(urls[0]), environment, updatedAt }];
+      } catch { return []; }
+    });
+    return { origin: entry.origin, site: scopeLabel(entry.url), username: entry.username, kind: entry.kind,
+      update: candidates.length > 0, preferNew: entry.preferNew || !candidates.length, candidates };
   }
   async panel(message, sender) {
     const entry = this.pending.get(message.token);
@@ -70,16 +92,21 @@ export class SavePrompts {
     catch { throw expired(); }
     this.vault.require(entry.session);
     if (result[0]?.result !== entry.origin) throw expired();
-    if (message.type === "SAVE_PROMPT_STATE") return { origin: entry.origin, username: entry.username, update: !!entry.id };
+    if (message.type === "SAVE_PROMPT_STATE") return this.describe(entry);
     if (message.type === "SAVE_PROMPT_DISMISS") { this.pending.delete(message.token); this.schedule(); return null; }
     if (message.type !== "SAVE_PROMPT_CONFIRM") throw new Error("Unsupported save action.");
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (active?.id !== entry.tabId) throw new Error("Return to the login tab to save this password.");
-    const previous = entry.id ? this.vault.item(entry.session, entry.id) : null;
-    const input = previous ? { ...previous, password: entry.password } : {
-      name: new URL(entry.origin).host, urls: [entry.origin], username: entry.username,
-      password: entry.password, notes: "", environment: "other"
-    };
+    let input;
+    if (message.action === "update") {
+      // Never guess: the user picked this login from the candidates shown in the prompt.
+      if (!entry.candidates.includes(message.id)) throw new Error("Choose which saved login to update.");
+      input = { ...this.vault.item(entry.session, message.id), password: entry.password };
+    } else if (message.action === "new") {
+      const url = parseWebsite(entry.url);
+      input = { name: scopeLabel(url), urls: [entry.url], username: entry.username, password: entry.password, notes: "",
+        environment: isLocalHost(url) ? "local" : "other" };
+    } else throw new Error("Unsupported save action.");
     // A revision check prevents a delayed prompt from overwriting newer edits.
     await this.vault.saveItem(entry.session, entry.revision, input);
     this.pending.delete(message.token); this.schedule();

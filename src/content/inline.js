@@ -11,20 +11,27 @@
   let panelEvents = null;
   let frame = null;
   let activeInput = null;
+  let activeMode = null;
   let opening = null;
   let generation = 0;
   let height = 132;
   let visible = false;
   let placing = 0;
   let refocusing = false;
-  const supported = input => input instanceof HTMLInputElement &&
-    globalThis.__keybit.find().some(fields => fields.username === input || fields.password === input);
+  // "login" fields get saved accounts; new-password fields on sign-up and change forms get a generated password.
+  function modeFor(input) {
+    if (!(input instanceof HTMLInputElement)) return null;
+    if (globalThis.__keybit.find().some(fields => fields.username === input || fields.password === input)) return "login";
+    if (globalThis.__keybit.findNew().some(form => form.fields.includes(input))) return "new";
+    return null;
+  }
+  const supported = input => modeFor(input) !== null;
   function close({ restoreFocus = false } = {}) {
     generation++; opening = null;
     // After a choice or Escape inside the panel, return focus to the field so Enter submits as usual.
     const restore = restoreFocus && host && document.activeElement === host ? activeInput : null;
     panelEvents?.abort(); panelEvents = null;
-    host?.remove(); host = null; frame = null; activeInput = null; visible = false;
+    host?.remove(); host = null; frame = null; activeInput = null; activeMode = null; visible = false;
     if (restore?.isConnected) { refocusing = true; restore.focus({ preventScroll: true }); refocusing = false; }
   }
   function place() {
@@ -40,14 +47,14 @@
       left: `${Math.max(8, Math.min(rect.left, innerWidth - width - 8))}px`, opacity: visible ? "1" : "0" });
   }
   const schedulePlace = () => { if (host && !placing) placing = requestAnimationFrame(place); };
-  async function show(input) {
-    if (activeInput === input && (host || opening)) return;
-    // Moving between fields of the same form reuses the open panel.
-    if (host && !opening) { activeInput = input; place(); return; }
-    close(); activeInput = input;
+  async function show(input, mode = modeFor(input)) {
+    if (!mode || (activeInput === input && (host || opening))) return;
+    // Moving between fields of the same kind reuses the open panel.
+    if (host && !opening && activeMode === mode) { activeInput = input; place(); return; }
+    close(); activeInput = input; activeMode = mode;
     const request = generation;
     let response;
-    try { opening = chrome.runtime.sendMessage({ type: "INLINE_OPEN" }); response = await opening; } catch { response = null; }
+    try { opening = chrome.runtime.sendMessage({ type: "INLINE_OPEN", mode }); response = await opening; } catch { response = null; }
     if (request !== generation) return;
     opening = null;
     if (!response?.ok || !response.data?.enabled || !input.isConnected) { activeInput = null; return; }
@@ -78,7 +85,8 @@
   document.addEventListener("focusin", event => {
     const target = event.target;
     if (target === host || refocusing) return;
-    if (supported(target)) void show(target); else close();
+    const mode = modeFor(target);
+    if (mode) void show(target, mode); else close();
   }, { signal: lifecycle.signal });
   // Clicking a field that already has focus does not fire focusin, so reopen on click too.
   document.addEventListener("click", event => {
@@ -99,7 +107,15 @@
   window.addEventListener("scroll", schedulePlace, { capture: true, passive: true, signal: lifecycle.signal });
   window.addEventListener("resize", schedulePlace, { signal: lifecycle.signal });
   window.addEventListener("pagehide", () => close(), { signal: lifecycle.signal });
-  function onRuntimeMessage(message) { if (message?.event === "keybit-site-disabled") close(); }
+  function onRuntimeMessage(message) {
+    if (message?.event === "keybit-site-disabled") close();
+    if (message?.event === "keybit-show") {
+      // Keyboard shortcut: open on the focused field, or focus the page's login field (which opens it).
+      if (supported(document.activeElement)) { void show(document.activeElement); return; }
+      const login = globalThis.__keybit.find()[0];
+      (login?.username ?? login?.password ?? globalThis.__keybit.findNew()[0]?.fields[0])?.focus();
+    }
+  }
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
   if (document.readyState !== "loading" && supported(document.activeElement)) void show(document.activeElement);
 })();

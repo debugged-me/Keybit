@@ -1,4 +1,4 @@
-import { fromBase64, toBase64, MAX_BACKUP_BYTES } from "./encoding.js";
+import { fromBase64, toBase64, MAX_BACKUP_BYTES, MAX_VAULT_BYTES } from "./encoding.js";
 import { deriveKey, newKdf, ITERATIONS } from "./kdf.js";
 import { validatePayload } from "../vault/schema.js";
 
@@ -7,7 +7,7 @@ export function validateEnvelope(value) {
   if (!value || value.formatVersion !== 1 || value.kdf?.name !== "PBKDF2" || value.kdf.hash !== "SHA-256" ||
       !Number.isInteger(value.kdf.iterations) || value.kdf.iterations < ITERATIONS || value.kdf.iterations > 2000000 ||
       value.cipher?.name !== "AES-GCM") invalid();
-  if (fromBase64(value.kdf.salt, 16).length !== 16 || fromBase64(value.cipher.iv, 12).length !== 12 || fromBase64(value.ciphertext, 4 * 1024 * 1024 + 16).length < 16) invalid();
+  if (fromBase64(value.kdf.salt, 16).length !== 16 || fromBase64(value.cipher.iv, 12).length !== 12 || fromBase64(value.ciphertext, MAX_VAULT_BYTES + 16).length < 16) invalid();
   // Reconstruct a canonical, bounded header. The header is authenticated as AAD.
   return { formatVersion: 1, kdf: { name: "PBKDF2", hash: "SHA-256", iterations: value.kdf.iterations, salt: value.kdf.salt },
     cipher: { name: "AES-GCM", iv: value.cipher.iv }, ciphertext: value.ciphertext };
@@ -23,7 +23,7 @@ const aad = envelope => new TextEncoder().encode(JSON.stringify({ formatVersion:
 export async function encryptVault(payload, key, kdf) {
   const bytes = new TextEncoder().encode(JSON.stringify(validatePayload(payload)));
   try {
-    if (bytes.length > 4 * 1024 * 1024) throw new Error("The vault is full. Remove unused entries before saving.");
+    if (bytes.length > MAX_VAULT_BYTES) throw new Error("The vault reached its 32 MB size limit. Remove long notes or unused logins before saving.");
     const envelope = { formatVersion: 1, kdf: { ...kdf }, cipher: { name: "AES-GCM", iv: toBase64(crypto.getRandomValues(new Uint8Array(12))) } };
     const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv: fromBase64(envelope.cipher.iv, 12), additionalData: aad(envelope), tagLength: 128 }, key, bytes);
     return { ...envelope, ciphertext: toBase64(new Uint8Array(encrypted)) };

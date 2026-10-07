@@ -1,4 +1,4 @@
-import { parseWebsite } from "../matching/url-matcher.js";
+import { parseWebsite, scopeLabel } from "../matching/url-matcher.js";
 
 export const SITE_SCRIPTS = ["src/content/form-detector.js", "src/content/autofill.js", "src/content/inline.js", "src/content/save.js"];
 export const sitePattern = origin => {
@@ -50,16 +50,18 @@ export class Suggestions {
     if (!enabled) for (const [token, context] of this.panels) if (context.origin === origin) this.panels.delete(token);
     return this.disabled;
   }
-  async open(sender) {
+  async open(sender, mode) {
     if (sender.frameId !== 0 || !sender.documentId || !Number.isInteger(sender.tab?.id)) throw new Error("Unsupported frame.");
-    const origin = parseWebsite(sender.url).origin;
+    const url = parseWebsite(sender.url).href;
+    const origin = parseWebsite(url).origin;
     if (!(await this.allows(origin))) return { enabled: false };
     const tab = await chrome.tabs.get(sender.tab.id);
     if (parseWebsite(tab.url).origin !== origin) return { enabled: false };
     for (const [key, value] of this.panels) if (value.expires < Date.now() || value.tabId === tab.id) this.panels.delete(key);
     if (this.panels.size > 100) this.panels.clear();
     const token = crypto.randomUUID();
-    this.panels.set(token, { origin, tabId: tab.id, documentId: sender.documentId, expires: Date.now() + 120000 });
+    // "new" panels offer a generated password for sign-up and change-password fields.
+    this.panels.set(token, { origin, url, mode: mode === "new" ? "new" : "login", tabId: tab.id, documentId: sender.documentId, expires: Date.now() + 120000 });
     return { enabled: true, token };
   }
   async panel(message, sender) {
@@ -76,11 +78,27 @@ export class Suggestions {
     switch (message.type) {
       case "PANEL_STATE": {
         const state = await this.vault.status();
-        return { state, origin: context.origin, items: state.unlocked ? this.vault.list(state.session, "", context.origin) : [] };
+        const items = state.unlocked && context.mode === "login" ? this.vault.list(state.session, "", context.url) : [];
+        return { state, origin: context.origin, site: scopeLabel(context.url), mode: context.mode, items };
       }
       case "PANEL_FILL": {
+        if (context.mode !== "login") throw new Error("Unsupported suggestion action.");
         this.vault.touch(message.session);
-        return this.fill({ session: message.session, id: message.id, origin: context.origin, tabId: context.tabId, expectedDocumentId: context.documentId });
+        return this.fill({ session: message.session, id: message.id, url: context.url, tabId: context.tabId, expectedDocumentId: context.documentId });
+      }
+      case "PANEL_FILL_NEW": {
+        // The password was generated in the extension frame; the page receives it only on this explicit choice.
+        if (context.mode !== "new" || typeof message.password !== "string" || message.password.length < 8 || message.password.length > 128) throw new Error("Unsupported suggestion action.");
+        const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (active?.id !== context.tabId) throw new Error("Return to the sign-up tab first.");
+        let results;
+        try {
+          const target = { tabId: context.tabId, documentIds: [context.documentId] };
+          await chrome.scripting.executeScript({ target, files: ["src/content/form-detector.js", "src/content/autofill.js"] });
+          results = await chrome.scripting.executeScript({ target, func: (origin, password) => globalThis.__keybit.fillNew(origin, password), args: [context.origin, message.password] });
+        } catch { throw new Error("The page changed. Click the password field again."); }
+        if (!results[0]?.result?.ok) throw new Error(results[0]?.result?.error ?? "Could not fill this form.");
+        return { filled: true };
       }
       case "PANEL_OPEN": {
         const tab = await chrome.tabs.get(context.tabId);

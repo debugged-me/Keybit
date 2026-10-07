@@ -36,5 +36,27 @@
       return current.length ? current.includes(password) : siblings.length === 1;
     }).map(password => ({ password, username: usernameFor(password, scopeFor(password)) }));
   }
-  globalThis.__keybit = { find, usable };
+  // Sign-up and change-password forms: one or two fields for the new password, optionally after the current one.
+  function findNew() {
+    const groups = new Map();
+    for (const input of document.querySelectorAll('input[type="password" i]')) {
+      if (!usable(input)) continue;
+      const scope = scopeFor(input);
+      groups.set(scope, [...(groups.get(scope) ?? []), input]);
+    }
+    const result = [];
+    for (const [scope, fields] of groups) {
+      const current = fields.filter(input => tokens(input).includes("current-password"));
+      let fresh = fields.filter(input => tokens(input).includes("new-password"));
+      if (!fresh.length) {
+        // Unlabelled: two fields are new + confirm; three are current + new + confirm.
+        if (fields.length === 2 && !current.length) fresh = fields;
+        else if (fields.length === 3 && current.length <= 1) fresh = fields.filter(input => input !== (current[0] ?? fields[0]));
+      }
+      if (!fresh.length || fresh.length > 2 || current.length > 1) continue;
+      result.push({ fields: fresh, current: fields.find(input => !fresh.includes(input)) ?? null, username: usernameFor(fields[0], scope) });
+    }
+    return result;
+  }
+  globalThis.__keybit = { find, findNew, usable };
 })();

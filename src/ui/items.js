@@ -1,18 +1,19 @@
-import { element, announce, copyText } from "./common.js";
+import { element, announce, copyText, siteTile, iconButton } from "./common.js";
 
-export function loginRow(item, client, actionLabel, action, disabled = false) {
-  const heading = element("div", { className: "item-heading" }, element("h3", {}, item.name));
-  if (item.environment === "production") heading.append(element("span", { className: "production" }, "⚠ Production"));
-  const actions = element("div", { className: "item-actions" });
-  const main = element("button", { type: "button", className: "small-button", disabled }, actionLabel);
-  main.addEventListener("click", async () => {
-    main.disabled = true;
-    try { await action(item.id); } catch (error) { announce(error.message, true); await client.refresh(); }
-    finally { main.disabled = disabled; }
-  });
-  actions.append(main);
+// A compact login row with icon actions. Fill appears only for logins that match the current page.
+export function loginRow(item, client, fill = null) {
+  const actions = element("div", { className: "row-actions" });
+  if (fill) {
+    const button = iconButton("fill", fill.disabled ? "Fill needs one login form on this page" : `Fill ${item.username || item.name}`, { "data-action": "fill", disabled: fill.disabled });
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try { await fill.action(item.id); } catch (error) { announce(error.message, true); await client.refresh(); }
+      finally { button.disabled = fill.disabled; }
+    });
+    actions.append(button);
+  }
   for (const field of ["username", "password"]) {
-    const button = element("button", { type: "button", className: "text-button", "aria-label": `Copy ${field} for ${item.name}` }, field === "username" ? "Copy user" : "Copy password");
+    const button = iconButton(field === "username" ? "user" : "copy", `Copy ${field}`, { "data-action": `copy-${field}` });
     button.addEventListener("click", async () => {
       const session = client.state.session;
       let value = "";
@@ -26,7 +27,8 @@ export function loginRow(item, client, actionLabel, action, disabled = false) {
     });
     actions.append(button);
   }
-  const initial = [...item.name.trim()][0]?.toLocaleUpperCase() || "•";
-  return element("article", { className: "login-item" }, element("span", { className: "item-avatar", "aria-hidden": "true" }, initial),
-    element("div", { className: "item-body" }, heading, element("p", { className: "muted item-username" }, item.username || "No username"), actions));
+  const secondary = [item.username || "No username", item.environment === "production" ? "Production" : null].filter(Boolean).join(" · ");
+  return element("article", { className: "login-item", "data-id": item.id }, siteTile(item.scope),
+    element("div", { className: "details" }, element("span", { className: "primary", title: item.scope }, item.name), element("span", { className: "secondary" }, secondary)),
+    actions);
 }

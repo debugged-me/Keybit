@@ -1,6 +1,7 @@
 import { createEncryptedVault, decryptVault, encryptVault, parseBackup, validateEnvelope } from "../crypto/crypto.js";
-import { emptyVault, createItem, validateSettings } from "./schema.js";
-import { matchesCredential } from "../matching/url-matcher.js";
+import { emptyVault, createItem, validateSettings, HISTORY_LIMIT } from "./schema.js";
+import { matchesCredential, scopeLabel, specificity } from "../matching/url-matcher.js";
+import { vaultHealth } from "./health.js";
 
 export class Vault {
   #key = null; #data = null; #envelope = null; #epoch = 0; #session = null; #lastActivity = 0; #pendingImport = null;
@@ -51,9 +52,15 @@ export class Vault {
     this.require(session);
     if (typeof query !== "string" || query.length > 200) throw new Error("Search is too long.");
     const needle = query.toLocaleLowerCase();
-    return this.#data.items.filter(item => (!url || matchesCredential(item, url)) &&
-      [item.name, item.username, ...item.urls].some(value => value.toLocaleLowerCase().includes(needle)))
-      .map(({ id, name, urls, username, environment }) => ({ id, name, urls: [...urls], username, environment }));
+    const items = this.#data.items.filter(item => (!url || matchesCredential(item, url)) &&
+      [item.name, item.username, ...item.urls].some(value => value.toLocaleLowerCase().includes(needle)));
+    // On a page, a project-folder login is a better match than a whole-site one.
+    if (url) items.sort((a, b) => specificity(b) - specificity(a));
+    return items.map(({ id, name, urls, username, environment, updatedAt }) => ({ id, name, urls: [...urls], scope: scopeLabel(urls[0]), username, environment, updatedAt }));
+  }
+  health(session) {
+    this.require(session);
+    return vaultHealth(this.#data.items);
   }
   item(session, id) {
     this.require(session);
@@ -76,7 +83,12 @@ export class Vault {
   async saveItem(session, revision, input) {
     this.require(session);
     const previous = input?.id ? this.item(session, input.id) : null;
-    const item = createItem(input, previous);
+    // History is derived here, never taken from the caller. Restoring an old password removes its duplicate.
+    const history = previous && previous.password !== input.password
+      ? [{ password: previous.password, changedAt: new Date(this.now()).toISOString() }, ...previous.history]
+        .filter(entry => entry.password !== input.password).slice(0, HISTORY_LIMIT)
+      : previous?.history ?? [];
+    const item = createItem({ ...input, history }, previous);
     const items = previous ? this.#data.items.map(entry => entry.id === item.id ? item : entry) : [...this.#data.items, item];
     return this.#save({ ...this.#data, items }, session, revision);
   }

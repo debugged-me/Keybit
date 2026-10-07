@@ -6,7 +6,7 @@ import { SavePrompts } from "./save-prompts.js";
 
 let savePrompts;
 const vault = new Vault(chromeVaultStorage(), Date.now, () => { savePrompts?.clear(); keepAlive(); });
-const trustedPages = ["src/popup/popup.html", "src/vault-ui/vault.html", "src/settings/settings.html"].map(path => chrome.runtime.getURL(path));
+const trustedPages = ["src/popup/popup.html", "src/vault-ui/vault.html"].map(path => chrome.runtime.getURL(path));
 const suggestions = new Suggestions(vault, fill);
 savePrompts = new SavePrompts(vault, suggestions);
 const ready = chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }).then(() => suggestions.refresh());
@@ -48,12 +48,12 @@ async function detect(tabId) {
 }
 async function fill(message) {
   const item = vault.item(message.session, message.id);
-  if (!matchesCredential(item, message.origin)) throw new Error("This login does not match the current website.");
+  if (!matchesCredential(item, message.url)) throw new Error("This login does not match the current website.");
   const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (active?.id !== message.tabId) throw new Error("The active tab changed. Reopen the extension.");
   const page = await detect(message.tabId);
   vault.require(message.session);
-  if (page.origin !== message.origin || !matchesCredential(item, page.origin)) throw new Error("The page changed. Reopen the extension.");
+  if (page.origin !== parseWebsite(message.url).origin || !matchesCredential(item, page.url)) throw new Error("The page changed. Reopen the extension.");
   if (message.expectedDocumentId && page.documentId !== message.expectedDocumentId) throw new Error("The page changed. Focus the login field again.");
   if (page.forms !== 1) throw new Error("There must be one visible, supported login form to fill.");
   let results;
@@ -67,7 +67,7 @@ async function fill(message) {
   return { filled: true };
 }
 async function handle(message, sender) {
-  if (message.type === "INLINE_OPEN") return suggestions.open(sender);
+  if (message.type === "INLINE_OPEN") return suggestions.open(sender, message.mode);
   if (message.type === "CAPTURE_LOGIN") return savePrompts.capture(message, sender);
   if (message.type === "SAVE_PROMPT_OPEN") return savePrompts.open(sender);
   if (message.type.startsWith("SAVE_PROMPT_")) return savePrompts.panel(message, sender);
@@ -78,6 +78,7 @@ async function handle(message, sender) {
     case "UNLOCK": return vault.unlock(message.password);
     case "TOUCH": vault.touch(message.session); return vault.status();
     case "LIST": return vault.list(message.session, message.query, message.url);
+    case "HEALTH": return vault.health(message.session);
     case "ITEM": vault.touch(message.session); return { item: vault.item(message.session, message.id), state: await vault.status() };
     case "COPY": {
       vault.touch(message.session);
@@ -103,7 +104,7 @@ async function handle(message, sender) {
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (!message || typeof message.type !== "string" || sender.id !== chrome.runtime.id) return false;
   const fromContent = ["INLINE_OPEN", "CAPTURE_LOGIN", "SAVE_PROMPT_OPEN"].includes(message.type) && sender.frameId === 0 && Number.isInteger(sender.tab?.id);
-  const fromPanel = ["PANEL_STATE", "PANEL_FILL", "PANEL_OPEN"].includes(message.type) && sender.url?.split(/[?#]/)[0] === chrome.runtime.getURL("src/inline/panel.html") && sender.frameId > 0;
+  const fromPanel = ["PANEL_STATE", "PANEL_FILL", "PANEL_FILL_NEW", "PANEL_OPEN"].includes(message.type) && sender.url?.split(/[?#]/)[0] === chrome.runtime.getURL("src/inline/panel.html") && sender.frameId > 0;
   const fromSavePanel = ["SAVE_PROMPT_STATE", "SAVE_PROMPT_CONFIRM", "SAVE_PROMPT_DISMISS"].includes(message.type) && sender.url?.split(/[?#]/)[0] === chrome.runtime.getURL("src/inline/save.html") && sender.frameId > 0;
   if (!trusted(sender) && !fromContent && !fromPanel && !fromSavePanel) return false;
   if (message.type === "LOCK") {
@@ -135,4 +136,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 chrome.tabs.onRemoved.addListener(tabId => savePrompts.forgetTab(tabId));
+chrome.commands.onCommand.addListener(async (command, tab) => {
+  // The keyboard shortcut asks the page's KeyBit script to open the dropdown on the focused login field.
+  if (command !== "show-suggestions") return;
+  const target = tab ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+  if (Number.isInteger(target?.id)) chrome.tabs.sendMessage(target.id, { event: "keybit-show" }, { frameId: 0 }).catch(() => {});
+});
 // No session key or plaintext is restored when this worker starts. A restart or reload locks the vault.

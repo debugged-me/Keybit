@@ -17,4 +17,11 @@
     setValue(fields.password, password);
     return { ok: true };
   };
+  detector.fillNew = (origin, password) => {
+    if (window !== window.top || location.origin !== origin) return { ok: false, error: "The page changed. Click the password field again." };
+    const forms = detector.findNew();
+    if (forms.length !== 1) return { ok: false, error: "There must be one visible sign-up or change-password form." };
+    for (const field of forms[0].fields) setValue(field, password);
+    return { ok: true };
+  };
 })();

@@ -2,13 +2,14 @@
   "manifest_version": 3,
   "name": "KeyBit",
   "short_name": "KeyBit",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "minimum_chrome_version": "127",
   "description": "A private, local-only encrypted vault that suggests logins in sign-in fields and offers to save passwords.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
+    "unlimitedStorage",
     "clipboardWrite"
   ],
   "host_permissions": [
@@ -44,8 +45,17 @@
       "48": "icons/icon48.png"
     }
   },
+  "commands": {
+    "show-suggestions": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Show KeyBit in the focused login field"
+    }
+  },
   "options_ui": {
-    "page": "src/settings/settings.html",
+    "page": "src/vault-ui/vault.html",
     "open_in_tab": true
   },
   "content_security_policy": {
