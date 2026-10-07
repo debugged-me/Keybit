@@ -1,0 +1,2 @@
+# Keybit
+Privacy Password Manager
