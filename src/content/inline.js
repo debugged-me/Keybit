@@ -71,7 +71,7 @@
     frame.title = "KeyBit login suggestions";
     frame.src = chrome.runtime.getURL(`src/inline/panel.html#${token}`);
     frame.referrerPolicy = "no-referrer";
-    Object.assign(frame.style, { width: "100%", height: "100%", border: "0", borderRadius: "12px", boxShadow: "0 12px 32px #0000002e, 0 2px 6px #0000001a", colorScheme: "light dark", background: "transparent" });
+    Object.assign(frame.style, { width: "100%", height: "100%", border: "0", borderRadius: "14px", boxShadow: "0 16px 44px #00000038, 0 3px 8px #00000021", colorScheme: "light dark", background: "transparent" });
     shadow.append(frame); document.documentElement.append(host);
     place();
     const frameWindow = frame.contentWindow;

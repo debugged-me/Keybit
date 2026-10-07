@@ -1,10 +1,18 @@
 /* Site tiles: a letter on one of eight muted tones, chosen from the site so it stays consistent everywhere. */
-.tile { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px; font-weight: 650; font-size: 14px; line-height: 1; background: var(--tile-bg); color: var(--tile-fg); }
+.tile { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 9px; font-weight: 700; font-size: 14px; line-height: 1; background: var(--tile-bg); color: var(--tile-fg); box-shadow: inset 0 1px 0 #ffffff3d, inset 0 0 0 1px #0000000a; }
 .tile svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.tone-0 { --tile-bg: #e1f0e6; --tile-fg: #245c40; } .tone-1 { --tile-bg: #e2ecf8; --tile-fg: #24508a; }
-.tone-2 { --tile-bg: #ece5f7; --tile-fg: #5a3d8f; } .tone-3 { --tile-bg: #faeed7; --tile-fg: #7f5208; }
-.tone-4 { --tile-bg: #f7e3e7; --tile-fg: #8c2f45; } .tone-5 { --tile-bg: #dcf1ef; --tile-fg: #1f6461; }
-.tone-6 { --tile-bg: #e7eaee; --tile-fg: #3d4a5c; } .tone-7 { --tile-bg: #fae6da; --tile-fg: #8a4317; }
+.tone-0 { --tile-bg: #ddefe3; --tile-fg: #1f5c40; } .tone-1 { --tile-bg: #dfeaf8; --tile-fg: #1f4f8c; }
+.tone-2 { --tile-bg: #eae3f8; --tile-fg: #5a3d92; } .tone-3 { --tile-bg: #faecd3; --tile-fg: #82520a; }
+.tone-4 { --tile-bg: #f8e0e6; --tile-fg: #902e47; } .tone-5 { --tile-bg: #d8f1ee; --tile-fg: #1c6763; }
+.tone-6 { --tile-bg: #e5e9ee; --tile-fg: #3a4a60; } .tone-7 { --tile-bg: #fbe4d7; --tile-fg: #8d4215; }
 .tone-key { --tile-bg: var(--accent); --tile-fg: var(--accent-text); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tone-0 { --tile-bg: #24392d; --tile-fg: #a8dcbc; } :root:not([data-theme="light"]) .tone-1 { --tile-bg: #22324a; --tile-fg: #a9c6ee; } :root:not([data-theme="light"]) .tone-2 { --tile-bg: #33294a; --tile-fg: #cbb6f0; } :root:not([data-theme="light"]) .tone-3 { --tile-bg: #43341a; --tile-fg: #f0cf8a; } :root:not([data-theme="light"]) .tone-4 { --tile-bg: #46242d; --tile-fg: #f0aabb; } :root:not([data-theme="light"]) .tone-5 { --tile-bg: #1f3b3a; --tile-fg: #9edbd6; } :root:not([data-theme="light"]) .tone-6 { --tile-bg: #2e343d; --tile-fg: #c3ccd8; } :root:not([data-theme="light"]) .tone-7 { --tile-bg: #45301f; --tile-fg: #f2b98f; } }
-:root[data-theme="dark"] .tone-0 { --tile-bg: #24392d; --tile-fg: #a8dcbc; } :root[data-theme="dark"] .tone-1 { --tile-bg: #22324a; --tile-fg: #a9c6ee; } :root[data-theme="dark"] .tone-2 { --tile-bg: #33294a; --tile-fg: #cbb6f0; } :root[data-theme="dark"] .tone-3 { --tile-bg: #43341a; --tile-fg: #f0cf8a; } :root[data-theme="dark"] .tone-4 { --tile-bg: #46242d; --tile-fg: #f0aabb; } :root[data-theme="dark"] .tone-5 { --tile-bg: #1f3b3a; --tile-fg: #9edbd6; } :root[data-theme="dark"] .tone-6 { --tile-bg: #2e343d; --tile-fg: #c3ccd8; } :root[data-theme="dark"] .tone-7 { --tile-bg: #45301f; --tile-fg: #f2b98f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tile { box-shadow: inset 0 1px 0 #ffffff14, inset 0 0 0 1px #ffffff0a; }
+:root:not([data-theme="light"]) .tone-0 { --tile-bg: #1e3a2b; --tile-fg: #9ddfba; } :root:not([data-theme="light"]) .tone-1 { --tile-bg: #1f3049; --tile-fg: #a3c3f0; }
+:root:not([data-theme="light"]) .tone-2 { --tile-bg: #31274a; --tile-fg: #cbb2f2; } :root:not([data-theme="light"]) .tone-3 { --tile-bg: #453517; --tile-fg: #f0cc82; }
+:root:not([data-theme="light"]) .tone-4 { --tile-bg: #46222c; --tile-fg: #f2a5b8; } :root:not([data-theme="light"]) .tone-5 { --tile-bg: #1a3b3a; --tile-fg: #93d9d4; }
+:root:not([data-theme="light"]) .tone-6 { --tile-bg: #2b323d; --tile-fg: #bdc9da; } :root:not([data-theme="light"]) .tone-7 { --tile-bg: #452e1c; --tile-fg: #f2b287; } }
+:root[data-theme="dark"] .tile { box-shadow: inset 0 1px 0 #ffffff14, inset 0 0 0 1px #ffffff0a; }
+:root[data-theme="dark"] .tone-0 { --tile-bg: #1e3a2b; --tile-fg: #9ddfba; } :root[data-theme="dark"] .tone-1 { --tile-bg: #1f3049; --tile-fg: #a3c3f0; }
+:root[data-theme="dark"] .tone-2 { --tile-bg: #31274a; --tile-fg: #cbb2f2; } :root[data-theme="dark"] .tone-3 { --tile-bg: #453517; --tile-fg: #f0cc82; }
+:root[data-theme="dark"] .tone-4 { --tile-bg: #46222c; --tile-fg: #f2a5b8; } :root[data-theme="dark"] .tone-5 { --tile-bg: #1a3b3a; --tile-fg: #93d9d4; }
+:root[data-theme="dark"] .tone-6 { --tile-bg: #2b323d; --tile-fg: #bdc9da; } :root[data-theme="dark"] .tone-7 { --tile-bg: #452e1c; --tile-fg: #f2b287; }

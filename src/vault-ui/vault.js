@@ -95,7 +95,7 @@ function row(item, onClick) {
     note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) : siteTile(item.scope),
     element("span", { className: "details" }, element("span", { className: "primary" }, item.favorite ? "★ " : "", item.name), element("span", { className: "secondary" }, secondary)),
     element("span", { className: "row-badges" }, item.environment === "production" ? badge("Production", "production") : null,
-      item.hasTotp ? badge("2FA") : null, flags.reused ? badge("Reused", "warn") : null, flags.weak ? badge("Weak", "weak") : null));
+      item.hasTotp ? badge("2FA", "totp") : null, flags.reused ? badge("Reused", "warn") : null, flags.weak ? badge("Weak", "weak") : null));
   button.addEventListener("click", onClick);
   return button;
 }
@@ -251,8 +251,8 @@ function renderDetail() {
     if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes)));
   }
   const warnings = [];
-  if (flags.reused) warnings.push(element("p", { className: "warning" }, `This password is also used by ${flags.reused} other login${flags.reused === 1 ? "" : "s"}. Change it on this site to a unique one.`));
-  if (flags.weak) warnings.push(element("p", { className: "warning weak" }, "This password is short or simple. Generate a stronger one when you next change it."));
+  if (flags.reused) warnings.push(element("p", { className: "warning" }, icon("alert"), `This password is also used by ${flags.reused} other login${flags.reused === 1 ? "" : "s"}. Change it on this site to a unique one.`));
+  if (flags.weak) warnings.push(element("p", { className: "warning weak" }, icon("alert"), "This password is short or simple. Generate a stronger one when you next change it."));
   let history = null;
   if (!note && item.history.length) {
     history = element("details", { className: "history" }, element("summary", {}, `Password history (${item.history.length})`),

@@ -37,7 +37,16 @@ export function loginRow(item, client, fill = null) {
   }
   const secondary = [item.username || "No username", item.environment === "production" ? "Production" : null].filter(Boolean).join(" · ");
   // Rows are focusable so the popup can be used from the keyboard (↑ ↓ to move, Enter to fill).
-  return element("article", { className: "login-item", "data-id": item.id, tabindex: "0", "aria-label": `${item.name}, ${item.username || "no username"}` }, siteTile(item.scope),
+  const row = element("article", { className: "login-item", "data-id": item.id, tabindex: "0", "aria-label": `${item.name}, ${item.username || "no username"}` }, siteTile(item.scope),
     element("div", { className: "details" }, element("span", { className: "primary", title: item.scope }, item.name), element("span", { className: "secondary" }, secondary)),
     actions);
+  // Clicking the row itself fills too; the small icon buttons keep their own actions.
+  if (fill && !fill.disabled) {
+    row.setAttribute("data-fill", "");
+    row.addEventListener("click", async event => {
+      if (/** @type {Element} */ (event.target).closest("button")) return;
+      try { await fill.action(item.id); } catch (error) { announce(error.message, true); await client.refresh(); }
+    });
+  }
+  return row;
 }
