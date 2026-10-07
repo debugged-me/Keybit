@@ -5,6 +5,7 @@ import { matcherFor, scopeLabel, specificity } from "../matching/url-matcher.js"
 import { vaultHealth } from "./health.js";
 
 const MAX_IMPORT = 100000;
+export const TRASH_DAYS = 30;
 export class Vault {
   #key = null; #data = null; #envelope = null; #epoch = 0; #session = null; #lastActivity = 0; #pendingImport = null; #exists;
   constructor(storage, now = Date.now, onLock = () => {}) { this.storage = storage; this.now = now; this.onLock = onLock; }
@@ -53,6 +54,7 @@ export class Vault {
     const { key, payload, envelope } = await decryptVault(stored, password);
     this.#checkEpoch(epoch);
     this.#activate(key, payload, envelope);
+    await this.#purgeExpiredTrash();
     return this.status();
   }
   // Touch ID: unlock with key bytes released by the device authenticator.
@@ -66,7 +68,21 @@ export class Vault {
     catch { throw new Error("Touch ID unlock is out of date. Unlock with your master password, then turn Touch ID on again."); }
     this.#checkEpoch(epoch);
     this.#activate(opened.key, opened.payload, opened.envelope);
+    await this.#purgeExpiredTrash();
     return this.status();
+  }
+  // Trash older than 30 days is removed for good, checked when the vault opens. A failure to
+  // save the cleanup must not block unlocking.
+  async #purgeExpiredTrash() {
+    try {
+      const cutoff = this.now() - TRASH_DAYS * 86400000;
+      const items = this.#data.items.filter(item => !item.deletedAt || Date.parse(item.deletedAt) > cutoff);
+      if (items.length === this.#data.items.length) return;
+      const next = { ...this.#data, revision: this.#data.revision + 1, items };
+      const encrypted = await encryptVault(next, this.#key, this.#envelope.kdf);
+      await this.#write(encrypted);
+      this.#data = next; this.#envelope = encrypted;
+    } catch { /* Expired items will be removed on a later unlock instead. */ }
   }
   // Proves the master password for the open vault and returns its raw key bytes (caller zeroes them).
   async rawKeyFor(session, password) {
@@ -81,7 +97,7 @@ export class Vault {
     if (typeof query !== "string" || query.length > 200) throw new Error("Search is too long.");
     const needle = query.toLocaleLowerCase();
     const fits = url ? matcherFor(url) : null;
-    const items = this.#data.items.filter(item => (!fits || fits(item)) &&
+    const items = this.#data.items.filter(item => !item.deletedAt && (!fits || fits(item)) &&
       (!needle || [item.name, item.username, item.project, ...item.urls].some(value => value.toLocaleLowerCase().includes(needle))));
     // On a page, a project-folder login is a better match than a whole-site one.
     if (url) items.sort((a, b) => specificity(b) - specificity(a));
@@ -90,11 +106,19 @@ export class Vault {
   }
   projects(session) {
     this.require(session);
-    return [...new Set(this.#data.items.map(item => item.project).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    return [...new Set(this.#data.items.filter(item => !item.deletedAt).map(item => item.project).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   }
   health(session) {
     this.require(session);
-    return vaultHealth(this.#data.items.filter(item => item.type === "login"));
+    return vaultHealth(this.#data.items.filter(item => item.type === "login" && !item.deletedAt));
+  }
+  // Recently deleted: same summaries as list(), newest deletion first, with the deletion date.
+  listDeleted(session) {
+    this.require(session);
+    return this.#data.items.filter(item => item.deletedAt)
+      .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt))
+      .map(({ id, type, name, urls, username, environment, project, favorite, totp, updatedAt, deletedAt }) => ({ id, type, name, urls: [...urls],
+        scope: urls.length ? scopeLabel(urls[0]) : "", username, environment, project, favorite, hasTotp: !!totp, updatedAt, deletedAt }));
   }
   item(session, id) {
     this.require(session);
@@ -128,9 +152,27 @@ export class Vault {
     const items = previous ? this.#data.items.map(entry => entry.id === item.id ? item : entry) : [...this.#data.items, item];
     return this.#save({ ...this.#data, items }, session, revision);
   }
+  // Deleting moves an item to Recently deleted; purgeItem and the 30-day sweep remove it for good.
   async deleteItem(session, revision, id) {
     this.item(session, id);
+    const deletedAt = new Date(this.now()).toISOString();
+    const items = this.#data.items.map(item => item.id === id ? { ...item, deletedAt } : item);
+    return this.#save({ ...this.#data, items }, session, revision);
+  }
+  async restoreItem(session, revision, id) {
+    const item = this.item(session, id);
+    if (!item.deletedAt) throw new Error("This item is not in Recently deleted.");
+    const items = this.#data.items.map(entry => entry.id === id ? { ...entry, deletedAt: null } : entry);
+    return this.#save({ ...this.#data, items }, session, revision);
+  }
+  async purgeItem(session, revision, id) {
+    this.item(session, id);
     return this.#save({ ...this.#data, items: this.#data.items.filter(item => item.id !== id) }, session, revision);
+  }
+  async emptyTrash(session, revision) {
+    this.require(session);
+    const items = this.#data.items.filter(item => !item.deletedAt);
+    return items.length === this.#data.items.length ? this.status() : this.#save({ ...this.#data, items }, session, revision);
   }
   async settings(session, settings) {
     this.require(session);
@@ -158,7 +200,8 @@ export class Vault {
   // Import from another password manager: new items only; exact duplicates and invalid rows are skipped.
   #importable(inputs) {
     if (!Array.isArray(inputs) || inputs.length > MAX_IMPORT) throw new Error("This file has too many entries to import.");
-    const seen = new Set(this.#data.items.map(item => duplicateKey(item, scopeLabel)));
+    // Trashed items do not block re-adding the same login: Recently deleted is as good as gone for matching.
+    const seen = new Set(this.#data.items.filter(item => !item.deletedAt).map(item => duplicateKey(item, scopeLabel)));
     const items = [];
     let duplicates = 0, invalid = 0;
     for (const input of inputs) {
@@ -198,7 +241,7 @@ export class Vault {
     this.#checkEpoch(epoch); this.require(session);
     const items = [...this.#data.items];
     const index = new Map(items.map((item, position) => [item.id, position]));
-    const seen = new Set(items.map(item => duplicateKey(item, scopeLabel)));
+    const seen = new Set(items.filter(item => !item.deletedAt).map(item => duplicateKey(item, scopeLabel)));
     let added = 0, updated = 0, unchanged = 0;
     for (const incoming of payload.items) {
       const position = index.get(incoming.id);

@@ -128,7 +128,7 @@ function build() {
   dialog.addEventListener("cancel", event => { event.preventDefault(); requestClose(); });
   dialog.addEventListener("close", reset);
   $("delete").addEventListener("click", async () => {
-    if (!current?.item || !confirm(`Delete this ${current.kind === "note" ? "note" : "login"}? This cannot be undone.`)) return;
+    if (!current?.item || !confirm(`Delete this ${current.kind === "note" ? "note" : "login"}? It is kept in Recently deleted for 30 days.`)) return;
     const { item, revision, onDelete, client } = current;
     try { const state = await client.request("DELETE", { id: item.id, revision }); closeLoginDialog(); await onDelete?.(state, item.id); }
     catch (error) { showError(error.message); }

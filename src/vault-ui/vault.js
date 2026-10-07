@@ -1,6 +1,6 @@
 import { VaultClient } from "../ui/client.js";
 import { renderAuth } from "../ui/auth.js";
-import { element, all, announce, clearFields, siteTile, icon, iconButton, copyText, showReloadBanner, relativeTime } from "../ui/common.js";
+import { element, all, announce, clearFields, siteTile, icon, iconButton, copyText, copySecret, showReloadBanner, relativeTime } from "../ui/common.js";
 import { scopeLabel } from "../matching/url-matcher.js";
 import { MAX_BACKUP_BYTES } from "../crypto/encoding.js";
 import { totpCode } from "../vault/totp.js";
@@ -12,7 +12,7 @@ import { biometricAvailable, biometricName, createBiometric } from "../ui/biomet
 
 /** @type {(selector: string) => any} Page elements are looked up by known IDs. */
 const $ = selector => document.querySelector(selector);
-const LIST_VIEWS = ["logins", "favorites", "notes"];
+const LIST_VIEWS = ["logins", "favorites", "notes", "trash"];
 const VIEWS = [...LIST_VIEWS, "health", "generator", "import", "backup", "settings", "sites"];
 const LOCK_LABELS = { 0: "Never", 1: "1 minute", 5: "5 minutes", 10: "10 minutes", 15: "15 minutes", 30: "30 minutes" };
 const ENV_ORDER = ["production", "staging", "development", "local", "other"];
@@ -21,6 +21,7 @@ const BACKUP_NUDGE_DAYS = 30;
 let view = "logins";
 let restoring = false;
 let items = [];
+let trash = [];
 let health = {};
 let projects = [];
 let disabledSites = [];
@@ -36,7 +37,7 @@ let sort = (() => { try { return localStorage.getItem("keybit-sort") || "name"; 
 
 const client = new VaultClient((state, previous) => {
   renderAuth($("#auth"), client);
-  if (!state.unlocked) { closeLoginDialog(); closeDialog(); clearDetail(); items = []; health = {}; $("#items").replaceChildren(); $("#health-list").replaceChildren(); }
+  if (!state.unlocked) { closeLoginDialog(); closeDialog(); clearDetail(); items = []; trash = []; health = {}; $("#items").replaceChildren(); $("#health-list").replaceChildren(); }
   if (state.session !== previous.session) { $("#search").value = ""; selectedId = null; }
   if (state.unlocked) restoring = false;
   layout();
@@ -90,7 +91,8 @@ const badge = (text, kind = "") => element("span", { className: `badge ${kind}` 
 function row(item, onClick) {
   const flags = health[item.id] ?? {};
   const note = item.type === "note";
-  const secondary = note ? ["Secure note", item.project].filter(Boolean).join(" · ") : `${item.username || "No username"} · ${item.scope}`;
+  const secondary = item.deletedAt ? `Deleted ${relativeTime(Date.parse(item.deletedAt))}` :
+    note ? ["Secure note", item.project].filter(Boolean).join(" · ") : `${item.username || "No username"} · ${item.scope}`;
   const button = element("button", { type: "button", className: "item-row login-item", "data-id": item.id, "aria-current": String(item.id === selectedId) },
     note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) : siteTile(item.scope),
     element("span", { className: "details" }, element("span", { className: "primary" }, item.favorite ? "★ " : "", item.name), element("span", { className: "secondary" }, secondary)),
@@ -115,11 +117,14 @@ function renderList() {
   if (!isList(view)) return;
   const query = $("#search").value;
   const project = view.startsWith("project:") ? view.slice(8) : null;
-  const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes" };
+  const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes", trash: "Recently deleted" };
   $("#list-title").textContent = query ? `Results for “${query}”` : project ?? titles[view];
   $("#add-label").textContent = view === "notes" ? "Add note" : "Add login";
+  // Trash always lists the newest deletion first; the sort menu is not meaningful there.
+  $("#sort").hidden = view === "trash";
+  $("#empty-trash").hidden = view !== "trash" || !trash.length;
   // A search looks everywhere, not only in the current section.
-  const shown = sorted(query ? items : items.filter(inView));
+  const shown = query ? sorted(items) : view === "trash" ? trash : sorted(items.filter(inView));
   const open = item => () => void select(item.id);
   if (project && !query) {
     // Developer view: a project's logins grouped by environment, production first.
@@ -131,7 +136,9 @@ function renderList() {
   if (shown.length) return;
   if (query) $("#items").append(element("p", { className: "empty" }, "Nothing matches your search."));
   else if (view === "logins") $("#items").append(gettingStarted());
-  else $("#items").append(element("p", { className: "empty" }, view === "favorites" ? "Star a login or note to keep it here." : view === "notes" ? "Keep licence keys, server details, or Wi-Fi passwords here, encrypted." : "Nothing in this project yet."));
+  else $("#items").append(element("p", { className: "empty" }, view === "favorites" ? "Star a login or note to keep it here."
+    : view === "notes" ? "Keep licence keys, server details, or Wi-Fi passwords here, encrypted."
+    : view === "trash" ? "Nothing deleted. Items you delete are kept here for 30 days." : "Nothing in this project yet."));
 }
 function gettingStarted() {
   const action = (label, text, onClick) => {
@@ -149,9 +156,11 @@ async function refreshList() {
   const session = client.state.session;
   try {
     // Health is extra information: if it is unavailable, the list must still show.
-    const [list, flags, names] = await Promise.all([client.request("LIST", { query: $("#search").value }), client.request("HEALTH").catch(() => ({})), client.request("PROJECTS").catch(() => [])]);
+    const [list, flags, names, deleted] = await Promise.all([client.request("LIST", { query: $("#search").value }),
+      client.request("HEALTH").catch(() => ({})), client.request("PROJECTS").catch(() => []), client.request("TRASH_LIST").catch(() => [])]);
     if (!client.is(session) || request !== listRequest) return;
-    items = list; health = flags; projects = names;
+    items = list; health = flags; projects = names; trash = deleted;
+    $("#count-trash").textContent = String(trash.length || "");
     renderProjects();
     renderList();
     const all = $("#search").value ? await client.request("LIST", { query: "" }) : items;
@@ -173,6 +182,15 @@ function renderProjects() {
   if (view.startsWith("project:") && !projects.includes(view.slice(8))) show("logins");
 }
 $("#search").addEventListener("input", () => { if (!isList(view)) show("logins"); void refreshList(); });
+// ⌘K / Ctrl+K jumps to search from anywhere; "/" works when not typing, like the popup.
+$("#search-kbd").textContent = /^Mac|iP/.test(navigator.platform) ? "⌘K" : "Ctrl K";
+document.addEventListener("keydown", event => {
+  if (!client.state.unlocked || $("#login-dialog")?.open || $("#password-dialog")?.open) return;
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); $("#search").focus(); $("#search").select(); return; }
+  const target = /** @type {HTMLElement} */ (event.target);
+  const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable;
+  if (event.key === "/" && !typing && !event.metaKey && !event.ctrlKey && !event.altKey) { event.preventDefault(); $("#search").focus(); }
+});
 $("#sort").value = sort;
 $("#sort").addEventListener("change", () => { sort = $("#sort").value; try { localStorage.setItem("keybit-sort", sort); } catch { /* Not saved. */ } renderList(); });
 
@@ -196,8 +214,12 @@ async function select(id) {
   } catch (error) { announce(error.message, true); clearDetail(); await client.refresh(); }
 }
 async function copy(value, what) {
-  try { await copyText(value); announce(what === "password" ? "Password copied. Clipboard is not cleared automatically." : `${what[0].toUpperCase()}${what.slice(1)} copied.`); }
-  catch (error) { announce(error.message, true); }
+  try {
+    const secret = what === "password" || what === "2FA code";
+    const armed = secret ? await copySecret(value) : (await copyText(value), false);
+    const label = `${what[0].toUpperCase()}${what.slice(1)} copied.`;
+    announce(!secret ? label : armed ? `${label} Clears in 30 seconds.` : `${label} Clipboard is not cleared automatically.`);
+  } catch (error) { announce(error.message, true); }
 }
 function secretValue(password) {
   const value = element("span", { className: "secret masked" }, "••••••••••••");
@@ -250,7 +272,9 @@ function renderDetail() {
     }
     if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes)));
   }
+  const trashed = Boolean(item.deletedAt);
   const warnings = [];
+  if (trashed) warnings.push(element("p", { className: "warning" }, icon("trash"), `Deleted ${relativeTime(Date.parse(item.deletedAt))}. Kept for 30 days, then removed forever.`));
   if (flags.reused) warnings.push(element("p", { className: "warning" }, icon("alert"), `This password is also used by ${flags.reused} other login${flags.reused === 1 ? "" : "s"}. Change it on this site to a unique one.`));
   if (flags.weak) warnings.push(element("p", { className: "warning weak" }, icon("alert"), "This password is short or simple. Generate a stronger one when you next change it."));
   let history = null;
@@ -264,17 +288,27 @@ function renderDetail() {
           element("span", { className: "when" }, `Replaced ${new Date(entry.changedAt).toLocaleString()}`, value), reveal, copyButton(entry.password, "password"), restore);
       }));
   }
-  const edit = element("button", { type: "button", className: "secondary-button", id: "edit-login" }, "Edit");
-  edit.addEventListener("click", () => openLoginDialog({ client, item: detail.item, revision: detail.revision, existing: items, projects, onSaved: afterSave, onDelete: afterDelete }));
-  const remove = element("button", { type: "button", className: "text-button danger" }, "Delete");
-  remove.addEventListener("click", () => void deleteItem(item.id));
   const meta = [item.project ? `Project ${item.project}` : null, `Updated ${relativeTime(Date.parse(item.updatedAt))}`].filter(Boolean).join(" · ");
+  const actions = [];
+  if (trashed) {
+    const restore = element("button", { type: "button", className: "secondary-button", id: "restore-item" }, "Restore");
+    restore.addEventListener("click", () => void restoreItem(item.id));
+    const purge = element("button", { type: "button", className: "text-button danger" }, "Delete forever");
+    purge.addEventListener("click", () => void purgeItem(item.id));
+    actions.push(restore, purge);
+  } else {
+    const edit = element("button", { type: "button", className: "secondary-button", id: "edit-login" }, "Edit");
+    edit.addEventListener("click", () => openLoginDialog({ client, item: detail.item, revision: detail.revision, existing: items, projects, onSaved: afterSave, onDelete: afterDelete }));
+    const remove = element("button", { type: "button", className: "text-button danger" }, "Delete");
+    remove.addEventListener("click", () => void deleteItem(item.id));
+    actions.push(edit, remove);
+  }
   $("#detail-view").replaceChildren(...[
     element("div", { className: "detail-header" }, back, note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) : siteTile(scope),
       element("h3", {}, item.name, element("span", { className: "site" }, note ? "Secure note" : scope,
         !note && item.environment !== "other" ? badge(item.environment, item.environment === "production" ? "production" : "") : null)), star),
     ...warnings, ...fields, history,
-    element("div", { className: "detail-actions" }, edit, remove, element("span", { className: "meta" }, meta))
+    element("div", { className: "detail-actions" }, ...actions, element("span", { className: "meta" }, meta))
   ].filter(Boolean));
   $("#detail").hidden = false; $("#view-logins").classList.add("has-detail");
 }
@@ -295,12 +329,36 @@ async function restorePassword(password) {
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
 async function deleteItem(id) {
-  if (!confirm(`Delete this ${detail?.item.type === "note" ? "note" : "login"}? This cannot be undone.`)) return;
+  if (!confirm(`Delete this ${detail?.item.type === "note" ? "note" : "login"}? It is kept in Recently deleted for 30 days.`)) return;
   try {
     const state = await client.request("DELETE", { id, revision: detail?.revision ?? client.state.revision });
     await afterDelete(state);
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
+async function restoreItem(id) {
+  const kind = detail?.item.type;
+  try {
+    const state = await client.request("RESTORE", { id, revision: detail?.revision ?? client.state.revision });
+    clearDetail(); client.update(state); announce("Restored.");
+    await refreshList();
+    if (kind === "note" || kind === "login") { show(kind === "note" ? "notes" : "logins"); await select(id); }
+  } catch (error) { announce(error.message, true); await client.refresh(); }
+}
+async function purgeItem(id) {
+  if (!confirm(`Delete this ${detail?.item.type === "note" ? "note" : "login"} forever? This cannot be undone.`)) return;
+  try {
+    const state = await client.request("PURGE", { id, revision: detail?.revision ?? client.state.revision });
+    await afterDelete(state);
+  } catch (error) { announce(error.message, true); await client.refresh(); }
+}
+$("#empty-trash").addEventListener("click", async () => {
+  if (!trash.length || !confirm(`Delete ${trash.length} item${trash.length === 1 ? "" : "s"} forever? This cannot be undone.`)) return;
+  try {
+    client.update(await client.request("EMPTY_TRASH", { revision: client.state.revision }));
+    announce("Recently deleted emptied.");
+    await refreshList();
+  } catch (error) { announce(error.message, true); await client.refresh(); }
+});
 
 // Add and edit happen in a modal dialog (ui/login-form.js).
 function openAdd(kind = view === "notes" ? "note" : "login") {

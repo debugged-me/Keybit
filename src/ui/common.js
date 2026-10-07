@@ -42,6 +42,27 @@ export async function copyText(value) {
   try { await navigator.clipboard.writeText(value); }
   catch { throw new Error("Could not copy. Keep this window focused and try again."); }
 }
+let clearTimer = 0;
+// A copied secret wipes itself from the clipboard after 30 seconds — but only if the clipboard still
+// holds what KeyBit put there, which needs the optional clipboardRead permission. Returns whether
+// clearing is armed so callers can phrase their confirmation honestly.
+export async function copySecret(value) {
+  await copyText(value);
+  clearTimeout(clearTimer);
+  const granted = await chrome.permissions.contains({ permissions: ["clipboardRead"] }).catch(() => false);
+  if (!granted && !localStorage.getItem("keybit-clipboard-denied")) {
+    try {
+      if (!(await chrome.permissions.request({ permissions: ["clipboardRead"] }))) localStorage.setItem("keybit-clipboard-denied", "1");
+    } catch { /* The permission prompt is unavailable; clearing below will just fail. */ }
+  }
+  const armed = await chrome.permissions.contains({ permissions: ["clipboardRead"] }).catch(() => false);
+  if (armed) clearTimer = setTimeout(async () => {
+    try {
+      if (await navigator.clipboard.readText() === value) { await navigator.clipboard.writeText(""); announce("Clipboard cleared."); }
+    } catch { /* Permission lost or clipboard unavailable: leave it alone. */ }
+  }, 30000);
+  return armed;
+}
 // A site tile: the first letter of the project folder or host, on a tone derived from the whole label.
 export function siteTile(label, className = "") {
   const clean = String(label ?? "").replace(/^www\./, "");
@@ -72,7 +93,8 @@ const ICONS = {
   note: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>',
   folder: '<path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>',
   star: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9z"/>',
-  alert: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>'
+  alert: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+  trash: '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/><path d="M10 11v6M14 11v6"/>'
 };
 // Inline SVG icons are built from fixed markup above, never from user data.
 export function icon(name) {

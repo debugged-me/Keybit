@@ -13,6 +13,9 @@
     "clipboardWrite",
     "idle"
   ],
+  "optional_permissions": [
+    "clipboardRead"
+  ],
   "host_permissions": [
     "http://*/*",
     "https://*/*"

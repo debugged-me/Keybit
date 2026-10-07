@@ -9,7 +9,7 @@
 <body class="app">
   <header class="app-header">
     <div class="brand"><img class="brand-icon" src="../../icons/keybit.svg" alt=""><h1>KeyBit</h1></div>
-    <label id="search-box" class="search" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" type="search" placeholder="Search logins and notes" aria-label="Search logins and notes" maxlength="200" autocomplete="off"></label>
+    <label id="search-box" class="search" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" type="search" placeholder="Search logins and notes" aria-label="Search logins and notes" maxlength="200" autocomplete="off"><kbd id="search-kbd" aria-hidden="true"></kbd></label>
     <div id="header-actions" class="header-actions" hidden>
       <div class="menu-anchor">
         <button id="autolock" class="icon-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="autolock-menu" title="Auto-lock: Never" aria-label="Auto-lock: Never"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg></button>
@@ -46,6 +46,7 @@
       <button class="nav-item" type="button" data-view="logins"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>All logins</span><span id="count-logins" class="count"></span></button>
       <button class="nav-item" type="button" data-view="favorites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9z"/></svg><span>Favorites</span><span id="count-favorites" class="count"></span></button>
       <button class="nav-item" type="button" data-view="notes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg><span>Secure notes</span><span id="count-notes" class="count"></span></button>
+      <button class="nav-item" type="button" data-view="trash"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/><path d="M10 11v6M14 11v6"/></svg><span>Recently deleted</span><span id="count-trash" class="count"></span></button>
       <div id="projects-nav" class="nav-group" hidden><p class="nav-heading">Projects</p><div id="project-items"></div></div>
       <hr class="nav-divider">
       <button class="nav-item" type="button" data-view="health"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg><span>Weak &amp; reused</span><span id="count-health" class="count warn" hidden></span></button>
@@ -61,6 +62,7 @@
         <div class="list-pane">
           <div class="view-header"><h2 id="list-title">All logins</h2>
             <div class="view-tools">
+              <button id="empty-trash" class="text-button danger" type="button" hidden>Empty trash</button>
               <select id="sort" aria-label="Sort by"><option value="name">Name</option><option value="used">Recently used</option><option value="updated">Recently updated</option></select>
               <button id="add-login" class="primary-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span id="add-label">Add login</span></button>
             </div>
@@ -165,7 +167,7 @@
         <div class="card settings-list">
           <h3>Keyboard shortcuts</h3>
           <div id="shortcuts"></div>
-          <div class="setting setting-action"><span class="switch-hint muted">In the popup: / searches, ↑ ↓ move, Enter fills.</span><button id="edit-shortcuts" class="secondary-button" type="button">Change shortcuts</button></div>
+          <div class="setting setting-action"><span class="switch-hint muted">In this window: ⌘K or Ctrl+K jumps to search, / does the same. In the popup: / searches, ↑ ↓ move, Enter fills.</span><button id="edit-shortcuts" class="secondary-button" type="button">Change shortcuts</button></div>
         </div>
       </section>
 

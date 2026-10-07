@@ -161,6 +161,51 @@ try {
   await waitFor(app.session, 'document.querySelector("#message").textContent.startsWith("Nothing to merge")');
   console.log('PASS: merge restore from a backup file keeps the vault intact.');
 
+  // Recently deleted: deleting keeps the item for 30 days; Restore brings it back, Delete forever removes it.
+  s = await state(app.session);
+  await rpc(app.session, 'SAVE', { session: s.session, revision: s.revision, item: { name: 'Trash test', urls: ['https://trash.example.test'], username: 'trash-user', password: 'trash-secret', notes: '', environment: 'other' } });
+  await evaluate(app.session, 'window.confirm = () => true');
+  await click(app.session, '[data-view="logins"]');
+  await set(app.session, '#search', 'Trash test');
+  await waitFor(app.session, 'document.querySelectorAll("#items .login-item").length === 1');
+  await click(app.session, '#items .login-item');
+  await waitFor(app.session, '!!document.querySelector(".detail-actions .danger")');
+  await click(app.session, '.detail-actions .danger');
+  await waitFor(app.session, 'document.querySelector("#count-trash").textContent === "1"');
+  await set(app.session, '#search', '');
+  await click(app.session, '[data-view="trash"]');
+  await waitFor(app.session, 'document.querySelector("#list-title").textContent === "Recently deleted" && document.querySelectorAll("#items .login-item").length === 1');
+  assert.match(await evaluate(app.session, 'document.querySelector("#items .login-item .secondary").textContent'), /Deleted /);
+  await click(app.session, '#items .login-item');
+  await waitFor(app.session, '!!document.querySelector("#restore-item")');
+  await shot(app.session, 'recently-deleted');
+  await click(app.session, '#restore-item');
+  await waitFor(app.session, 'document.querySelector("#message").textContent.includes("Restored")');
+  // It returns to its normal section; deleting it again then removing it forever is final.
+  await waitFor(app.session, 'document.querySelector("#list-title").textContent === "All logins"');
+  await set(app.session, '#search', 'Trash test');
+  await waitFor(app.session, 'document.querySelectorAll("#items .login-item").length === 1');
+  await click(app.session, '#items .login-item');
+  await waitFor(app.session, '!!document.querySelector(".detail-actions .danger")');
+  await click(app.session, '.detail-actions .danger');
+  await waitFor(app.session, 'document.querySelector("#count-trash").textContent === "1"');
+  await set(app.session, '#search', '');
+  await click(app.session, '[data-view="trash"]');
+  await click(app.session, '#items .login-item');
+  await waitFor(app.session, '!!document.querySelector("#restore-item")');
+  await click(app.session, '.detail-actions .danger');
+  await waitFor(app.session, 'document.querySelector("#count-trash").textContent === ""');
+  s = await state(app.session);
+  assert.equal((await rpc(app.session, 'TRASH_LIST', { session: s.session })).data.length, 0);
+  console.log('PASS: Recently deleted keeps deleted items for recovery, restores them, and removes them forever.');
+
+  // ⌘K/Ctrl+K and "/" jump to search in the app window.
+  await evaluate(app.session, 'document.activeElement.blur(); document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))');
+  await waitFor(app.session, 'document.activeElement.id === "search"');
+  await evaluate(app.session, 'document.activeElement.blur(); document.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true }))');
+  await waitFor(app.session, 'document.activeElement.id === "search"');
+  console.log('PASS: Ctrl+K/⌘K and / jump to search in the app window.');
+
   // A login made by a script button (no form submit) offers to save; so does pressing Enter.
   const site = await page(`${url}/spa-login.html`);
   await send('Target.activateTarget', { targetId: site.targetId });

@@ -36,6 +36,50 @@ test("encrypted CRUD, search, revisions, serialization, restart and lock", async
   assert.deepEqual(restarted.list(state.session), []);
 });
 
+test("deleting keeps items in Recently deleted for 30 days, with restore and permanent removal", async () => {
+  let now = Date.now();
+  const storage = memoryStorage();
+  const vault = new Vault(storage, () => now);
+  let state = await vault.create(password);
+  state = await vault.saveItem(state.session, state.revision, login);
+  const id = vault.list(state.session)[0].id;
+  state = await vault.deleteItem(state.session, state.revision, id);
+  assert.deepEqual(vault.list(state.session), [], "Trashed items leave the vault lists");
+  const trashed = vault.listDeleted(state.session);
+  assert.equal(trashed.length, 1);
+  assert.equal(trashed[0].id, id);
+  assert.ok(trashed[0].deletedAt);
+  assert.equal(trashed[0].password, undefined, "Trash summaries never include secrets");
+  assert.equal(vault.item(state.session, id).name, login.name, "The trashed item is still readable for its detail view");
+  await assert.rejects(vault.restoreItem(state.session, state.revision, "missing"), /no longer exists/);
+  state = await vault.restoreItem(state.session, state.revision, id);
+  assert.equal(vault.list(state.session).length, 1, "Restore brings the item back");
+  assert.equal(vault.item(state.session, id).deletedAt, null);
+  await assert.rejects(vault.restoreItem(state.session, state.revision, id), /not in Recently deleted/);
+  state = await vault.deleteItem(state.session, state.revision, id);
+  state = await vault.purgeItem(state.session, state.revision, id);
+  assert.deepEqual(vault.listDeleted(state.session), [], "Purge removes the item forever");
+  assert.throws(() => vault.item(state.session, id), /no longer exists/);
+  // Emptying the bin removes everything it held.
+  state = await vault.saveItem(state.session, state.revision, { ...login, name: "Extra" });
+  state = await vault.deleteItem(state.session, state.revision, vault.list(state.session)[0].id);
+  assert.equal(vault.listDeleted(state.session).length, 1);
+  state = await vault.emptyTrash(state.session, state.revision);
+  assert.deepEqual(vault.listDeleted(state.session), []);
+  // The 30-day sweep runs on unlock: the item survives a restart inside the window, then expires.
+  state = await vault.saveItem(state.session, state.revision, login);
+  const keepId = vault.list(state.session)[0].id;
+  state = await vault.deleteItem(state.session, state.revision, keepId);
+  now += 29 * 86400000;
+  const within = new Vault(storage, () => now);
+  state = await within.unlock(password);
+  assert.equal(within.listDeleted(state.session).length, 1, "Trash survives a restart inside 30 days");
+  now += 2 * 86400000;
+  const later = new Vault(storage, () => now);
+  state = await later.unlock(password);
+  assert.deepEqual(later.listDeleted(state.session), [], "Trash older than 30 days is removed on unlock");
+});
+
 test("inactivity enforced on access and failed writes preserve prior data", async () => {
   let now = 1000;
   const storage = memoryStorage();

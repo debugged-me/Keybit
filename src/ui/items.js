@@ -1,4 +1,4 @@
-import { element, announce, copyText, siteTile, iconButton } from "./common.js";
+import { element, announce, copyText, copySecret, siteTile, iconButton } from "./common.js";
 
 // A compact login row with icon actions. Fill appears only for logins that match the current page.
 export function loginRow(item, client, fill = null) {
@@ -15,7 +15,10 @@ export function loginRow(item, client, fill = null) {
   if (item.hasTotp) {
     const button = iconButton("timer", "Copy 2FA code", { "data-action": "copy-totp" });
     button.addEventListener("click", async () => {
-      try { await copyText((await client.request("TOTP", { id: item.id })).code); announce("2FA code copied."); }
+      try {
+        const armed = await copySecret((await client.request("TOTP", { id: item.id })).code);
+        announce(armed ? "2FA code copied. Clears in 30 seconds." : "2FA code copied.");
+      }
       catch (error) { announce(error.message, true); }
     });
     actions.append(button);
@@ -28,8 +31,8 @@ export function loginRow(item, client, fill = null) {
       try {
         value = await client.request("COPY", { id: item.id, field });
         if (!client.is(session)) throw new Error("Vault locked. Unlock it before copying.");
-        await copyText(value);
-        announce(field === "password" ? "Password copied. Clipboard is not cleared automatically." : "Username copied.");
+        const armed = field === "password" ? await copySecret(value) : (await copyText(value), false);
+        announce(field === "password" ? (armed ? "Password copied. Clears in 30 seconds." : "Password copied. Clipboard is not cleared automatically.") : "Username copied.");
       } catch (error) { announce(error.message, true); await client.refresh(); }
       finally { value = ""; }
     });

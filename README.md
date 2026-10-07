@@ -45,10 +45,13 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **Favourites**, **secure notes**, and **projects**. A project's view groups its logins by environment: Production, Staging, Development, Local.
 - Sort by name, recently used, or recently updated. Search covers logins and notes.
 - **Weak & reused** lists passwords that need attention. The check runs on this device.
+- **Recently deleted** keeps deleted logins and notes for 30 days, then removes them forever. Restore them or empty the bin sooner.
 - **Generator:** random (length and character groups) or memorable ("Acorn-Tulip-Rugby-Mango-Spoon7", from the EFF word list). Your choice is remembered for every Generate button and for sign-up fields.
+- **Copied passwords and 2FA codes clear themselves from the clipboard after 30 seconds**, if you allow the optional clipboard-read permission. The clear only happens when the clipboard still holds what KeyBit copied, so it never erases something else you copied since.
 
 **One app window**
-- **Sidebar:** All logins, Favorites, Secure notes, Projects, Weak & reused, Generator, Import, Backup, and Settings. **Sites turned off** appears only while a site is off.
+- **Sidebar:** All logins, Favorites, Secure notes, Recently deleted, Projects, Weak & reused, Generator, Import, Backup, and Settings. **Sites turned off** appears only while a site is off.
+- **Keyboard:** ⌘K (Ctrl+K on Windows) jumps to search; / does the same when you're not typing.
 - **Adding and editing happen in a dialog**, in the app and in the popup:
   - typing `example.com` is enough; KeyBit adds the http/https part;
   - a preview shows where the login will fill;
@@ -159,6 +162,7 @@ This is a personal-use implementation with automated security checks, not an ind
 | `idle` | Lock when the computer's screen locks. |
 | `activeTab` | Let the popup work on the current tab if you restrict KeyBit's site access. |
 | `clipboardWrite` | Copy a username, password, or code when you click Copy. |
+| `clipboardRead` (optional) | Clear a copied password or code from the clipboard after 30 seconds. Only asked the first time you copy a secret. |
 
 None of these shows an extra warning beyond site access. No history, cookies, downloads, webRequest, tabs, or management permission.
 

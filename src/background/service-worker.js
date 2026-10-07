@@ -22,7 +22,7 @@ let lockTimer;
 let keepAliveTimer;
 let commandEpoch = 0;
 // Messages that change the encrypted vault: open pages refresh, and the backup folder gets a fresh copy.
-const WRITES = ["CREATE", "SAVE", "DELETE", "SETTINGS", "COMMIT_IMPORT", "SAVE_PROMPT_CONFIRM", "IMPORT_COMMIT", "MERGE_BACKUP", "CHANGE_PASSWORD"];
+const WRITES = ["CREATE", "SAVE", "DELETE", "RESTORE", "PURGE", "EMPTY_TRASH", "SETTINGS", "COMMIT_IMPORT", "SAVE_PROMPT_CONFIRM", "IMPORT_COMMIT", "MERGE_BACKUP", "CHANGE_PASSWORD"];
 
 function trusted(sender) {
   return sender.id === chrome.runtime.id && trustedPages.includes(sender.url?.split(/[?#]/)[0]) && (!Number.isInteger(sender.frameId) || sender.frameId === 0);
@@ -141,6 +141,18 @@ async function handle(message, sender) {
     case "SAVE": return vault.saveItem(message.session, message.revision, message.item);
     case "DELETE": {
       const state = await vault.deleteItem(message.session, message.revision, message.id);
+      usage.prune(vault.list(state.session).map(item => item.id));
+      return state;
+    }
+    case "TRASH_LIST": return vault.listDeleted(message.session);
+    case "RESTORE": return vault.restoreItem(message.session, message.revision, message.id);
+    case "PURGE": {
+      const state = await vault.purgeItem(message.session, message.revision, message.id);
+      usage.prune(vault.list(state.session).map(item => item.id));
+      return state;
+    }
+    case "EMPTY_TRASH": {
+      const state = await vault.emptyTrash(message.session, message.revision);
       usage.prune(vault.list(state.session).map(item => item.id));
       return state;
     }

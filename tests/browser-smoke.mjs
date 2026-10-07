@@ -275,7 +275,7 @@ try {
   let popupState = (await rpc(popup, 'STATUS')).data;
   const popupAdded = (await rpc(popup, 'LIST', {session: popupState.session, query: 'popup-added'})).data[0];
   assert.equal(popupAdded.name, new URL(url).host, 'An empty name defaults to the site');
-  await rpc(popup, 'DELETE', {session: popupState.session, revision: popupState.revision, id: popupAdded.id});
+  await rpc(popup, 'PURGE', {session: popupState.session, revision: popupState.revision, id: popupAdded.id});
   await waitFor(popup, 'document.querySelectorAll("#matches .login-item").length === 1');
   console.log('PASS: Add login opens as a modal in the popup, prefilled with the site, with a duplicate warning.');
   if (process.env.KEYBIT_FRAMEWORK_FIXTURES) {
@@ -379,7 +379,7 @@ try {
   let signupState = (await rpc(manager.session, 'STATUS')).data;
   const signedUp = (await rpc(manager.session, 'LIST', {session: signupState.session, query: 'new-signup'})).data[0];
   assert.equal((await rpc(manager.session, 'ITEM', {session: signupState.session, id: signedUp.id})).data.item.password, suggested);
-  await rpc(manager.session, 'DELETE', {session: signupState.session, revision: signupState.revision, id: signedUp.id});
+  await rpc(manager.session, 'PURGE', {session: signupState.session, revision: signupState.revision, id: signedUp.id});
   console.log('PASS: sign-up fields get a generated password in both fields, and the new account is offered for saving.');
   // The keyboard shortcut's message opens KeyBit on the page's login field even when nothing is focused.
   await send('Page.navigate', {url: `${url}/basic-login.html`}, login.session);
@@ -487,8 +487,8 @@ try {
   await waitFor(manager.session, '!document.querySelector("#view-logins").hidden && !!document.querySelector(".warning.weak")');
   captureState = (await rpc(manager.session, 'STATUS')).data;
   const weak = (await rpc(manager.session, 'LIST', {session: captureState.session, query: 'Weak one'})).data[0];
-  captureState = (await rpc(manager.session, 'DELETE', {session: captureState.session, revision: captureState.revision, id: weak.id})).data;
-  await rpc(manager.session, 'DELETE', {session: captureState.session, revision: captureState.revision, id: captured.id});
+  captureState = (await rpc(manager.session, 'PURGE', {session: captureState.session, revision: captureState.revision, id: weak.id})).data;
+  await rpc(manager.session, 'PURGE', {session: captureState.session, revision: captureState.revision, id: captured.id});
   console.log('PASS: password history restore, and weak passwords flagged in Weak & reused.');
   await send('Target.activateTarget', {targetId: manager.targetId});
   const current = (await rpc(manager.session, 'STATUS')).data;
@@ -529,7 +529,7 @@ try {
   const bumped = (await rpc(settings.session, 'STATUS')).data;
   assert.equal(bumped.settings.autoLockMinutes, 0);
   const bump = (await rpc(settings.session, 'LIST', {session: bumped.session, query: 'Revision bump'})).data[0];
-  await rpc(settings.session, 'DELETE', {session: bumped.session, revision: bumped.revision, id: bump.id});
+  await rpc(settings.session, 'PURGE', {session: bumped.session, revision: bumped.revision, id: bump.id});
   await shot(settings.session, 'backup');
   await click(settings.session, '[data-view="generator"]');
   await waitFor(settings.session, 'document.querySelector("#gen-output").textContent.length === 20 && location.hash === "#generator"');

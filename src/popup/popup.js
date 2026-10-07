@@ -1,7 +1,7 @@
 import { VaultClient } from "../ui/client.js";
 import { renderAuth } from "../ui/auth.js";
 import { loginRow } from "../ui/items.js";
-import { element, announce, openPage, siteTile, copyText, showReloadBanner } from "../ui/common.js";
+import { element, announce, openPage, siteTile, copySecret, showReloadBanner } from "../ui/common.js";
 import { parseWebsite, scopeLabel, scopeUrl, isLocalHost } from "../matching/url-matcher.js";
 import { openLoginDialog, closeLoginDialog } from "../ui/login-form.js";
 import { loadPrefs, savePrefs, generate as generateWith } from "../generator/prefs.js";
@@ -89,7 +89,10 @@ $("#regenerate").addEventListener("click", () => void generate());
 $("#symbols").addEventListener("click", () => void updatePrefs({ symbols: !prefs.symbols }));
 $("#words").addEventListener("click", () => void updatePrefs({ mode: prefs.mode === "memorable" ? "random" : "memorable" }));
 $("#copy-generated").addEventListener("click", async () => {
-  try { await copyText(generated); announce("Password copied. Clipboard is not cleared automatically."); } catch (error) { announce(error.message, true); }
+  try {
+    const armed = await copySecret(generated);
+    announce(armed ? "Password copied. Clears in 30 seconds." : "Password copied. Clipboard is not cleared automatically.");
+  } catch (error) { announce(error.message, true); }
 });
 $("#site-enabled").addEventListener("change", async event => {
   if (!page) return;

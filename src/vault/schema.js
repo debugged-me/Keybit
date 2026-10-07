@@ -30,8 +30,9 @@ export function validateItem(item) {
   const project = item.project ?? "";
   const favorite = item.favorite ?? false;
   if (typeof favorite !== "boolean") invalid();
+  // Items deleted before 1.4 were removed outright; deletedAt marks the 30-day Recently deleted bin.
   const common = { id: item.id, type, name: text(item.name, 200, true), notes: text(item.notes ?? "", 20000), project: text(project, 100).trim(),
-    favorite, createdAt: date(item.createdAt), updatedAt: date(item.updatedAt) };
+    favorite, deletedAt: item.deletedAt == null ? null : date(item.deletedAt), createdAt: date(item.createdAt), updatedAt: date(item.updatedAt) };
   if (type === "note") return { ...common, urls: [], username: "", environment: "other" };
   // Items saved before 1.2 have no history; before 1.3, no 2FA secret, project, or favorite.
   const history = item.history ?? [];
