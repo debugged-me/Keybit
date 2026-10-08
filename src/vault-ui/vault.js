@@ -968,6 +968,7 @@ function renderPeek() {
   for (const button of all("[data-peek-size]")) button.setAttribute("aria-checked", String(button.dataset.peekSize === peekSettings.peekSize));
   $("#peek-backdrop").checked = peekSettings.peekBackdropClose;
   $("#peek-loading").checked = peekSettings.peekLoadingIndicator;
+  $("#peek-unblock").checked = peekSettings.peekUnblock;
 }
 async function savePeek(change) {
   try {
@@ -979,6 +980,7 @@ $("#peek-enabled").addEventListener("change", event => void savePeek({ peekEnabl
 $("#peek-trigger").addEventListener("change", event => void savePeek({ peekTrigger: event.target.value }));
 $("#peek-backdrop").addEventListener("change", event => void savePeek({ peekBackdropClose: event.target.checked }));
 $("#peek-loading").addEventListener("change", event => void savePeek({ peekLoadingIndicator: event.target.checked }));
+$("#peek-unblock").addEventListener("change", event => void savePeek({ peekUnblock: event.target.checked }));
 for (const button of all("[data-peek-size]")) button.addEventListener("click", () => void savePeek({ peekSize: button.dataset.peekSize }));
 async function renderSettings() {
   renderTheme();

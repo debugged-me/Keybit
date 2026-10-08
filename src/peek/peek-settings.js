@@ -7,8 +7,9 @@
     sanitize(raw) { return ns.utils.sanitizeSettings(raw); },
     async load() {
       const response = await chrome.runtime.sendMessage({ type: "PEEK_GET_SETTINGS" });
-      const settings = ns.utils.sanitizeSettings(response?.ok ? response.data : null);
-      // Per-site Peek rule, computed by the worker for this page's origin (not a stored preference).
+      if (!response?.ok) throw new Error("Peek settings are unavailable.");
+      const settings = ns.utils.sanitizeSettings(response.data);
+      // Per-site allowance belongs to the top-level page, not the preview or an embedded frame.
       settings.siteAllowed = response?.data?.siteAllowed !== false;
       return settings;
     }

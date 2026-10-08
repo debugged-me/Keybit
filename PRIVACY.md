@@ -29,7 +29,11 @@ Your master password is never stored. Without it, KeyBit cannot decrypt your dat
 
 To suggest and save logins, KeyBit looks for sign-in, sign-up, password-change, and 2FA code fields on the pages you visit. When you submit one of these forms, it reads the username and password you entered so it can ask whether to save them. Nothing is saved unless you confirm. Unconfirmed values are discarded within two minutes.
 
-For Peek, KeyBit checks the link you activate and loads eligible destinations in a preview inside the page. The destination receives a normal browser request and may use its own cookies and privacy policy. A small script in embedded pages reports preview readiness and Escape key presses; it does not read their contents or access the vault. Preview history is not stored by KeyBit.
+For Peek, KeyBit checks the link you click (including links inside frames embedded in the page) and opens eligible ones in a preview above the page. The website receives an ordinary request from your browser, under the browser's usual cookie rules for embedded pages, and its own privacy policy applies. Like any embedded page, it can see which site you came from (not the exact page) and that it is shown in KeyBit's Peek.
+
+To show sites that refuse to be embedded, KeyBit removes their `X-Frame-Options` header, and a Content-Security-Policy header that sets `frame-ancestors`, only from pages its Peek window loads, only in that tab, and only while the preview is open. The browser rules that do this are temporary and are removed when Peek closes. **Show sites that block previews** in Settings → Peek turns this off.
+
+A small KeyBit script in the previewed page reads only its title, theme color, and icon link, and fetches that icon from the same site without cookies, so Peek can show them. It also passes the page's link navigations and Peek's keyboard shortcuts to the Peek window, and blocks clicks and key presses in the preview while something covers it. It reads nothing else on the page and never accesses the vault. Nothing Peek reads leaves your browser or is stored: KeyBit keeps no preview history.
 
 The command palette searches your vault titles and commands on your device — nothing is sent anywhere. The form inspector reports the *structure* of sign-in fields on the tab you inspect (field types, autocomplete attributes, which frame they live in); it never reads or reports the values in them.
 

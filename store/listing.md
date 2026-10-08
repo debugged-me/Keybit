@@ -46,7 +46,7 @@ Yours, on your device
 • Locks when your computer locks, plus an optional inactivity timer.
 • Encrypted backups, automatic backups to a folder you choose, and import from Chrome, Apple Passwords, Bitwarden, 1Password, LastPass, and more.
 
-KeyBit makes no network requests. Removing it from your browser deletes its vault, so keep a backup.
+KeyBit has no servers and sends your data nowhere. Removing it from your browser deletes its vault, so keep a backup.
 
 ## Privacy practices
 
@@ -56,7 +56,7 @@ KeyBit makes no network requests. Removing it from your browser deletes its vaul
 
 | Permission | Justification |
 | --- | --- |
-| Host permissions (http://\*/\*, https://\*/\*) | KeyBit must already be running when the user clicks a sign-in field on any website — including fields inside open shadow roots and same- or cross-origin iframes — to show the account dropdown and to offer to save a submitted password. Its page scripts only detect sign-in, sign-up, and 2FA fields, draw KeyBit's own panels, run the command palette, and report form structure to the optional inspector; they never read field values for anything but a confirmed save. |
+| Host permissions (http://\*/\*, https://\*/\*) | KeyBit must already be running when the user clicks a sign-in field on any website — including fields inside open shadow roots and same- or cross-origin iframes — to show the account dropdown and to offer to save a submitted password. Its page scripts only detect sign-in, sign-up, and 2FA fields, draw KeyBit's own panels, run the command palette, detect the link the user clicks for a Peek preview (and, inside a preview, read only that page's title, theme color, and icon), and report form structure to the optional inspector; they never read field values for anything but a confirmed save. |
 | scripting | Fills the account the user chose into the page, and adds KeyBit to tabs that were already open when it was installed. |
 | storage | Saves the encrypted vault and a few non-secret preferences on the device. |
 | unlimitedStorage | Large vaults must never fail to save because of the browser's default storage quota. |
@@ -64,6 +64,7 @@ KeyBit makes no network requests. Removing it from your browser deletes its vaul
 | activeTab | Lets the toolbar popup work on the current tab if the user restricts KeyBit's site access in the browser. |
 | clipboardWrite | Copies a username, password, or 2FA code when the user clicks Copy. |
 | contextMenus | Adds KeyBit's right-click entries the user invokes explicitly: preview a link with Peek, fill or generate a password on a field, inspect the login form, or save selected text as a secure note. |
+| declarativeNetRequestWithHostAccess | Lets Peek previews of sites that block embedding load inside the preview, by removing the X-Frame-Options header, and a Content-Security-Policy header that sets frame-ancestors, only on frames KeyBit's Peek page loads, in the tab where Peek is open, while it is open. Uses session rules; nothing persists. The user can turn it off in Settings → Peek. |
 
 **Remote code:** No. All code is in the package. There is no `eval` and no remote script.
 
@@ -78,5 +79,6 @@ KeyBit makes no network requests. Removing it from your browser deletes its vaul
 3. Visit any sign-in page on that site, or a local test page, and click the username field: KeyBit's dropdown lists the account.
 4. Submit a sign-in form: KeyBit offers to save the login.
 5. Press Ctrl+Shift+J on a page to open the command palette; the popup's site card links to the login form inspector.
+6. Click a link to another website: Peek previews it above the page (Esc closes). Settings → Peek → **Show sites that block previews** controls the `declarativeNetRequestWithHostAccess` session rules.
 
-KeyBit makes no network requests; the extension pages' Content Security Policy blocks all connections (`connect-src 'none'`).
+KeyBit sends no data to any server, and the extension pages' Content Security Policy blocks all connections (`connect-src 'none'`). The only requests KeyBit's code starts are Peek's: the pages the user previews, and each previewed page's favicon from that same site, fetched without cookies.

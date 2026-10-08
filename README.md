@@ -25,11 +25,28 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 ## What you get
 
 **Peek link previews**
-- **Click** is the default: links to other sites open above the current page. Internal links, menus, buttons, downloads, and Ctrl/⌘+Click keep their normal behavior. Facebook/Messenger redirect links are resolved before deciding whether to preview.
-- Previews stay inside the current tab, with a dimmed backdrop. Expand resizes the preview in place; ×, Escape (including inside ordinary preview pages), or a backdrop click closes it. The page keeps its scroll position.
-- Google Drive files use the embeddable file viewer, and folders use Drive’s embedded list view. The full Drive app, sidebar, and account controls are available through **Open in tab**, which keeps the original link. APKs have no visual file preview; Google supplies a Download button when the file is downloadable. Sites or sign-in pages that block embedding may require **Open in tab**; KeyBit does not remove security headers or automatically open another tab/window.
-- Settings lets you disable Peek, choose a different trigger, or change the size. Explicit modifier triggers can preview internal links too. The old floating-window setting now uses the in-page preview.
-- Peek is separate from the vault. The preview never receives saved credentials, and Peek does not autofill inside it.
+- **Click** is the default: a link to another site opens in a preview above the page, growing out of the link you clicked and shrinking back toward it when you close it (a plain fade with the system's Reduce motion on). Links within the same site (subdomains included), menus, buttons, downloads, and Ctrl/⌘+Click keep their normal behavior. Settings can switch the trigger to Shift + Click (Arc's default), Option/Alt + Click, Ctrl + Shift + Click, or Long press; those preview any link, internal ones included.
+- **It finds the link you meant,** including links inside open shadow DOM, SVG graphics, image maps, and frames embedded in the page, such as comment widgets and embedded posts. Redirect links from Google, Facebook, Instagram, Reddit, YouTube, Slack, LinkedIn, DuckDuckGo, and a few others are unwrapped first, so Peek opens the real destination. With a modifier trigger, elements that navigate by script Peek too.
+- **Pages show their content,** including sites that refuse to be embedded, like GitHub, Google, and X — see *Showing sites that block previews* below. A thin line above the preview tracks loading, and the page underneath keeps its scroll position.
+- **Browsing inside Peek stays in Peek.** Links you follow in the preview get their own back and forward arrows next to the site name, and they don't add to the tab's history: after you close Peek, Back goes where it did before. Links that open a new tab still do.
+- **Keys:** Esc closes (unless the page uses it first, say to close its own dialog). ⌘↩ or ⌘O (Ctrl+Enter or Ctrl+O on Windows) opens the page in a new tab next to this one. ⌘[ and ⌘] (Alt+← and Alt+→), or the mouse's back and forward buttons, move through the preview's history; ⌘R (Ctrl+R) reloads it.
+- **Buttons beside the preview:** × closes; ↗ grows the preview to fill the window and opens it in a new tab; the split button docks it as a **side view** on the right (in windows at least 900px wide), so you can keep using the page — Peek another link and it replaces the one in the side view. Clicking the dimmed backdrop closes Peek, and clicking the site name copies the link.
+- Google Drive files use the embeddable file viewer, and folders use Drive's embedded list view. The full Drive app is available through **Open in tab**, which keeps the original link. APKs have no visual preview; Google supplies a Download button when the file is downloadable.
+- **Settings → Peek** turns Peek off, picks the trigger and size, and controls backdrop closing, the progress line, and **Show sites that block previews**. With that switch off, those sites show *This site doesn't allow previews* with **Show it anyway** (the relaxation below, for that one preview) and **Open in tab**.
+- Peek is separate from the vault: its code never reads, sends, or fills saved credentials.
+- **Showing sites that block previews, and the trade-off.** Sites refuse to be embedded with an `X-Frame-Options` header or a Content-Security-Policy `frame-ancestors` rule, mostly against *clickjacking*: another page hiding or disguising the site to trick you into clicking something on it. To show them, KeyBit removes those headers, but only:
+  - from pages KeyBit's own Peek window loads — the page you're previewing and the links you follow in it. Frames that the page you're on embeds, and frames inside the previewed page, keep their headers;
+  - in the tab where Peek is open, while it's open. The browser rules doing this are temporary session rules, removed when Peek or the tab closes; nothing persists.
+
+  An extension can't edit part of a Content-Security-Policy header, so when it contains `frame-ancestors` the whole header is dropped: the previewed page also loses its other CSP protections, such as script restrictions, while it's in Peek. On browsers too old to check a header's contents, the CSP header is removed from every page Peek loads.
+
+  In return, Peek guards against clickjacking itself. Its window sits in the browser's top layer, above the page's own content, and puts itself back if the page restyles, hides, or removes it. If the page still manages to cover the preview, even with an invisible layer, Peek ignores clicks and key presses in the preview until it's uncovered (the browser's IntersectionObserver v2 visibility check). That check can't run on the rare page whose root element uses visual effects such as a transform; those pages rely on the top layer alone. If you'd rather not make this trade, turn off **Show sites that block previews**.
+- **Limits:**
+  - Sites that need you signed in may show their signed-out view: browsers often don't send sign-in cookies to pages embedded in another site (third-party cookies). **Open in tab** shows the page as you normally see it.
+  - Forms that submit with POST, like many sign-in and checkout forms, aren't rerouted: their result shows only if that site allows embedding, and each submission adds a step to the tab's Back history. Use **Open in tab** for those.
+  - A page that hides itself from frames with script, rather than headers, can still look blank.
+  - Long press doesn't work on links inside frames embedded in the page; the other triggers do.
+  - Like any embedded page, a previewed site can see which site you came from (not the exact page) and that it's shown in KeyBit's Peek.
 
 **Filling**
 - The dropdown appears when you click a login field on any site, including a field that already has focus. It follows the field when the page scrolls.
@@ -89,6 +106,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
   - change master password;
   - theme: System, Light, or Dark;
   - keyboard shortcuts;
+  - Peek: trigger, size, backdrop closing, the progress line, and whether to show sites that block previews;
   - whether switching to a production environment asks first.
 - **Popup:**
   - shows this site's logins first, and searches all of them;
@@ -176,9 +194,10 @@ What changed:
   - Scheme, exact host, and port must match, plus the project folder on local servers.
   - Filling is always your choice. The worker rechecks the page and targets the original document.
   - KeyBit never submits forms.
-- **Isolation:** the dropdown, save card, and command palette are extension frames in a closed shadow root. The page's scripts never receive the account list or secrets. Generated passwords and 2FA codes reach the page only when you choose them. While locked, the palette's command list is built without touching vault data — no login or project names can leak into it.
+- **Isolation:** the dropdown, save card, command palette, and Peek window are extension frames in a closed shadow root. The page's scripts never receive the account list or secrets. Generated passwords and 2FA codes reach the page only when you choose them. While locked, the palette's command list is built without touching vault data — no login or project names can leak into it.
 - **Frames:** in iframes, each frame's dropdown is bound to that frame's own origin and document. Credentials are matched and sent only to the one frame whose address matches the login, and stale frames (navigated or removed mid-interaction) fail closed.
 - **Site rules:** the per-site switches live outside the vault as origins plus on/off flags — no secrets. They gate suggestions, save prompts, Peek, and palette actions the same way everywhere.
+- **Peek:** the one place KeyBit loosens a website's own protections. It removes `X-Frame-Options`, and CSP headers that set `frame-ancestors`, only from pages its Peek window loads, in that tab, while Peek is open, and guards the preview against clickjacking in return. *Peek link previews* above has the full trade-off; Settings → Peek → **Show sites that block previews** turns it off.
 - **Save prompts:**
   - Submitted values are read only on a trusted submit, click, or Enter, and held in memory for at most two minutes.
   - Updates always use the login you confirmed.
@@ -200,6 +219,7 @@ This is a personal-use implementation with automated security checks, not an ind
 | `clipboardWrite` | Copy a username, password, or code when you click Copy. |
 | `clipboardRead` (optional) | Clear a copied password or code from the clipboard after 30 seconds. Only asked the first time you copy a secret. |
 | `contextMenus` | Show KeyBit's right-click entries: preview a link, fill or generate on a field, inspect a form, save a selection as a note. |
+| `declarativeNetRequestWithHostAccess` | Let Peek show sites that block embedding: temporary session rules remove their `X-Frame-Options` header, and a CSP header that sets `frame-ancestors`, only from frames KeyBit's Peek page loads, in the tab where Peek is open, while it's open. |
 
 None of these shows an extra warning beyond site access. No history, cookies, downloads, webRequest, tabs, or management permission.
 
@@ -221,7 +241,7 @@ None of these shows an extra warning beyond site access. No history, cookies, do
 manifest.json          Registration, permissions, shortcuts, CSP
 icons/                 Logo and PNG icons
 src/
-  background/          Messages, keep-alive, screen-lock lock, site rules, dropdown modes, save prompts, passkey ceremonies, last-used order, folder backups, palette tokens
+  background/          Messages, keep-alive, screen-lock lock, site rules, dropdown modes, save prompts, passkey ceremonies, last-used order, folder backups, palette tokens, Peek sessions and embed rules
   crypto/              Encoding, PBKDF2, AES-GCM, backup parsing, Touch ID key sealing
   vault/               Schema (logins, notes, passkeys, history, 2FA, project environments), storage, CRUD, import, merge, single-item shares, Shamir recovery kits, password change, security report, TOTP, WebAuthn encoding and ECDSA signing
   matching/            Exact-origin matching with project folders, cached
@@ -231,6 +251,7 @@ src/
   inline/              Dropdown (accounts, generated password, 2FA codes), save/update card, and passkey consent card
   developer/           Login form inspector page and per-frame form analysis
   command/             Command palette overlay, fuzzy search, and the command registry
+  peek/                Peek link previews: link detection, the preview page, its in-preview script, and URL helpers
   rules/               Per-site rule model (enabled / logins / save / Peek, subdomain widening)
   ui/                  Shared styles and themes, tiles, icons, session client, sign-in and Touch ID, login dialog
   popup/               Current site, search, fill/copy/2FA, generator, keyboard use
