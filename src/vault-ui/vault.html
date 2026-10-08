@@ -46,6 +46,7 @@
       <button class="nav-item" type="button" data-view="logins"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>All logins</span><span id="count-logins" class="count"></span></button>
       <button class="nav-item" type="button" data-view="favorites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9z"/></svg><span>Favorites</span><span id="count-favorites" class="count"></span></button>
       <button class="nav-item" type="button" data-view="notes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg><span>Secure notes</span><span id="count-notes" class="count"></span></button>
+      <button id="nav-passkeys" class="nav-item" type="button" data-view="passkeys" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M14 9l2 2"/></svg><span>Passkeys</span><span id="count-passkeys" class="count"></span></button>
       <button class="nav-item" type="button" data-view="trash"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/><path d="M10 11v6M14 11v6"/></svg><span>Recently deleted</span><span id="count-trash" class="count"></span></button>
       <div id="projects-nav" class="nav-group" hidden><p class="nav-heading">Projects</p><div id="project-items"></div></div>
       <hr class="nav-divider">
@@ -186,6 +187,17 @@
 
   <dialog id="detail" class="modal detail-modal" aria-label="Details">
     <div id="detail-view" class="modal-body"></div>
+  </dialog>
+  <dialog id="share-dialog" class="modal small" aria-labelledby="share-title">
+    <form id="share-form" autocomplete="off" novalidate>
+      <header class="modal-header"><h2 id="share-title">Share this item</h2></header>
+      <div class="modal-body">
+        <p id="share-note" class="hint"></p>
+        <div class="form-field"><label for="share-password">Share passphrase</label><input id="share-password" type="password" autocomplete="off" maxlength="256" required></div>
+        <p id="share-error" class="form-error" role="alert" hidden></p>
+      </div>
+      <footer class="modal-footer"><span class="spacer"></span><button id="share-cancel" class="secondary-button" type="button">Cancel</button><button id="share-save" class="primary-button" type="submit">Create share file</button></footer>
+    </form>
   </dialog>
   <dialog id="password-dialog" class="modal small" aria-labelledby="password-dialog-title">
     <form id="password-form" autocomplete="off" novalidate>

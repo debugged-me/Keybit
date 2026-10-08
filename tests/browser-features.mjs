@@ -330,6 +330,48 @@ try {
   assert.ok(docSeen && docGone, 'The offscreen document appeared, ran its timer, and closed');
   console.log('PASS: clipboard clearing runs in a background offscreen document.');
 
+  // Passkeys: the fixture page calls navigator.credentials directly, like any WebAuthn site.
+  // KeyBit's MAIN-world interceptor offers its card; the page's promise resolves with a real credential.
+  const pk = await page(`${url}/webauthn.html`);
+  await send('Target.activateTarget', { targetId: pk.targetId });
+  await click(pk.session, '#create');
+  let passkeyCard = await frameTarget('/src/inline/passkey.html#');
+  await waitFor(passkeyCard, 'document.querySelector("#heading").textContent === "Save a passkey?" && !document.querySelector("#save").disabled');
+  await shot(pk.session, 'passkey-create');
+  await click(passkeyCard, '#save');
+  await waitFor(pk.session, 'document.querySelector("#out").textContent.startsWith("created ")');
+  const created = await evaluate(pk.session, 'document.querySelector("#out").textContent');
+  assert.match(created, / public-key attestation:[1-9]\d* json:true/, 'The page received an attestation object');
+  s = await state(app.session);
+  const keyItem = (await rpc(app.session, 'LIST', { session: s.session, query: '' })).data.find(item => item.type === 'passkey');
+  assert.ok(keyItem, 'The passkey is saved in the vault');
+  assert.equal(keyItem.rpId, '127.0.0.1');
+  await waitFor(app.session, '!document.querySelector("#nav-passkeys").hidden');
+  await click(app.session, '#nav-passkeys');
+  await waitFor(app.session, 'document.querySelectorAll("#items .item-row").length === 1');
+  await click(app.session, '#items .item-row');
+  await waitFor(app.session, 'document.querySelector("#detail").open');
+  assert.match(await evaluate(app.session, 'document.querySelector("#detail-view").textContent'), /alice@fixture\.test/);
+  await shot(app.session, 'passkey-detail');
+  await click(app.session, '#detail .back-button');
+  await absent('/src/inline/passkey.html#');
+
+  // Signing in returns a real assertion and bumps the authenticator counter.
+  await send('Target.activateTarget', { targetId: pk.targetId });
+  await click(pk.session, '#signin');
+  passkeyCard = await frameTarget('/src/inline/passkey.html#');
+  await waitFor(passkeyCard, 'document.querySelector("#heading").textContent === "Sign in with a passkey?"');
+  await click(passkeyCard, '#save');
+  await waitFor(pk.session, 'document.querySelector("#out").textContent.startsWith("signed ")');
+  assert.match(await evaluate(pk.session, 'document.querySelector("#out").textContent'), /sig:(6[4-9]|7[0-9]) handle:true/, 'The assertion has a signature and user handle');
+  assert.equal((await rpc(app.session, 'ITEM', { session: s.session, id: keyItem.id })).data.item.signCount, 1, 'The sign-in bumped the signature counter');
+
+  // A ceremony for a credential KeyBit does not hold passes through natively — headless errors out.
+  await click(pk.session, '#signin-unknown');
+  await waitFor(pk.session, 'document.querySelector("#out").textContent.startsWith("error ")', 60);
+  await absent('/src/inline/passkey.html#');
+  console.log('PASS: passkeys create, sign in with a real assertion, and delegate unknown credentials natively.');
+
   const unexpected = errors.filter(event => !JSON.stringify(event).includes('favicon.ico'));
   assert.deepEqual(unexpected, []);
   console.log('PASS: no captured extension JavaScript/CSP errors.');

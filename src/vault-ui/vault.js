@@ -12,7 +12,7 @@ import { biometricAvailable, biometricName, createBiometric } from "../ui/biomet
 
 /** @type {(selector: string) => any} Page elements are looked up by known IDs. */
 const $ = selector => document.querySelector(selector);
-const LIST_VIEWS = ["logins", "favorites", "notes", "trash"];
+const LIST_VIEWS = ["logins", "favorites", "notes", "passkeys", "trash"];
 const VIEWS = [...LIST_VIEWS, "health", "generator", "import", "backup", "settings", "sites"];
 const LOCK_LABELS = { 0: "Never", 1: "1 minute", 5: "5 minutes", 10: "10 minutes", 15: "15 minutes", 30: "30 minutes" };
 const ENV_ORDER = ["production", "staging", "development", "local", "other"];
@@ -26,6 +26,7 @@ let health = {};
 let projects = [];
 let disabledSites = [];
 let selectedId = null;
+let passkeyCount = 0;
 let detail = null;           // { item, revision }: the selected item, including its secrets, until lock or deselect
 let pendingSelects = 0;      // selects still fetching: a queued `close` event must not clear them
 let codeTicker = null;
@@ -72,6 +73,7 @@ const isList = name => LIST_VIEWS.includes(name) || name.startsWith("project:");
 function show(name, remember = true) {
   view = VIEWS.includes(name) || (name.startsWith("project:") && projects.includes(name.slice(8))) ? name : "logins";
   if (view === "sites" && !disabledSites.length) view = "logins";
+  if (view === "passkeys" && !passkeyCount) view = "logins";
   const section = isList(view) ? "logins" : view;
   for (const candidate of VIEWS.filter(name => !LIST_VIEWS.includes(name) || name === "logins")) $(`#view-${candidate}`).hidden = candidate !== section;
   for (const nav of all(".nav-item")) nav.setAttribute("aria-current", nav.dataset.view === view ? "page" : "false");
@@ -93,13 +95,16 @@ const badge = (text, kind = "") => element("span", { className: `badge ${kind}` 
 function row(item, onClick) {
   const flags = health[item.id] ?? {};
   const note = item.type === "note";
+  const passkey = item.type === "passkey";
   const secondary = item.deletedAt ? `Deleted ${relativeTime(Date.parse(item.deletedAt))}` :
-    note ? ["Secure note", item.project].filter(Boolean).join(" · ") : `${item.username || "No username"} · ${item.scope}`;
+    note ? ["Secure note", item.project].filter(Boolean).join(" · ") :
+    passkey ? `Passkey · ${item.rpId}` : `${item.username || "No username"} · ${item.scope}`;
   const button = element("button", { type: "button", className: "item-row login-item", "data-id": item.id, "aria-current": String(item.id === selectedId) },
-    note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) : siteTile(item.scope),
+    note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) :
+    passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) : siteTile(item.scope),
     element("span", { className: "details" }, element("span", { className: "primary" }, item.favorite ? "★ " : "", item.name), element("span", { className: "secondary" }, secondary)),
     element("span", { className: "row-badges" }, item.environment === "production" ? badge("Production", "production") : null,
-      item.hasTotp ? badge("2FA", "totp") : null, flags.reused ? badge("Reused", "warn") : null, flags.weak ? badge("Weak", "weak") : null));
+      passkey ? badge("Passkey") : null, item.hasTotp ? badge("2FA", "totp") : null, flags.reused ? badge("Reused", "warn") : null, flags.weak ? badge("Weak", "weak") : null));
   button.addEventListener("click", onClick);
   return button;
 }
@@ -112,6 +117,7 @@ function sorted(list) {
 function inView(item) {
   if (view === "favorites") return item.favorite;
   if (view === "notes") return item.type === "note";
+  if (view === "passkeys") return item.type === "passkey";
   if (view.startsWith("project:")) return item.project === view.slice(8);
   return item.type === "login";
 }
@@ -119,9 +125,11 @@ function renderList() {
   if (!isList(view)) return;
   const query = $("#search").value;
   const project = view.startsWith("project:") ? view.slice(8) : null;
-  const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes", trash: "Recently deleted" };
+  const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes", passkeys: "Passkeys", trash: "Recently deleted" };
   $("#list-title").textContent = query ? `Results for “${query}”` : project ?? titles[view];
   $("#add-label").textContent = view === "notes" ? "Add note" : "Add login";
+  // Passkeys are created by websites, not by hand; there is nothing to add in that view.
+  $("#add-login").hidden = view === "passkeys";
   // Trash always lists the newest deletion first; the sort menu is not meaningful there.
   $("#sort").hidden = view === "trash";
   $("#empty-trash").hidden = view !== "trash" || !trash.length;
@@ -140,6 +148,7 @@ function renderList() {
   else if (view === "logins") $("#items").append(gettingStarted());
   else $("#items").append(element("p", { className: "empty" }, view === "favorites" ? "Star a login or note to keep it here."
     : view === "notes" ? "Keep licence keys, server details, or Wi-Fi passwords here, encrypted."
+    : view === "passkeys" ? "No passkeys yet. When a site offers to create one, KeyBit asks to keep it here."
     : view === "trash" ? "Nothing deleted. Items you delete are kept here for 30 days." : "Nothing in this project yet."));
 }
 function gettingStarted() {
@@ -168,6 +177,9 @@ async function refreshList() {
     const all = $("#search").value ? await client.request("LIST", { query: "" }) : items;
     if (!client.is(session)) return;
     const flagged = all.filter(item => health[item.id]?.reused || health[item.id]?.weak);
+    passkeyCount = all.filter(item => item.type === "passkey").length;
+    $("#nav-passkeys").hidden = !passkeyCount;
+    $("#count-passkeys").textContent = String(passkeyCount || "");
     $("#count-logins").textContent = String(all.filter(item => item.type === "login").length);
     $("#count-favorites").textContent = String(all.filter(item => item.favorite).length || "");
     $("#count-notes").textContent = String(all.filter(item => item.type === "note").length || "");
@@ -197,7 +209,7 @@ $("#sidebar-health").addEventListener("click", () => show("health"));
 // ⌘K / Ctrl+K jumps to search from anywhere; "/" works when not typing, like the popup.
 $("#search-kbd").textContent = /^Mac|iP/.test(navigator.platform) ? "⌘K" : "Ctrl K";
 document.addEventListener("keydown", event => {
-  if (!client.state.unlocked || $("#login-dialog")?.open || $("#password-dialog")?.open || $("#detail")?.open) return;
+  if (!client.state.unlocked || $("#login-dialog")?.open || $("#password-dialog")?.open || $("#share-dialog")?.open || $("#detail")?.open) return;
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); $("#search").focus(); $("#search").select(); return; }
   const target = /** @type {HTMLElement} */ (event.target);
   const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable;
@@ -215,9 +227,13 @@ function clearDetail() {
   for (const node of all(".item-row[aria-current='true']")) node.setAttribute("aria-current", "false");
 }
 // Escape and clicking the dimmed page behind the dialog both close it. The `close` event is
-// dispatched as a queued task: a select() started right after close() must still render,
-// so clearing waits until no selection is in flight.
-$("#detail").addEventListener("close", () => { if (!pendingSelects) clearDetail(); });
+// dispatched as a queued task, so it can arrive late — while a newer select() is still in flight,
+// or after it already re-opened the dialog for another item. Only a close event that finds the
+// dialog still closed and matches the current selection may clear it.
+$("#detail").addEventListener("close", () => {
+  if (pendingSelects || $("#detail").open || !detail || detail.item.id !== selectedId) return;
+  clearDetail();
+});
 $("#detail").addEventListener("click", event => { if (event.target === $("#detail")) clearDetail(); });
 async function select(id) {
   const session = client.state.session;
@@ -256,14 +272,22 @@ function renderDetail() {
   clearInterval(codeTicker); codeTicker = null;
   const { item } = detail;
   const note = item.type === "note";
+  const passkey = item.type === "passkey";
   const flags = health[item.id] ?? {};
-  const scope = note ? "" : scopeLabel(item.urls[0]);
+  const scope = note || passkey ? "" : scopeLabel(item.urls[0]);
   const back = iconButton("close", "Close", { className: "icon-button back-button" });
   back.addEventListener("click", clearDetail);
   const star = iconButton("star", item.favorite ? "Remove from favorites" : "Add to favorites", { className: `icon-button star${item.favorite ? " on" : ""}`, "aria-pressed": String(item.favorite) });
   star.addEventListener("click", () => void toggleFavorite());
   const fields = [];
   if (note) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Note"), element("p", { className: "notes" }, item.notes || "—"), item.notes ? element("div", { className: "field-value" }, copyButton(item.notes, "note")) : null));
+  else if (passkey) {
+    fields.push(fieldBlock("Signs in to", element("span", {}, item.rpId)));
+    fields.push(fieldBlock("Account", element("span", {}, item.userName), copyButton(item.userName, "username")));
+    fields.push(fieldBlock("Last used", element("span", {}, item.lastUsedAt ? `${relativeTime(Date.parse(item.lastUsedAt))} · ${item.signCount} sign-in${item.signCount === 1 ? "" : "s"}` : "Not used yet")));
+    fields.push(fieldBlock("Created", element("span", {}, new Date(item.createdAt).toLocaleString())));
+    if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes)));
+  }
   else {
     fields.push(fieldBlock("Username", element("span", {}, item.username || "—"), item.username ? copyButton(item.username, "username") : null));
     fields.push(fieldBlock("Password", ...secretValue(item.password), copyButton(item.password, "password")));
@@ -297,7 +321,7 @@ function renderDetail() {
   if (flags.reused) warnings.push(element("p", { className: "warning" }, icon("alert"), `This password is also used by ${flags.reused} other login${flags.reused === 1 ? "" : "s"}. Change it on this site to a unique one.`));
   if (flags.weak) warnings.push(element("p", { className: "warning weak" }, icon("alert"), "This password is short or simple. Generate a stronger one when you next change it."));
   let history = null;
-  if (!note && item.history.length) {
+  if (!note && !passkey && item.history.length) {
     history = element("details", { className: "history" }, element("summary", {}, `Password history (${item.history.length})`),
       ...item.history.map(entry => {
         const [value, reveal] = secretValue(entry.password);
@@ -315,16 +339,23 @@ function renderDetail() {
     const purge = element("button", { type: "button", className: "text-button danger" }, "Delete forever");
     purge.addEventListener("click", () => void purgeItem(item.id));
     actions.push(restore, purge);
+  } else if (passkey) {
+    const remove = element("button", { type: "button", className: "text-button danger" }, "Delete");
+    remove.addEventListener("click", () => void deleteItem(item.id));
+    actions.push(remove);
   } else {
     const edit = element("button", { type: "button", className: "secondary-button", id: "edit-login" }, "Edit");
     edit.addEventListener("click", () => openLoginDialog({ client, item: detail.item, revision: detail.revision, existing: items, projects, onSaved: afterSave, onDelete: afterDelete }));
+    const share = element("button", { type: "button", className: "secondary-button", id: "share-item" }, "Share…");
+    share.addEventListener("click", () => openShare(item));
     const remove = element("button", { type: "button", className: "text-button danger" }, "Delete");
     remove.addEventListener("click", () => void deleteItem(item.id));
-    actions.push(edit, remove);
+    actions.push(edit, share, remove);
   }
   $("#detail-view").replaceChildren(...[
-    element("div", { className: "detail-header" }, note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) : siteTile(scope),
-      element("h3", {}, item.name, element("span", { className: "site" }, note ? "Secure note" : scope,
+    element("div", { className: "detail-header" }, note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) :
+      passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) : siteTile(scope),
+      element("h3", {}, item.name, element("span", { className: "site" }, note ? "Secure note" : passkey ? `Passkey · ${item.rpId}` : scope,
         !note && item.environment !== "other" ? badge(item.environment, item.environment === "production" ? "production" : "") : null)), star, back),
     ...warnings, ...fields, history,
     element("div", { className: "detail-actions" }, ...actions, element("span", { className: "meta" }, meta))
@@ -347,8 +378,9 @@ async function restorePassword(password) {
     await select(detail.item.id);
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
+const kindWord = type => ({ note: "note", passkey: "passkey" }[type] ?? "login");
 async function deleteItem(id) {
-  if (!confirm(`Delete this ${detail?.item.type === "note" ? "note" : "login"}? It is kept in Recently deleted for 30 days.`)) return;
+  if (!confirm(`Delete this ${kindWord(detail?.item.type)}? It is kept in Recently deleted for 30 days.`)) return;
   try {
     const state = await client.request("DELETE", { id, revision: detail?.revision ?? client.state.revision });
     await afterDelete(state);
@@ -360,11 +392,11 @@ async function restoreItem(id) {
     const state = await client.request("RESTORE", { id, revision: detail?.revision ?? client.state.revision });
     clearDetail(); client.update(state); announce("Restored.");
     await refreshList();
-    if (kind === "note" || kind === "login") { show(kind === "note" ? "notes" : "logins"); await select(id); }
+    if (["note", "login", "passkey"].includes(kind)) { show({ note: "notes", passkey: "passkeys" }[kind] ?? "logins"); await select(id); }
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
 async function purgeItem(id) {
-  if (!confirm(`Delete this ${detail?.item.type === "note" ? "note" : "login"} forever? This cannot be undone.`)) return;
+  if (!confirm(`Delete this ${kindWord(detail?.item.type)} forever? This cannot be undone.`)) return;
   try {
     const state = await client.request("PURGE", { id, revision: detail?.revision ?? client.state.revision });
     await afterDelete(state);
@@ -395,6 +427,41 @@ async function afterSave(state, id) {
 }
 async function afterDelete(state) { clearDetail(); client.update(state); announce("Deleted."); }
 $("#add-login").addEventListener("click", () => openAdd());
+
+// Encrypted share: one item, protected by its own passphrase, merged by the recipient like a backup.
+let sharingId = null;
+function openShare(item) {
+  sharingId = item.id;
+  $("#share-title").textContent = `Share “${item.name}”`;
+  $("#share-note").textContent = item.type === "note"
+    ? "Creates an encrypted file holding only this note. Send it however you like — the other person merges it in Backup with the passphrase you set here."
+    : "Creates an encrypted file holding only this login, password and 2FA key included. Send it however you like — the other person merges it in Backup with the passphrase you set here.";
+  $("#share-password").value = ""; $("#share-error").hidden = true;
+  $("#share-dialog").showModal(); $("#share-password").focus();
+}
+$("#share-cancel").addEventListener("click", () => $("#share-dialog").close());
+$("#share-dialog").addEventListener("close", () => { sharingId = null; $("#share-password").value = ""; });
+$("#share-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const password = $("#share-password").value;
+  const fail = text => { $("#share-error").textContent = text; $("#share-error").hidden = false; };
+  if ([...password].length < 8) return fail("Use a share passphrase of at least 8 characters.");
+  if (!sharingId) return;
+  $("#share-save").disabled = true;
+  try {
+    const envelope = await client.request("SHARE_ITEM", { id: sharingId, password });
+    $("#share-password").value = "";
+    $("#share-dialog").close();
+    const slug = (detail?.item.name ?? "item").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "item";
+    const url = URL.createObjectURL(new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url; link.download = `keybit-share-${slug}.kvault`;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    announce("Share file saved. Send it to them and give them the passphrase — they merge it in Backup.");
+  } catch (error) { fail(error.message); }
+  finally { $("#share-save").disabled = false; }
+});
 
 // Auto-lock menu
 function updateAutoLock(minutes) {

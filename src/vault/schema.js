@@ -3,7 +3,7 @@ import { parseTotp } from "./totp.js";
 
 export const AUTO_LOCK_OPTIONS = [1, 5, 10, 15, 30, 0];
 export const ENVIRONMENTS = ["local", "development", "staging", "production", "other"];
-export const ITEM_TYPES = ["login", "note"];
+export const ITEM_TYPES = ["login", "note", "passkey"];
 export const HISTORY_LIMIT = 5;
 export const MAX_URLS = 10;
 const invalid = () => { throw new Error("The vault data is invalid or unsupported."); };
@@ -34,6 +34,19 @@ export function validateItem(item) {
   const common = { id: item.id, type, name: text(item.name, 200, true), notes: text(item.notes ?? "", 20000), project: text(project, 100).trim(),
     favorite, deletedAt: item.deletedAt == null ? null : date(item.deletedAt), createdAt: date(item.createdAt), updatedAt: date(item.updatedAt) };
   if (type === "note") return { ...common, urls: [], username: "", environment: "other" };
+  // Passkeys are WebAuthn credentials created in-page; the private key is a PKCS8 secret, never an autofill password.
+  if (type === "passkey") {
+    const signCount = item.signCount ?? 0;
+    if (typeof item.rpId !== "string" || !item.rpId || item.rpId.length > 255 ||
+        typeof item.credentialId !== "string" || !item.credentialId || item.credentialId.length > 1023 ||
+        typeof item.userName !== "string" || !item.userName || item.userName.length > 1024 ||
+        typeof item.userHandle !== "string" || item.userHandle.length > 1023 ||
+        typeof item.privateKey !== "string" || !item.privateKey || item.privateKey.length > 4096 ||
+        !Number.isInteger(signCount) || signCount < 0 || signCount > 0xffffffff) invalid();
+    return { ...common, urls: [], username: "", password: "", environment: "other", totp: "", history: [],
+      rpId: item.rpId, credentialId: item.credentialId, userName: item.userName, userHandle: item.userHandle,
+      privateKey: item.privateKey, signCount, lastUsedAt: item.lastUsedAt == null ? null : date(item.lastUsedAt) };
+  }
   // Items saved before 1.2 have no history; before 1.3, no 2FA secret, project, or favorite.
   const history = item.history ?? [];
   if (!Array.isArray(item.urls) || !item.urls.length || item.urls.length > MAX_URLS || !ENVIRONMENTS.includes(item.environment) ||
@@ -62,5 +75,7 @@ export function createItem(input, previous) {
 
 // The same login or note twice: same site (or project folder), username, and password; or same note text.
 export function duplicateKey(item, scopeLabel) {
-  return item.type === "note" ? `note\n${item.name}\n${item.notes}` : `login\n${scopeLabel(item.urls[0])}\n${item.username}\n${item.password}`;
+  if (item.type === "note") return `note\n${item.name}\n${item.notes}`;
+  if (item.type === "passkey") return `passkey\n${item.rpId}\n${item.credentialId}`;
+  return `login\n${scopeLabel(item.urls[0])}\n${item.username}\n${item.password}`;
 }

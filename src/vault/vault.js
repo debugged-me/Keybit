@@ -99,11 +99,12 @@ export class Vault {
     const needle = query.toLocaleLowerCase();
     const fits = url ? matcherFor(url) : null;
     const items = this.#data.items.filter(item => !item.deletedAt && (!fits || fits(item)) &&
-      (!needle || [item.name, item.username, item.project, ...item.urls].some(value => value.toLocaleLowerCase().includes(needle))));
+      (!needle || [item.name, item.username, item.project, item.rpId ?? "", ...item.urls].some(value => value.toLocaleLowerCase().includes(needle))));
     // On a page, a project-folder login is a better match than a whole-site one.
     if (url) items.sort((a, b) => specificity(b) - specificity(a));
-    return items.map(({ id, type, name, urls, username, environment, project, favorite, totp, updatedAt }) => ({ id, type, name, urls: [...urls],
-      scope: urls.length ? scopeLabel(urls[0]) : "", username, environment, project, favorite, hasTotp: !!totp, updatedAt }));
+    return items.map(({ id, type, name, urls, username, environment, project, favorite, totp, updatedAt, rpId, credentialId, userName, lastUsedAt }) => ({ id, type, name, urls: [...urls],
+      scope: urls.length ? scopeLabel(urls[0]) : "", username, environment, project, favorite, hasTotp: !!totp, updatedAt,
+      ...(type === "passkey" ? { rpId, credentialId, userName, lastUsedAt } : {}) }));
   }
   projects(session) {
     this.require(session);
@@ -118,8 +119,27 @@ export class Vault {
     this.require(session);
     return this.#data.items.filter(item => item.deletedAt)
       .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt))
-      .map(({ id, type, name, urls, username, environment, project, favorite, totp, updatedAt, deletedAt }) => ({ id, type, name, urls: [...urls],
-        scope: urls.length ? scopeLabel(urls[0]) : "", username, environment, project, favorite, hasTotp: !!totp, updatedAt, deletedAt }));
+      .map(({ id, type, name, urls, username, environment, project, favorite, totp, updatedAt, deletedAt, rpId, credentialId, userName, lastUsedAt }) => ({ id, type, name, urls: [...urls],
+        scope: urls.length ? scopeLabel(urls[0]) : "", username, environment, project, favorite, hasTotp: !!totp, updatedAt, deletedAt,
+        ...(type === "passkey" ? { rpId, credentialId, userName, lastUsedAt } : {}) }));
+  }
+  // WebAuthn lookup for a sign-in ceremony: credentials at this relying party, narrowed by the
+  // page's allowCredentials list when it gave one (an empty list means any passkey here may serve).
+  passkeyCandidates(session, rpId, allowedIds) {
+    this.require(session);
+    const allowed = Array.isArray(allowedIds) && allowedIds.length ? new Set(allowedIds.slice(0, 64)) : null;
+    return this.#data.items.filter(item => item.type === "passkey" && !item.deletedAt && item.rpId === rpId &&
+      (!allowed || allowed.has(item.credentialId)))
+      .map(item => ({ id: item.id, name: item.name, credentialId: item.credentialId, userName: item.userName, lastUsedAt: item.lastUsedAt }));
+  }
+  // A real authenticator bumps its signature counter on every assertion; so does KeyBit.
+  async touchPasskey(session, id, signCount) {
+    this.require(session);
+    const item = this.item(session, id);
+    if (item.type !== "passkey" || item.deletedAt) throw new Error("This passkey no longer exists.");
+    const lastUsedAt = new Date(this.now()).toISOString();
+    const items = this.#data.items.map(entry => entry.id === id ? { ...entry, signCount, lastUsedAt, updatedAt: lastUsedAt } : entry);
+    return this.#save({ ...this.#data, items }, session, this.#data.revision);
   }
   item(session, id) {
     this.require(session);
@@ -264,10 +284,22 @@ export class Vault {
     if (!stored) throw new Error("There is no vault to export.");
     return validateEnvelope(stored);
   }
-  // Plain-text CSV for moving to another manager. Recently deleted items are not exported.
+  // Plain-text CSV for moving to another manager. Recently deleted items are not exported;
+  // passkeys are never exported: a private key in a spreadsheet is a leak, not a migration.
   exportCsv(session) {
     this.require(session);
-    return toCsv(this.#data.items.filter(item => !item.deletedAt));
+    return toCsv(this.#data.items.filter(item => !item.deletedAt && (item.type === "login" || item.type === "note")));
+  }
+  // One item encrypted with a share passphrase, as a .kvault the recipient merges like a backup.
+  async shareItem(session, id, passphrase) {
+    const item = this.item(session, id);
+    if (item.type === "passkey") throw new Error("Passkeys are bound to this device and can't be shared.");
+    if (typeof passphrase !== "string" || [...passphrase].length < 8) throw new Error("Choose a share passphrase of at least 8 characters.");
+    const copy = { ...item, id: crypto.randomUUID(), deletedAt: null, history: [], favorite: false };
+    const payload = { version: 1, revision: 0, items: [copy], settings: { autoLockMinutes: 0, lockOnScreenLock: true } };
+    const kdf = newKdf();
+    const key = await deriveKey(passphrase, kdf);
+    return encryptVault(payload, key, kdf);
   }
   async prepareImport(text, password) {
     this.lock();

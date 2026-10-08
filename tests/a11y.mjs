@@ -32,7 +32,9 @@ try {
   for (const item of [
     { name: 'Fixture', urls: [url], username: 'test-user@example.test', password: 'Fixture-secret-1!xyz', notes: '', environment: 'production', project: 'SRMS', totp: 'JBSWY3DPEHPK3PXP' },
     { name: 'Weak', urls: ['https://weak.example.test'], username: 'weak', password: 'admin123', notes: '', environment: 'other' },
-    { type: 'note', name: 'Server keys', notes: 'ssh', project: 'SRMS' }]) {
+    { type: 'note', name: 'Server keys', notes: 'ssh', project: 'SRMS' },
+    { type: 'passkey', name: 'Alice Fixture', rpId: new URL(url).hostname, credentialId: 'a2V5Yml0LWFsbHktdGVzdA',
+      userName: 'alice@fixture.test', userHandle: 'YWxpY2U', privateKey: 'fixture-pkcs8-bytes', signCount: 3, lastUsedAt: new Date().toISOString() }]) {
     state = (await evaluate(app.session, `chrome.runtime.sendMessage(${JSON.stringify({ type: 'SAVE', session: state.session, revision: state.revision, item })})`)).data;
   }
   await evaluate(app.session, 'location.hash = "#logins"; location.reload()');
@@ -43,11 +45,23 @@ try {
   await audit(app.session, 'All logins + details');
   // The detail dialog makes the page inert; close it so the sidebar clicks below reach.
   await evaluate(app.session, 'document.querySelector("#detail").close()');
-  for (const view of ['health', 'generator', 'import', 'backup', 'settings', 'project:SRMS', 'notes']) {
+  for (const view of ['health', 'generator', 'import', 'backup', 'settings', 'project:SRMS', 'notes', 'passkeys']) {
     await evaluate(app.session, `document.querySelector('[data-view="${view}"]').click()`);
     await delay(300);
     await audit(app.session, `View: ${view}`);
   }
+  await evaluate(app.session, 'document.querySelector("#items .login-item").click()');
+  await waitFor(app.session, 'document.querySelector("#detail").open');
+  await audit(app.session, 'Passkey details');
+  await evaluate(app.session, 'document.querySelector("#detail").close()');
+  await evaluate(app.session, `document.querySelector('[data-view="logins"]').click()`);
+  await waitFor(app.session, 'document.querySelectorAll("#items .login-item").length === 2');
+  await evaluate(app.session, 'document.querySelector("#items .login-item").click()');
+  await waitFor(app.session, 'document.querySelector("#detail").open && !!document.querySelector("#share-item")');
+  await evaluate(app.session, 'document.querySelector("#share-item").click()');
+  await waitFor(app.session, 'document.querySelector("#share-dialog").open');
+  await audit(app.session, 'Share dialog');
+  await evaluate(app.session, 'document.querySelector("#share-dialog").close(); document.querySelector("#detail").close()');
   await evaluate(app.session, `document.querySelector('[data-view="logins"]').click(); document.querySelector("#add-login").click()`);
   await waitFor(app.session, 'document.querySelector("#login-dialog").open');
   await audit(app.session, 'Add login dialog');
@@ -68,6 +82,13 @@ try {
   const card = await frameTarget('/src/inline/save.html#');
   await waitFor(card, '!document.querySelector("#save").disabled');
   await audit(card, 'Save card');
+  const pkSite = await page(`${url}/webauthn.html`);
+  await send('Target.activateTarget', { targetId: pkSite.targetId });
+  await evaluate(pkSite.session, 'document.querySelector("#create").click()');
+  const pkCard = await frameTarget('/src/inline/passkey.html#');
+  await waitFor(pkCard, '!document.querySelector("#save").disabled');
+  await audit(pkCard, 'Passkey card');
+  await evaluate(pkCard, 'document.querySelector("#dismiss").click()');
   await evaluate(app.session, `chrome.runtime.sendMessage({ type: 'LOCK' })`);
   await waitFor(app.session, '!!document.querySelector("#master-password")');
   await audit(app.session, 'Unlock');

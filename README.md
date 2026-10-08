@@ -40,6 +40,12 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **The update card names the exact login it would change.** It offers Update, **Save as new**, or Not now. You pick when several logins share the username.
 - **Each login keeps its last 5 passwords**, so a wrong update is easy to undo.
 
+**Passkeys**
+- When a site offers to create a passkey, a KeyBit card asks to keep it in the vault. The private key is encrypted with everything else on this device — no account, no sync service.
+- Signing in with a saved passkey shows a card naming the site and account. "Not now" or "Use device passkey" hands the call to the browser's built-in handling, as does anything KeyBit can't answer (a credential it doesn't hold, or a site mismatch).
+- A passkey only answers the site that created it: KeyBit checks the calling page's origin against the credential's relying party before signing, and the page never sees the private key.
+- Passkeys live in their own **Passkeys** sidebar section and in `.kvault` backups. They stay out of CSV export, password health, and the login dropdown — they are not passwords.
+
 **Organising**
 - Every login has a site tile; a login can have up to 10 website addresses.
 - **Favourites**, **secure notes**, and **projects**. A project's view groups its logins by environment: Production, Staging, Development, Local.
@@ -50,7 +56,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **Copied passwords and 2FA codes clear themselves from the clipboard after 30 seconds**, if you allow the optional clipboard-read permission. The timer runs in the background, so it works even if you close the popup right after copying — and it only clears when the clipboard still holds what KeyBit copied, so it never erases something else you copied since.
 
 **One app window**
-- **Sidebar:** All logins, Favorites, Secure notes, Recently deleted, Projects, Weak & reused, Generator, Import, Backup, and Settings. **Sites turned off** appears only while a site is off. A **vault health** card at the bottom shows how many passwords are strong; click it to open Weak & reused.
+- **Sidebar:** All logins, Favorites, Secure notes, Passkeys, Recently deleted, Projects, Weak & reused, Generator, Import, Backup, and Settings. **Sites turned off** appears only while a site is off. A **vault health** card at the bottom shows how many passwords are strong; click it to open Weak & reused.
 - **Keyboard:** ⌘K (Ctrl+K on Windows) jumps to search; / does the same when you're not typing.
 - **Adding and editing happen in a dialog**, in the app and in the popup:
   - typing `example.com` is enough; KeyBit adds the http/https part;
@@ -82,6 +88,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
   - **Restore** can **merge** (adds logins, newer copies win, nothing deleted) or **replace** the vault.
   - A reminder appears when there's no backup from the last 30 days.
 - **Plain-text CSV export** for moving to another password manager. It is not encrypted, so KeyBit asks before exporting — delete the file when the move is done.
+- **Share one item** from its details with **Share…**: a `.kvault` file encrypted with a passphrase you choose for it, with no server involved. Send it any way you like — AirDrop, a message, a USB stick. The recipient merges it into their KeyBit vault like a backup. Anyone holding both the file and the passphrase can read the item; choose a different passphrase than your master password.
 - **No practical limit on logins.** A vault can hold up to 32 MB of login data, about 100,000 typical logins.
 
 Forgotten master passwords cannot be recovered.
@@ -185,14 +192,14 @@ None of these shows an extra warning beyond site access. No history, cookies, do
 manifest.json          Registration, permissions, shortcuts, CSP
 icons/                 Logo and PNG icons
 src/
-  background/          Messages, keep-alive, screen-lock lock, site switch, dropdown modes, save prompts, last-used order, folder backups
+  background/          Messages, keep-alive, screen-lock lock, site switch, dropdown modes, save prompts, passkey ceremonies, last-used order, folder backups
   crypto/              Encoding, PBKDF2, AES-GCM, backup parsing, Touch ID key sealing
-  vault/               Schema (logins, notes, history, 2FA), storage, CRUD, import, merge, password change, health, TOTP
+  vault/               Schema (logins, notes, passkeys, history, 2FA), storage, CRUD, import, merge, single-item shares, password change, health, TOTP, WebAuthn encoding and ECDSA signing
   matching/            Exact-origin matching with project folders, cached
   generator/           Secure random and memorable passwords, remembered preferences, EFF word list
   import/              CSV and Bitwarden JSON parsers
-  content/             Login, sign-up, username-step and 2FA field detection; filling; submit, click and Enter capture
-  inline/              Dropdown (accounts, generated password, 2FA codes) and save/update card
+  content/             Login, sign-up, username-step and 2FA field detection; filling; submit, click and Enter capture; WebAuthn interception and passkey relay
+  inline/              Dropdown (accounts, generated password, 2FA codes), save/update card, and passkey consent card
   ui/                  Shared styles and themes, tiles, icons, session client, sign-in and Touch ID, login dialog
   popup/               Current site, search, fill/copy/2FA, generator, keyboard use
   vault-ui/            App window: lists, projects, details, import, backup, settings
@@ -240,4 +247,4 @@ Not testable headlessly:
   - cross-origin login iframes;
   - browser-internal pages;
   - sites that block embedded extension panels.
-- **Not included:** passkey storage for websites, cloud sync, sharing, and automatic form submission.
+- **Not included:** cloud sync and automatic form submission.

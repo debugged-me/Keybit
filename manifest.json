@@ -35,10 +35,23 @@
         "src/content/form-detector.js",
         "src/content/autofill.js",
         "src/content/inline.js",
-        "src/content/save.js"
+        "src/content/save.js",
+        "src/content/passkey.js"
       ],
       "run_at": "document_start",
       "all_frames": false
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "src/content/passkey-page.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false,
+      "world": "MAIN"
     }
   ],
   "action": {
@@ -77,7 +90,8 @@
     {
       "resources": [
         "src/inline/panel.html",
-        "src/inline/save.html"
+        "src/inline/save.html",
+        "src/inline/passkey.html"
       ],
       "matches": [
         "http://*/*",

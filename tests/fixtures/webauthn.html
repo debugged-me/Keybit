@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>KeyBit passkey fixture</title><link rel="stylesheet" href="fixture.css"></head><body><main><h1>Passkey test</h1><p>WebAuthn ceremony fixture.</p>
+<button id="create" type="button">Create passkey</button>
+<button id="signin" type="button">Sign in</button>
+<button id="signin-unknown" type="button">Sign in unknown</button>
+<pre id="out">idle</pre>
+<script>
+const out = document.querySelector("#out");
+let created = null;
+document.querySelector("#create").addEventListener("click", async () => {
+  out.textContent = "pending";
+  try {
+    const credential = await navigator.credentials.create({ publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      rp: { name: "Fixture site" },
+      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: "alice@fixture.test", displayName: "Alice Fixture" },
+      pubKeyCredParams: [{ type: "public-key", alg: -7 }], attestation: "none", timeout: 60000 } });
+    created = credential.rawId;
+    out.textContent = `created ${credential.id} ${credential.type} attestation:${credential.response.attestationObject.byteLength} json:${typeof credential.toJSON === "function"}`;
+  } catch (error) { out.textContent = `error ${error.name}`; }
+});
+document.querySelector("#signin").addEventListener("click", async () => {
+  out.textContent = "pending";
+  try {
+    const options = { challenge: crypto.getRandomValues(new Uint8Array(32)), timeout: 60000 };
+    if (created) options.allowCredentials = [{ type: "public-key", id: created, transports: ["internal"] }];
+    const assertion = await navigator.credentials.get({ publicKey: options });
+    out.textContent = `signed ${assertion.id} sig:${assertion.response.signature.byteLength} handle:${!!assertion.response.userHandle}`;
+  } catch (error) { out.textContent = `error ${error.name}`; }
+});
+// An rpId outside this origin fails KeyBit's suffix check, so the call delegates to the
+// browser's native implementation — which rejects it instantly with a security error.
+document.querySelector("#signin-unknown").addEventListener("click", async () => {
+  out.textContent = "pending";
+  try {
+    const assertion = await navigator.credentials.get({ publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)), timeout: 5000, rpId: "not-this-host.test" } });
+    out.textContent = `unexpected ${assertion.id}`;
+  } catch (error) { out.textContent = `error ${error.name}`; }
+});
+</script></main></body></html>

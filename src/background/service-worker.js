@@ -6,23 +6,26 @@ import { fromBase64 } from "../crypto/encoding.js";
 import { sealRawKey, openRawKey } from "../crypto/biometric.js";
 import { Suggestions, SITE_SCRIPTS } from "./suggestions.js";
 import { SavePrompts } from "./save-prompts.js";
+import { PasskeyPrompts } from "./passkeys.js";
 import { Usage, Steps } from "./usage.js";
 import { writeBackup } from "./auto-backup.js";
 
 let savePrompts;
+let passkeyPrompts;
 const steps = new Steps();
 const usage = new Usage();
-const vault = new Vault(chromeVaultStorage(), Date.now, () => { savePrompts?.clear(); steps.clear(); keepAlive(); });
+const vault = new Vault(chromeVaultStorage(), Date.now, () => { savePrompts?.clear(); passkeyPrompts?.clear(); steps.clear(); keepAlive(); });
 const trustedPages = ["src/popup/popup.html", "src/vault-ui/vault.html"].map(path => chrome.runtime.getURL(path));
 const suggestions = new Suggestions(vault, fill, { usage, steps });
 savePrompts = new SavePrompts(vault, suggestions, Date.now, steps);
+passkeyPrompts = new PasskeyPrompts(vault, suggestions);
 const ready = chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }).then(() => Promise.all([suggestions.refresh(), usage.load()]));
 let queue = Promise.resolve();
 let lockTimer;
 let keepAliveTimer;
 let commandEpoch = 0;
 // Messages that change the encrypted vault: open pages refresh, and the backup folder gets a fresh copy.
-const WRITES = ["CREATE", "SAVE", "DELETE", "RESTORE", "PURGE", "EMPTY_TRASH", "SETTINGS", "COMMIT_IMPORT", "SAVE_PROMPT_CONFIRM", "IMPORT_COMMIT", "MERGE_BACKUP", "CHANGE_PASSWORD"];
+const WRITES = ["CREATE", "SAVE", "DELETE", "RESTORE", "PURGE", "EMPTY_TRASH", "SETTINGS", "COMMIT_IMPORT", "SAVE_PROMPT_CONFIRM", "IMPORT_COMMIT", "MERGE_BACKUP", "CHANGE_PASSWORD", "PASSKEY_CONFIRM"];
 
 function trusted(sender) {
   return sender.id === chrome.runtime.id && trustedPages.includes(sender.url?.split(/[?#]/)[0]) && (!Number.isInteger(sender.frameId) || sender.frameId === 0);
@@ -129,7 +132,10 @@ async function handle(message, sender) {
   if (message.type === "CAPTURE_LOGIN") return savePrompts.capture(message, sender);
   if (message.type === "CAPTURE_USERNAME") return savePrompts.captureUsername(message, sender);
   if (message.type === "SAVE_PROMPT_OPEN") return savePrompts.open(sender);
+  if (message.type === "PASSKEY_CREATE") return passkeyPrompts.request("create", message, sender);
+  if (message.type === "PASSKEY_GET") return passkeyPrompts.request("get", message, sender);
   if (message.type.startsWith("SAVE_PROMPT_")) return savePrompts.panel(message, sender);
+  if (message.type.startsWith("PASSKEY_")) return passkeyPrompts.panel(message, sender);
   if (message.type.startsWith("PANEL_")) return suggestions.panel(message, sender);
   switch (message.type) {
     case "STATUS": return status();
@@ -197,6 +203,7 @@ async function handle(message, sender) {
     case "EXPORT": return vault.export();
     case "EXPORT_CSV": vault.touch(message.session); return vault.exportCsv(message.session);
     case "CLIPBOARD_ARM": return armClipboard(message.value, message.ms);
+    case "SHARE_ITEM": vault.touch(message.session); return vault.shareItem(message.session, message.id, message.password);
     case "PREPARE_IMPORT": return vault.prepareImport(message.text, message.password);
     case "COMMIT_IMPORT": {
       const state = await vault.commitImport(message.token, message.confirmed);
@@ -209,10 +216,11 @@ async function handle(message, sender) {
 }
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (!message || typeof message.type !== "string" || sender.id !== chrome.runtime.id) return false;
-  const fromContent = ["INLINE_OPEN", "CAPTURE_LOGIN", "CAPTURE_USERNAME", "SAVE_PROMPT_OPEN"].includes(message.type) && sender.frameId === 0 && Number.isInteger(sender.tab?.id);
+  const fromContent = ["INLINE_OPEN", "CAPTURE_LOGIN", "CAPTURE_USERNAME", "SAVE_PROMPT_OPEN", "PASSKEY_CREATE", "PASSKEY_GET"].includes(message.type) && sender.frameId === 0 && Number.isInteger(sender.tab?.id);
   const fromPanel = ["PANEL_STATE", "PANEL_FILL", "PANEL_FILL_NEW", "PANEL_OPEN"].includes(message.type) && sender.url?.split(/[?#]/)[0] === chrome.runtime.getURL("src/inline/panel.html") && sender.frameId > 0;
   const fromSavePanel = ["SAVE_PROMPT_STATE", "SAVE_PROMPT_CONFIRM", "SAVE_PROMPT_DISMISS"].includes(message.type) && sender.url?.split(/[?#]/)[0] === chrome.runtime.getURL("src/inline/save.html") && sender.frameId > 0;
-  if (!trusted(sender) && !fromContent && !fromPanel && !fromSavePanel) return false;
+  const fromPasskeyPanel = ["PASSKEY_STATE", "PASSKEY_CONFIRM", "PASSKEY_DISMISS"].includes(message.type) && sender.url?.split(/[?#]/)[0] === chrome.runtime.getURL("src/inline/passkey.html") && sender.frameId > 0;
+  if (!trusted(sender) && !fromContent && !fromPanel && !fromSavePanel && !fromPasskeyPanel) return false;
   if (message.type === "LOCK") {
     // Lock immediately, even if an encryption operation is pending in the queue.
     commandEpoch++; vault.lock(); scheduleLock();
@@ -251,7 +259,7 @@ chrome.runtime.onInstalled.addListener(async details => {
   }
   if (details.reason === "install") void chrome.tabs.create({ url: chrome.runtime.getURL("src/vault-ui/vault.html#welcome") });
 });
-chrome.tabs.onRemoved.addListener(tabId => { savePrompts.forgetTab(tabId); steps.forget(tabId); });
+chrome.tabs.onRemoved.addListener(tabId => { savePrompts.forgetTab(tabId); passkeyPrompts.forgetTab(tabId); steps.forget(tabId); });
 chrome.commands.onCommand.addListener(async (command, tab) => {
   // The keyboard shortcut asks the page's KeyBit script to open the dropdown on the focused login field.
   if (command !== "show-suggestions") return;
