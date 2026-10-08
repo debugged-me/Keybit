@@ -1,6 +1,6 @@
 # KeyBit
 
-A private, local-only Manifest V3 password manager for Helium and Chromium browsers (Chrome, Edge). No backend, account, build step, runtime dependencies, telemetry, or network requests.
+A private, local-only Manifest V3 password manager for Helium and Chromium browsers (Chrome, Edge). No backend, account, build step, runtime dependencies, or telemetry. Link previews load the destination website directly in your browser.
 
 The original brief is in [CLARK_VAULT_CODEX.md](CLARK_VAULT_CODEX.md). Later instructions renamed the product **KeyBit**, made it work on every site by default with Never as the default auto-lock (1.1), kept same-username logins on different sites apart with a friendlier design (1.2), and added everything in the 1.3 plan: import, Touch ID, 2FA codes, two-step and script sign-ins, projects, secure notes, folder backups, and store readiness (1.3). The icon source is [icons/keybit.svg](icons/keybit.svg).
 
@@ -23,6 +23,13 @@ KeyBit does not replace Apple's iCloud menu or the browser's own password manage
 Chromium 127 or newer is required. Helium and Google Chrome pass the full test suite; Edge uses the same engine and package.
 
 ## What you get
+
+**Peek link previews**
+- **Click** is the default: links to other sites open above the current page. Internal links, menus, buttons, downloads, and Ctrl/⌘+Click keep their normal behavior. Facebook/Messenger redirect links are resolved before deciding whether to preview.
+- Previews stay inside the current tab, with a dimmed backdrop. Expand resizes the preview in place; ×, Escape (including inside ordinary preview pages), or a backdrop click closes it. The page keeps its scroll position.
+- Google Drive files use the embeddable file viewer, and folders use Drive’s embedded list view. The full Drive app, sidebar, and account controls are available through **Open in tab**, which keeps the original link. APKs have no visual file preview; Google supplies a Download button when the file is downloadable. Sites or sign-in pages that block embedding may require **Open in tab**; KeyBit does not remove security headers or automatically open another tab/window.
+- Settings lets you disable Peek, choose a different trigger, or change the size. Explicit modifier triggers can preview internal links too. The old floating-window setting now uses the in-page preview.
+- Peek is separate from the vault. The preview never receives saved credentials, and Peek does not autofill inside it.
 
 **Filling**
 - The dropdown appears when you click a login field on any site, including a field that already has focus. It follows the field when the page scrolls.
@@ -222,7 +229,8 @@ tests/                 Unit tests, browser tests (Helium/Chrome), restart test, 
 
 ```sh
 npm run check          # lint + type check + unit tests (Node 22+)
-npm run test:browser   # UI test, 1.3 feature test, then the browser restart test
+npm run test:browser   # UI, 1.3 features, browser restart, and Peek regression tests
+npm run test:peek      # real clicks, in-page previews, blocked embeds, and responsive layout
 npm run test:a11y      # axe-core WCAG 2.1 A/AA audit of every screen, light and dark
 KEYBIT_BROWSER="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm run test:browser
 ```

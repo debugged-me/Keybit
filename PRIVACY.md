@@ -16,7 +16,7 @@ They are encrypted with a key derived from your master password (AES-256-GCM) an
 KeyBit also keeps a few things that are not secret:
 - sites where you turned KeyBit off;
 - when each login was last used (by a random ID, not by site);
-- your generator and theme choices;
+- your generator, theme, and Peek choices;
 - the dates of your backups.
 
 If you turn on Touch ID or Windows Hello, your device creates a passkey for KeyBit. That passkey, not your master password, unlocks a sealed copy of the vault key.
@@ -27,9 +27,11 @@ Your master password is never stored. Without it, KeyBit cannot decrypt your dat
 
 To suggest and save logins, KeyBit looks for sign-in, sign-up, password-change, and 2FA code fields on the pages you visit. When you submit one of these forms, it reads the username and password you entered so it can ask whether to save them. Nothing is saved unless you confirm. Unconfirmed values are discarded within two minutes.
 
+For Peek, KeyBit checks the link you activate and loads eligible destinations in a preview inside the page. The destination receives a normal browser request and may use its own cookies and privacy policy. A small script in embedded pages reports preview readiness and Escape key presses; it does not read their contents or access the vault. Preview history is not stored by KeyBit.
+
 ## What KeyBit shares
 
-Nothing. KeyBit has no servers and makes no network requests. It does not collect analytics, usage data, or crash reports, and it does not sell, transfer, or share any data. Encrypted backup files are written only where you choose, either with **Export** or to the folder you pick for automatic backups.
+KeyBit has no servers and does not send your vault data to a service. It does not collect analytics, usage data, or crash reports, and it does not sell your data. Peek loads the website you choose directly, as described above, without sending it saved credentials. Encrypted backup files are written only where you choose, either with **Export** or to the folder you pick for automatic backups.
 
 ## Removing your data
 

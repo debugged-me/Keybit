@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "test:browser": "node tests/browser-smoke.mjs && node tests/browser-features.mjs && node tests/restart-persistence.mjs",
+    "test:browser": "node tests/browser-smoke.mjs && node tests/browser-features.mjs && node tests/restart-persistence.mjs && node tests/browser-peek.mjs",
     "test:features": "node tests/browser-features.mjs",
+    "test:peek": "node tests/browser-peek.mjs",
     "test:restart": "node tests/restart-persistence.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",

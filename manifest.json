@@ -28,6 +28,12 @@
   },
   "content_scripts": [
     {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["src/peek/peek-frame-events.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
       "matches": [
         "http://*/*",
         "https://*/*"
@@ -37,7 +43,13 @@
         "src/content/autofill.js",
         "src/content/inline.js",
         "src/content/save.js",
-        "src/content/passkey.js"
+        "src/content/passkey.js",
+        "src/peek/peek-utils.js",
+        "src/peek/peek-settings.js",
+        "src/peek/peek-frame.js",
+        "src/peek/peek-overlay.js",
+        "src/peek/peek-link-handler.js",
+        "src/peek/peek-controller.js"
       ],
       "run_at": "document_start",
       "all_frames": false
@@ -92,7 +104,8 @@
       "resources": [
         "src/inline/panel.html",
         "src/inline/save.html",
-        "src/inline/passkey.html"
+        "src/inline/passkey.html",
+        "src/peek/peek.css"
       ],
       "matches": [
         "http://*/*",

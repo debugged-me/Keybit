@@ -9,6 +9,9 @@ import { SavePrompts } from "./save-prompts.js";
 import { PasskeyPrompts } from "./passkeys.js";
 import { Usage, Steps } from "./usage.js";
 import { writeBackup } from "./auto-backup.js";
+// Classic script, imported for its side effect: registers Peek's pure helpers on
+// globalThis.__keybitPeek.utils. Peek is a separate domain — it shares no vault objects.
+import "../peek/peek-utils.js";
 
 let savePrompts;
 let passkeyPrompts;
@@ -26,6 +29,40 @@ let keepAliveTimer;
 let commandEpoch = 0;
 // Messages that change the encrypted vault: open pages refresh, and the backup folder gets a fresh copy.
 const WRITES = ["CREATE", "SAVE", "DELETE", "RESTORE", "PURGE", "EMPTY_TRASH", "SETTINGS", "COMMIT_IMPORT", "SAVE_PROMPT_CONFIRM", "IMPORT_COMMIT", "MERGE_BACKUP", "CHANGE_PASSWORD", "PASSKEY_CONFIRM"];
+// Peek messages a page's content script may send. PEEK_SAVE_SETTINGS stays trusted-pages only.
+const PEEK_CONTENT_MESSAGES = ["PEEK_GET_SETTINGS", "PEEK_OPEN_TAB"];
+const PEEK_SCRIPTS = ["src/peek/peek-utils.js", "src/peek/peek-settings.js", "src/peek/peek-frame.js",
+  "src/peek/peek-overlay.js", "src/peek/peek-link-handler.js", "src/peek/peek-controller.js"];
+const peekUtils = () => globalThis.__keybitPeek.utils;
+// Peek settings are plain preferences: chrome.storage.local, outside the vault, never queued
+// behind vault work and never near decrypted data.
+async function peekGetSettings() {
+  const { peek } = await chrome.storage.local.get("peek");
+  return peekUtils().sanitizeSettings(peek);
+}
+async function peekSaveSettings(raw) {
+  const settings = peekUtils().sanitizeSettings(raw);
+  await chrome.storage.local.set({ peek: settings });
+  // Content scripts keep a settings cache so clicks are decided synchronously; push the change.
+  for (const tab of await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }).catch(() => []))
+    chrome.tabs.sendMessage(tab.id, { event: "keybit-peek-settings", settings }, { frameId: 0 }).catch(() => {});
+  return settings;
+}
+// Content-script URLs are validated again here before any tab is opened.
+async function peekOpenTab(message, sender) {
+  const url = peekUtils().peekUrl(message.url);
+  if (!url) throw new Error("That link can't be opened.");
+  await chrome.tabs.create({ url: url.href, ...(Number.isInteger(sender.tab?.windowId) ? { windowId: sender.tab.windowId } : {}) });
+  return { opened: true };
+}
+function peekHandle(message, sender) {
+  switch (message.type) {
+    case "PEEK_GET_SETTINGS": return peekGetSettings();
+    case "PEEK_SAVE_SETTINGS": return peekSaveSettings(message.settings);
+    case "PEEK_OPEN_TAB": return peekOpenTab(message, sender);
+    default: throw new Error("Unsupported Peek action.");
+  }
+}
 
 function trusted(sender) {
   return sender.id === chrome.runtime.id && trustedPages.includes(sender.url?.split(/[?#]/)[0]) && (!Number.isInteger(sender.frameId) || sender.frameId === 0);
@@ -224,7 +261,16 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   const fromPanel = ["PANEL_STATE", "PANEL_FILL", "PANEL_FILL_NEW", "PANEL_OPEN"].includes(message.type) && sender.url?.split(/[?#]/)[0] === chrome.runtime.getURL("src/inline/panel.html") && sender.frameId > 0;
   const fromSavePanel = ["SAVE_PROMPT_STATE", "SAVE_PROMPT_CONFIRM", "SAVE_PROMPT_DISMISS"].includes(message.type) && sender.url?.split(/[?#]/)[0] === chrome.runtime.getURL("src/inline/save.html") && sender.frameId > 0;
   const fromPasskeyPanel = ["PASSKEY_STATE", "PASSKEY_CONFIRM", "PASSKEY_DISMISS"].includes(message.type) && sender.url?.split(/[?#]/)[0] === chrome.runtime.getURL("src/inline/passkey.html") && sender.frameId > 0;
-  if (!trusted(sender) && !fromContent && !fromPanel && !fromSavePanel && !fromPasskeyPanel) return false;
+  const fromPeek = PEEK_CONTENT_MESSAGES.includes(message.type) && sender.frameId === 0 && Number.isInteger(sender.tab?.id);
+  if (!trusted(sender) && !fromContent && !fromPanel && !fromSavePanel && !fromPasskeyPanel && !fromPeek) return false;
+  if (message.type.startsWith("PEEK_")) {
+    // Peek answers on its own path: never queued behind vault work, never touching vault state.
+    void Promise.resolve()
+      .then(() => peekHandle(message, sender))
+      .then(data => reply({ ok: true, data }))
+      .catch(error => reply({ ok: false, error: error?.name === "Error" ? error.message : "The operation could not be completed. Please try again." }));
+    return true;
+  }
   if (message.type === "LOCK") {
     // Lock immediately, even if an encryption operation is pending in the queue.
     commandEpoch++; vault.lock(); scheduleLock();
@@ -259,7 +305,7 @@ chrome.permissions.onRemoved.addListener(() => savePrompts.clear());
 chrome.runtime.onInstalled.addListener(async details => {
   // Manifest content scripts only reach pages loaded after install or update.
   for (const tab of await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }).catch(() => [])) {
-    chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, files: SITE_SCRIPTS }).catch(() => {});
+    chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, files: [...SITE_SCRIPTS, ...PEEK_SCRIPTS] }).catch(() => {});
   }
   if (details.reason === "install") void chrome.tabs.create({ url: chrome.runtime.getURL("src/vault-ui/vault.html#welcome") });
 });

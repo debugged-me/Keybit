@@ -12,7 +12,7 @@ export default [
   },
   {
     // Content scripts and the theme boot script are classic scripts, not modules.
-    files: ["src/content/**/*.js", "src/ui/theme.js"],
+    files: ["src/content/**/*.js", "src/peek/**/*.js", "src/ui/theme.js"],
     languageOptions: { sourceType: "script" }
   },
   {
