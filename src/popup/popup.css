@@ -42,6 +42,14 @@ main { max-height: 520px; padding: 14px 16px 16px; overflow-y: auto; }
 .row-actions .icon-button { width: 30px; height: 30px; }
 .row-actions [data-action="fill"]:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
 .row-actions [data-action="fill"]:hover:not(:disabled) { background: var(--accent); color: var(--accent-text); }
+/* Environment switcher: small chips under a project login (pressed state is the base .chip style). */
+.login-block { display: flex; flex-direction: column; }
+.env-switch { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 6px 6px 46px; }
+.env-chip { min-height: 22px; padding: 2px 9px; font-size: 11px; }
+/* Production is always marked, pressed or not. */
+.env-chip.production { border-color: var(--danger); color: var(--danger); }
+.env-chip.production[aria-pressed="true"] { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+.env-chip.confirming { background: var(--danger); color: var(--accent-text); border-color: var(--danger); font-weight: 600; }
 /* The top match gets the solid fill button. */
 #matches > .login-item:first-child [data-action="fill"]:not(:disabled) { background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow-sm); }
 #matches > .login-item:first-child [data-action="fill"]:hover:not(:disabled) { background: var(--accent-hover); }
@@ -60,3 +68,11 @@ html.dialog-open body.popup { min-height: 590px; }
 .popup .modal .strength { margin-top: 10px; }
 .footer { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--border); }
 .popup .message { top: 10px; width: calc(100% - 24px); max-width: none; text-align: center; }
+/* Site rules: a small disclosure under the site card. */
+.site-rules { border-top: 1px solid var(--border); margin-top: 8px; padding: 8px 4px 2px; }
+.rules-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.site-rules .rule { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; cursor: pointer; }
+.site-rules .rule.sub { padding-left: 20px; }
+.site-rules .rule input { accent-color: var(--accent); }
+.site-rules .rule.muted { color: var(--muted); font-size: 12px; }
+.site-rules .rule input:disabled { opacity: .4; }

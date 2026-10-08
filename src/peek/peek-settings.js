@@ -7,7 +7,10 @@
     sanitize(raw) { return ns.utils.sanitizeSettings(raw); },
     async load() {
       const response = await chrome.runtime.sendMessage({ type: "PEEK_GET_SETTINGS" });
-      return ns.utils.sanitizeSettings(response?.ok ? response.data : null);
+      const settings = ns.utils.sanitizeSettings(response?.ok ? response.data : null);
+      // Per-site Peek rule, computed by the worker for this page's origin (not a stored preference).
+      settings.siteAllowed = response?.data?.siteAllowed !== false;
+      return settings;
     }
   };
 })();

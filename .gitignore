@@ -1,5 +1,5 @@
-# Generated framework bundles for optional browser checks, reports
-/tests/frameworks/
+# Test suite is kept local; also ignore its generated reports
+/tests/
 /test-results/
 /playwright-report/
 /coverage/

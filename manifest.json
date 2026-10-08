@@ -13,7 +13,8 @@
     "clipboardWrite",
     "idle",
     "offscreen",
-    "favicon"
+    "favicon",
+    "contextMenus"
   ],
   "optional_permissions": [
     "clipboardRead"
@@ -28,8 +29,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["src/peek/peek-frame-events.js"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "src/peek/peek-frame-events.js"
+      ],
       "run_at": "document_start",
       "all_frames": true
     },
@@ -41,7 +47,17 @@
       "js": [
         "src/content/form-detector.js",
         "src/content/autofill.js",
-        "src/content/inline.js",
+        "src/content/inline.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
         "src/content/save.js",
         "src/content/passkey.js",
         "src/peek/peek-utils.js",
@@ -49,7 +65,8 @@
         "src/peek/peek-frame.js",
         "src/peek/peek-overlay.js",
         "src/peek/peek-link-handler.js",
-        "src/peek/peek-controller.js"
+        "src/peek/peek-controller.js",
+        "src/command/palette.js"
       ],
       "run_at": "document_start",
       "all_frames": false
@@ -90,6 +107,13 @@
         "mac": "Alt+Shift+L"
       },
       "description": "Show KeyBit in the focused login field"
+    },
+    "command-palette": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+J",
+        "mac": "Command+Shift+J"
+      },
+      "description": "Open the KeyBit command palette"
     }
   },
   "options_ui": {
@@ -105,7 +129,8 @@
         "src/inline/panel.html",
         "src/inline/save.html",
         "src/inline/passkey.html",
-        "src/peek/peek.css"
+        "src/peek/peek.css",
+        "src/command/palette.html"
       ],
       "matches": [
         "http://*/*",

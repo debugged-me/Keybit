@@ -6,6 +6,8 @@ export const ENVIRONMENTS = ["local", "development", "staging", "production", "o
 export const ITEM_TYPES = ["login", "note", "passkey", "card", "identity"];
 export const HISTORY_LIMIT = 5;
 export const MAX_URLS = 10;
+export const MAX_PROJECTS = 200;
+export const MAX_ENVIRONMENTS = 16;
 const invalid = () => { throw new Error("The vault data is invalid or unsupported."); };
 const text = (value, max, required = false) => {
   if (typeof value !== "string" || value.length > max || (required && !value.trim())) invalid();
@@ -16,12 +18,13 @@ const date = value => {
   return value;
 };
 
-// Settings saved before 1.3 have no lockOnScreenLock; it defaults to on.
+// Settings saved before 1.3 have no lockOnScreenLock; before 1.4, no confirmProduction — both default on.
 export function validateSettings(settings) {
   if (!settings || !AUTO_LOCK_OPTIONS.includes(settings.autoLockMinutes)) invalid();
   const lockOnScreenLock = settings.lockOnScreenLock ?? true;
-  if (typeof lockOnScreenLock !== "boolean") invalid();
-  return { autoLockMinutes: settings.autoLockMinutes, lockOnScreenLock };
+  const confirmProduction = settings.confirmProduction ?? true;
+  if (typeof lockOnScreenLock !== "boolean" || typeof confirmProduction !== "boolean") invalid();
+  return { autoLockMinutes: settings.autoLockMinutes, lockOnScreenLock, confirmProduction };
 }
 
 export function validateItem(item) {
@@ -75,11 +78,36 @@ export function validateItem(item) {
     history: history.map(entry => ({ password: text(entry?.password, 4096, true), changedAt: date(entry?.changedAt) })) };
 }
 
+// Per-project environment URLs, added in 1.4E: { name: { environments: { staging: url } } }.
+// Vaults and backups written before 1.4 have no `projects` key — it is optional everywhere.
+export function validateProjects(projects) {
+  if (projects == null) return {};
+  if (typeof projects !== "object" || Array.isArray(projects)) invalid();
+  const entries = Object.entries(projects);
+  if (entries.length > MAX_PROJECTS) invalid();
+  const out = {};
+  for (const [rawName, entry] of entries) {
+    const name = text(rawName, 100).trim();
+    const environments = entry?.environments;
+    if (!name || typeof environments !== "object" || environments == null || Array.isArray(environments)) invalid();
+    const list = Object.entries(environments);
+    if (list.length > MAX_ENVIRONMENTS) invalid();
+    const clean = {};
+    for (const [key, value] of list) {
+      const env = key.trim().toLowerCase();
+      if (!/^[a-z][a-z\d_-]{0,39}$/.test(env)) invalid();
+      try { clean[env] = parseWebsite(value).href; } catch { invalid(); }
+    }
+    out[name] = { environments: clean };
+  }
+  return out;
+}
+
 export function validatePayload(payload) {
   if (!payload || payload.version !== 1 || !Number.isSafeInteger(payload.revision) || payload.revision < 0 || !Array.isArray(payload.items)) invalid();
   const items = payload.items.map(validateItem);
   if (new Set(items.map(item => item.id)).size !== items.length) invalid();
-  return { version: 1, revision: payload.revision, items, settings: validateSettings(payload.settings) };
+  return { version: 1, revision: payload.revision, items, settings: validateSettings(payload.settings), projects: validateProjects(payload.projects) };
 }
 
 // Card network from the IIN range — display only, the number itself is authoritative.
@@ -96,7 +124,7 @@ export function cardBrand(number) {
 }
 export const expiryDisplay = item => `${String(item.expiryMonth).padStart(2, "0")}/${String(item.expiryYear).padStart(item.expiryYear > 99 ? 4 : 2, "0")}`;
 
-export function emptyVault() { return { version: 1, revision: 0, items: [], settings: { autoLockMinutes: 0, lockOnScreenLock: true } }; }
+export function emptyVault() { return { version: 1, revision: 0, items: [], settings: { autoLockMinutes: 0, lockOnScreenLock: true, confirmProduction: true }, projects: {} }; }
 
 export function createItem(input, previous) {
   const now = new Date().toISOString();

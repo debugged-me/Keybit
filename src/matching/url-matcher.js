@@ -67,3 +67,18 @@ export function matchesCredential(item, current) { return matcherFor(current)(it
 
 // More specific logins (a project folder) sort before whole-site logins.
 export function specificity(item) { return Math.max(0, ...item.urls.map(url => { try { return saved(url).scope.length; } catch { return 0; } })); }
+
+// Which of a project's environment addresses a page currently sits under (longest base wins),
+// or null when the page is outside the project. Used by the environment switcher and palette.
+export function currentEnvironment(envMap, pageUrl) {
+  let page;
+  try { page = parseWebsite(pageUrl); } catch { return null; }
+  let best = null;
+  for (const [env, value] of Object.entries(envMap)) {
+    let base;
+    try { base = parseWebsite(value); } catch { continue; }
+    const prefix = `${base.origin}${base.pathname.replace(/\/+$/, "")}`;
+    if ((page.href === prefix || page.href.startsWith(`${prefix}/`)) && prefix.length > (best?.length ?? -1)) best = { env, length: prefix.length };
+  }
+  return best?.env ?? null;
+}

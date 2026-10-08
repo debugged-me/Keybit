@@ -2,7 +2,7 @@
 
 A private, local-only Manifest V3 password manager for Helium and Chromium browsers (Chrome, Edge). No backend, account, build step, runtime dependencies, or telemetry. Link previews load the destination website directly in your browser.
 
-The original brief is in [CLARK_VAULT_CODEX.md](CLARK_VAULT_CODEX.md). Later instructions renamed the product **KeyBit**, made it work on every site by default with Never as the default auto-lock (1.1), kept same-username logins on different sites apart with a friendlier design (1.2), and added everything in the 1.3 plan: import, Touch ID, 2FA codes, two-step and script sign-ins, projects, secure notes, folder backups, and store readiness (1.3). The icon source is [icons/keybit.svg](icons/keybit.svg).
+The original brief is in [CLARK_VAULT_CODEX.md](CLARK_VAULT_CODEX.md). Later instructions renamed the product **KeyBit**, made it work on every site by default with Never as the default auto-lock (1.1), kept same-username logins on different sites apart with a friendlier design (1.2), and added everything in the 1.3 plan: import, Touch ID, 2FA codes, two-step and script sign-ins, projects, secure notes, folder backups, and store readiness (1.3). The 1.4 release added developer tools — open Shadow DOM and cross-origin iframe filling, a form inspector, project environment switching, a command palette, per-site rules, and a local Security Center. The icon source is [icons/keybit.svg](icons/keybit.svg).
 
 ## Load or update in Helium
 
@@ -14,7 +14,7 @@ The original brief is in [CLARK_VAULT_CODEX.md](CLARK_VAULT_CODEX.md). Later ins
 4. Visit a website and click its username or password field. Choose an account from the **KeyBit** dropdown, or press ↓ then Enter.
 5. Sign in normally. KeyBit offers to save the login, and you confirm.
 
-**Keyboard shortcuts:** ⇧⌘K (Ctrl+Shift+K on Windows) opens the popup. ⌥⇧L (Alt+Shift+L) opens the dropdown on the page's login field. Change them at `helium://extensions/shortcuts`; ⌘⇧L is reserved by the browser.
+**Keyboard shortcuts:** ⇧⌘K (Ctrl+Shift+K on Windows) opens the popup. ⌥⇧L (Alt+Shift+L) opens the dropdown on the page's login field. ⇧⌘J (Ctrl+Shift+J) opens the command palette on the page. Change them at `helium://extensions/shortcuts`; ⌘⇧L is reserved by the browser.
 
 **Do not move or rename the KeyBit folder.** Chromium identifies an unpacked extension by its folder, so a moved copy is a different extension with an empty vault. Export a backup first if you need to move it.
 
@@ -39,6 +39,8 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **Cards and IDs:** save a payment card or an ID (name, address, phone) in **Cards & IDs**. Focusing a card field or an address form shows the same dropdown — one click fills the number, expiry, CVV, or the whole address. Cards and IDs aren't site-bound; a masked number and cardholder name are all that ever leave the vault until you fill.
 - **Lookalike-site warnings:** if a page's address only *resembles* a saved site — swapped letters, Cyrillic lookalikes, punycode, a one-letter typo — the dropdown leads with a warning instead of filling. Saved credentials never autofill on a different site; this adds the "wait, this isn't right" moment for the near-misses.
 - **Sign-up and change-password fields** get a generated password in both fields.
+- **Shadow DOM forms:** login fields inside *open* shadow roots — including nested roots and forms injected after page load — get the same detection, dropdown, and save prompts as ordinary fields. Closed shadow roots are never entered.
+- **Cross-origin iframes:** a login form inside an iframe matches and fills against *the iframe's own origin*, never the parent page's. Each frame only ever receives credentials bound to its exact origin, and a frame that has navigated or been removed since you asked is refused.
 - KeyBit is on for every site by default — there is nothing to switch on.
 
 **Saving**
@@ -49,6 +51,13 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **The update card names the exact login it would change.** It offers Update, **Save as new**, or Not now. You pick when several logins share the username.
 - **Each login keeps its last 5 passwords**, so a wrong update is easy to undo.
 
+**Developer tools**
+- **Command palette** (⇧⌘J / Ctrl+Shift+J): a keyboard-driven overlay on the page — search the vault, fill the matching login, generate a password, inspect the form, switch project environments, Peek the focused link, open KeyBit or the Security Center, create a note, lock. ↑↓ choose, Enter runs, Escape closes. While the vault is locked it shows only generic commands — never login names, project names, or anything else from the vault.
+- **Login form inspector** (popup → site card, or the palette): reports how KeyBit sees the current page, frame by frame — which fields were found, their autocomplete hints, and common problems (missing `autocomplete`, `autocomplete="off"`, readonly/disabled fields, closed shadow roots, cross-origin frames). It lists structure only; typed values never appear.
+- **Project environment switcher:** the popup offers environment chips under project logins that have more than one address. Switching keeps the current path, query, and fragment — `localhost/srms-college/registrar?tab` becomes `srms.example.com/registrar?tab` — and production chips are marked and ask for a second click before navigating (Settings can drop the confirmation). A project view's environment rows are editable; saved overrides merge with the addresses derived from the project's logins.
+- **Site rules** (popup → ⚙ on the site card, or vault → Site rules): per-origin switches for what KeyBit offers — the site entirely, login suggestions, save prompts, and Peek — plus optional "include subdomains" widening. Turning a site off is now a rule, so customized sites appear together in Site rules; resetting a card restores the defaults. Rules are local preferences, not vault data.
+- **Right-click menu:** on a link, **KeyBit → Preview with KeyBit**; on an editable field, **Fill with KeyBit**, **Generate password** (fills the field, and both fields on a sign-up form), and **Inspect login form**; on selected text, **Save as secure note** opens the vault's note editor with the text prefilled.
+
 **Passkeys**
 - When a site offers to create a passkey, a KeyBit card asks to keep it in the vault. The private key is encrypted with everything else on this device — no account, no sync service.
 - Signing in with a saved passkey shows a card naming the site and account. "Not now" or "Use device passkey" hands the call to the browser's built-in handling, as does anything KeyBit can't answer (a credential it doesn't hold, or a site mismatch).
@@ -57,15 +66,15 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 
 **Organising**
 - Every login has a site tile; a login can have up to 10 website addresses.
-- **Favourites**, **secure notes**, and **projects**. A project's view groups its logins by environment: Production, Staging, Development, Local.
+- **Favourites**, **secure notes**, and **projects**. A project's view groups its logins by environment: Production, Staging, Development, Local — and its **Environments** card lets you name the URL for each environment so the popup switcher can jump between them.
 - Sort by name, recently used, or recently updated. Search covers logins and notes.
-- **Weak & reused** lists passwords that need attention. The check runs on this device.
+- **Security Center** scores the vault and shows its working — every factor lists its count and points, so "82%" reads as "−12 for two reused logins, +4 for two accounts with 2FA". Metric tiles count strong, weak, reused, duplicate, fresh/aging/old passwords, 2FA and passkey coverage, production logins, and what needs review. All of it is computed on this device; password age is flagged as a prompt to review, not a verdict.
 - **Recently deleted** keeps deleted logins and notes for 30 days, then removes them forever. Restore them or empty the bin sooner.
 - **Generator:** random (length and character groups) or memorable ("Acorn-Tulip-Rugby-Mango-Spoon7", from the EFF word list). Your choice is remembered for every Generate button and for sign-up fields.
 - **Copied passwords and 2FA codes clear themselves from the clipboard after 30 seconds**, if you allow the optional clipboard-read permission. The timer runs in the background, so it works even if you close the popup right after copying — and it only clears when the clipboard still holds what KeyBit copied, so it never erases something else you copied since.
 
 **One app window**
-- **Sidebar:** All logins, Favorites, Secure notes, Cards & IDs, Passkeys, Recently deleted, Projects, Weak & reused, Generator, Import, Backup, and Settings. **Sites turned off** appears only while a site is off. A **vault health** card at the bottom shows how many passwords are strong; click it to open Weak & reused.
+- **Sidebar:** All logins, Favorites, Secure notes, Cards & IDs, Passkeys, Recently deleted, Projects, Security Center, Generator, Import, Backup, and Settings. **Site rules** appears only while a site is customized. A **vault health** card at the bottom shows the Security Center score; click it to open the dashboard.
 - **Keyboard:** ⌘K (Ctrl+K on Windows) jumps to search; / does the same when you're not typing.
 - **Adding and editing happen in a dialog**, in the app and in the popup:
   - typing `example.com` is enough; KeyBit adds the http/https part;
@@ -79,7 +88,8 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
   - Touch ID or Windows Hello unlock;
   - change master password;
   - theme: System, Light, or Dark;
-  - keyboard shortcuts.
+  - keyboard shortcuts;
+  - whether switching to a production environment asks first.
 - **Popup:**
   - shows this site's logins first, and searches all of them;
   - Fill, copy, and 2FA-code buttons;
@@ -142,7 +152,7 @@ What changed:
 - **Encryption:** Web Crypto derives a non-extractable AES-256 key using PBKDF2-HMAC-SHA-256 with 600,000 iterations and a fresh 16-byte salt. Every encryption uses a fresh 12-byte IV. The envelope header is authenticated. Decoding runs in linear time on large vaults. See [OWASP's PBKDF2 guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).
 - **What is encrypted:** everything inside the vault, including notes, 2FA secrets, password history, projects, and favourites.
 - **What `chrome.storage.local` also holds** (none of it secret):
-  - sites turned off;
+  - per-site rules (origins and on/off switches — no credentials);
   - last-used times keyed by random login IDs;
   - generator and theme choices;
   - backup timestamps;
@@ -166,7 +176,9 @@ What changed:
   - Scheme, exact host, and port must match, plus the project folder on local servers.
   - Filling is always your choice. The worker rechecks the page and targets the original document.
   - KeyBit never submits forms.
-- **Isolation:** the dropdown and save card are extension frames in a closed shadow root. The page's scripts never receive the account list or secrets. Generated passwords and 2FA codes reach the page only when you choose them.
+- **Isolation:** the dropdown, save card, and command palette are extension frames in a closed shadow root. The page's scripts never receive the account list or secrets. Generated passwords and 2FA codes reach the page only when you choose them. While locked, the palette's command list is built without touching vault data — no login or project names can leak into it.
+- **Frames:** in iframes, each frame's dropdown is bound to that frame's own origin and document. Credentials are matched and sent only to the one frame whose address matches the login, and stale frames (navigated or removed mid-interaction) fail closed.
+- **Site rules:** the per-site switches live outside the vault as origins plus on/off flags — no secrets. They gate suggestions, save prompts, Peek, and palette actions the same way everywhere.
 - **Save prompts:**
   - Submitted values are read only on a trusted submit, click, or Enter, and held in memory for at most two minutes.
   - Updates always use the login you confirmed.
@@ -187,6 +199,7 @@ This is a personal-use implementation with automated security checks, not an ind
 | `activeTab` | Let the popup work on the current tab if you restrict KeyBit's site access. |
 | `clipboardWrite` | Copy a username, password, or code when you click Copy. |
 | `clipboardRead` (optional) | Clear a copied password or code from the clipboard after 30 seconds. Only asked the first time you copy a secret. |
+| `contextMenus` | Show KeyBit's right-click entries: preview a link, fill or generate on a field, inspect a form, save a selection as a note. |
 
 None of these shows an extra warning beyond site access. No history, cookies, downloads, webRequest, tabs, or management permission.
 
@@ -208,17 +221,20 @@ None of these shows an extra warning beyond site access. No history, cookies, do
 manifest.json          Registration, permissions, shortcuts, CSP
 icons/                 Logo and PNG icons
 src/
-  background/          Messages, keep-alive, screen-lock lock, site switch, dropdown modes, save prompts, passkey ceremonies, last-used order, folder backups
+  background/          Messages, keep-alive, screen-lock lock, site rules, dropdown modes, save prompts, passkey ceremonies, last-used order, folder backups, palette tokens
   crypto/              Encoding, PBKDF2, AES-GCM, backup parsing, Touch ID key sealing
-  vault/               Schema (logins, notes, passkeys, history, 2FA), storage, CRUD, import, merge, single-item shares, Shamir recovery kits, password change, health, TOTP, WebAuthn encoding and ECDSA signing
+  vault/               Schema (logins, notes, passkeys, history, 2FA, project environments), storage, CRUD, import, merge, single-item shares, Shamir recovery kits, password change, security report, TOTP, WebAuthn encoding and ECDSA signing
   matching/            Exact-origin matching with project folders, cached
   generator/           Secure random and memorable passwords, remembered preferences, EFF word list
   import/              CSV and Bitwarden JSON parsers
-  content/             Login, sign-up, username-step and 2FA field detection; filling; submit, click and Enter capture; WebAuthn interception and passkey relay
+  content/             Login, sign-up, username-step and 2FA field detection incl. open shadow roots; per-frame filling; submit, click and Enter capture; WebAuthn interception and passkey relay
   inline/              Dropdown (accounts, generated password, 2FA codes), save/update card, and passkey consent card
+  developer/           Login form inspector page and per-frame form analysis
+  command/             Command palette overlay, fuzzy search, and the command registry
+  rules/               Per-site rule model (enabled / logins / save / Peek, subdomain widening)
   ui/                  Shared styles and themes, tiles, icons, session client, sign-in and Touch ID, login dialog
   popup/               Current site, search, fill/copy/2FA, generator, keyboard use
-  vault-ui/            App window: lists, projects, details, import, backup, settings
+  vault-ui/            App window: lists, projects and environment maps, details, Security Center, site rules, import, backup, settings
 store/                 Listing text, templates, and generated store images
 scripts/               release.mjs and store-assets.mjs
 tests/                 Unit tests, browser tests (Helium/Chrome), restart test, accessibility audit, fixtures
@@ -235,24 +251,20 @@ npm run test:a11y      # axe-core WCAG 2.1 A/AA audit of every screen, light and
 KEYBIT_BROWSER="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm run test:browser
 ```
 
-All browser tests use isolated temporary profiles, never yours. On October 8, 2026, version 1.3 passed:
+All browser tests use isolated temporary profiles, never yours. Version 1.4 passed on Google Chrome 154:
 
-- **Unit tests (37):** RFC 6238 2FA vectors, imports from five managers, duplicate handling, notes/projects/favourites, master password change, merge, Touch ID sealing, passphrases, WebAuthn attestation/assertion signing, Shamir share split/combine and the full recovery-kit chain, lookalike-domain detection (confusables, punycode, typos), portable-viewer encryption, card/identity schema and summary safety, and 20,000-login scale.
-- **Browser checks (on both Helium 0.18.3.1 and Google Chrome 154):**
-  - the earlier suite;
-  - welcome and import;
-  - projects with live 2FA codes;
-  - Touch ID with a virtual authenticator, and master password change;
-  - automatic folder backup, written by the background worker;
-  - merge restore;
-  - creating a passkey and signing in with a real assertion;
-  - a recovery kit end to end: shares created, the vault rebuilt from any two, the old master password dead, and a single share refused;
-  - a saved card filling number, expiry selects and CVV on a checkout form, and a saved ID filling an address form;
-  - script-button and Enter sign-ins, two-step sign-ins, and 2FA fills (one field and six boxes);
-  - dropdown filtering and recently-used order;
-  - popup keyboard use;
+- **Unit tests (71):** RFC 6238 2FA vectors, imports from five managers, duplicate handling, notes/projects/favourites/environments, master password change, merge, Touch ID sealing, passphrases, WebAuthn attestation/assertion signing, Shamir share split/combine and the full recovery-kit chain, lookalike-domain detection (confusables, punycode, typos), portable-viewer encryption, card/identity schema and summary safety, command-palette fuzzy search and locked-state command filtering, site-rule migration and gating, the explainable Security Center score, and 20,000-login scale.
+- **Browser checks:**
+  - the earlier 1.3 suite;
+  - open, nested, and dynamic shadow-root login detection, filling, and save capture — plus closed-root safe failure;
+  - same-origin and cross-origin iframe detection and filling bound to the iframe's origin, with navigated and removed frames refused;
+  - the form inspector's per-frame report, autocomplete hints, and issue list;
+  - environment switching that preserves path/query/fragment, marks production, and asks before navigating there;
+  - the command palette: listing, filtering, production marking, on-site fill, and nothing sensitive while locked;
+  - per-site rules gating dropdowns, save prompts, and Peek — editable from the popup and managed in Site rules;
+  - the Security Center's score, factor list, and metric tiles;
   - a full browser quit and relaunch.
-- **Accessibility:** no WCAG 2.1 A/AA violations reported by axe-core on any screen, in light or dark theme.
+- **Accessibility:** no WCAG 2.1 A/AA violations reported by axe-core on any screen — including the palette, inspector, and Site rules — in light or dark theme.
 
 Not testable headlessly:
 - a real fingerprint for Touch ID (the passkey flow was tested with a virtual authenticator);
@@ -263,8 +275,8 @@ Not testable headlessly:
 
 - **Firefox and Safari are not supported.** KeyBit's dropdown security binds each panel to one exact page document (`documentId`). Firefox's extension APIs don't offer that binding the same way, and Firefox isn't installed here for testing.
 - **Pages that may need the login added or copied by hand:**
-  - shadow-DOM forms;
-  - cross-origin login iframes;
+  - closed shadow-DOM forms (open roots work; closed ones are sealed by design);
+  - login iframes on sites that block extension content scripts, or whose third-party frame KeyBit cannot reach;
   - browser-internal pages;
   - sites that block embedded extension panels.
 - **Not included:** cloud sync and automatic form submission.

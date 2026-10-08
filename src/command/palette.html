@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>KeyBit command palette</title>
+  <link rel="stylesheet" href="palette.css">
+</head>
+<body>
+  <div class="backdrop" id="backdrop">
+    <div class="palette" role="dialog" aria-label="KeyBit command palette">
+      <div class="query-row">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="m13.5 13.5 4 4"/></svg>
+        <input id="query" type="text" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true"
+               aria-controls="results" aria-autocomplete="list" aria-label="KeyBit command search" placeholder="KeyBit — search and run a command">
+      </div>
+      <ul id="results" role="listbox" aria-label="Commands"></ul>
+      <div class="foot"><span><kbd>↑↓</kbd> choose</span><span><kbd>Enter</kbd> run</span><span><kbd>Esc</kbd> close</span><span id="status"></span></div>
+    </div>
+  </div>
+  <script type="module" src="palette-page.js"></script>
+</body>
+</html>

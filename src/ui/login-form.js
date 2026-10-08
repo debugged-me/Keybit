@@ -242,7 +242,7 @@ export function closeLoginDialog() { if (dialog?.open) dialog.close(); else rese
 
 // Opens the add/edit dialog. `item` (with its secrets) edits an existing login or note; `prefill` seeds a new login.
 // `kind` is "login" or "note"; `projects` fills the project suggestions.
-/** @param {{ client: any, item?: any, kind?: string, revision?: number, prefill?: { website?: string, username?: string, environment?: string, project?: string },
+/** @param {{ client: any, item?: any, kind?: string, revision?: number, prefill?: { website?: string, username?: string, environment?: string, project?: string, notes?: string },
  *  existing?: any[], projects?: string[], onSaved?: Function, onDelete?: Function }} options */
 export function openLoginDialog({ client, item = null, kind = item?.type ?? "login", revision, prefill = {}, existing = [], projects = [], onSaved, onDelete }) {
   if (!dialog) hooks = build();
@@ -265,14 +265,14 @@ export function openLoginDialog({ client, item = null, kind = item?.type ?? "log
   $("project").value = item?.project ?? prefill.project ?? "";
   $("project-list").replaceChildren(...projects.map(project => element("option", { value: project })));
   $("totp").value = item?.totp ?? "";
-  $("notes").value = item?.notes ?? "";
+  $("notes").value = item?.notes ?? prefill.notes ?? "";
   if (kind === "card") {
     $("cardholder").value = item?.cardholder ?? ""; $("card-number").value = item?.number ?? "";
     $("card-month").value = String(item?.expiryMonth ?? ""); $("card-year").value = item?.expiryYear || ""; $("card-cvv").value = item?.cvv ?? "";
   }
   if (kind === "identity") for (const [fieldName, inputId] of [["firstName", "id-first"], ["lastName", "id-last"], ["email", "id-email"], ["phone", "id-phone"], ["address", "id-address"], ["city", "id-city"], ["region", "id-region"], ["postal", "id-postal"], ["country", "id-country"], ["company", "id-company"]])
     $(inputId).value = item?.[fieldName] ?? "";
-  $("notes-field").hidden = !note && !item?.notes; $("toggle-notes").hidden = note || !!item?.notes;
+  $("notes-field").hidden = !note && !item?.notes && !prefill.notes; $("toggle-notes").hidden = note || !!item?.notes || !!prefill.notes;
   $("totp-field").hidden = !item?.totp; $("toggle-totp").hidden = !!item?.totp;
   $("delete").hidden = !item;
   hooks.preview(); hooks.meter();

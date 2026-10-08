@@ -51,12 +51,12 @@
       <button class="nav-item" type="button" data-view="trash"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/><path d="M10 11v6M14 11v6"/></svg><span>Recently deleted</span><span id="count-trash" class="count"></span></button>
       <div id="projects-nav" class="nav-group" hidden><p class="nav-heading">Projects</p><div id="project-items"></div></div>
       <hr class="nav-divider">
-      <button class="nav-item" type="button" data-view="health"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg><span>Weak &amp; reused</span><span id="count-health" class="count warn" hidden></span></button>
+      <button class="nav-item" type="button" data-view="health"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg><span>Security Center</span><span id="count-health" class="count warn" hidden></span></button>
       <button class="nav-item" type="button" data-view="generator"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M14 9l2 2"/></svg><span>Generator</span></button>
       <button class="nav-item" type="button" data-view="import"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg><span>Import</span></button>
       <button class="nav-item" type="button" data-view="backup"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg><span>Backup</span><span id="backup-dot" class="dot" title="No recent backup" hidden></span></button>
       <button class="nav-item" type="button" data-view="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
-      <button id="nav-sites" class="nav-item" type="button" data-view="sites" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span>Sites turned off</span><span id="count-sites" class="count"></span></button>
+      <button id="nav-sites" class="nav-item" type="button" data-view="sites" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span>Site rules</span><span id="count-sites" class="count"></span></button>
       <button id="sidebar-health" class="sidebar-health" type="button" hidden>
         <span id="health-score" class="health-score"></span>
         <span class="health-lines"><span class="health-caption">Vault health</span><span id="health-detail"></span></span>
@@ -78,13 +78,20 @@
             <p><strong>Back up your vault.</strong> Your logins survive restarts, but removing KeyBit from the browser deletes them. An encrypted backup lets you restore them anywhere.</p>
             <div class="banner-actions"><button id="banner-export" class="primary-button" type="button">Export backup</button><button id="banner-later" class="text-button" type="button">Remind me later</button></div>
           </div>
+          <div id="env-editor" class="env-editor" hidden></div>
           <div id="items" class="item-list"></div>
         </div>
       </section>
 
       <section id="view-health" class="view" hidden>
-        <div class="view-header"><h2>Weak &amp; reused</h2></div>
-        <p class="lead">Checked on this device. Reused passwords put every site that shares them at risk when one leaks.</p>
+        <div class="view-header"><h2>Security Center</h2></div>
+        <p class="lead">Checked entirely on this device — nothing is sent anywhere. Password age is a hint to review, not a verdict.</p>
+        <div class="card security-score">
+          <div class="score-big"><strong id="health-score-big">–</strong><span>security score</span></div>
+          <ul id="health-factors" class="factor-list"></ul>
+        </div>
+        <div id="health-metrics" class="metric-grid"></div>
+        <h3 class="section-label">Needs review</h3>
         <div id="health-list" class="item-list"></div>
       </section>
 
@@ -170,6 +177,7 @@
         <div class="card settings-list">
           <h3>Security</h3>
           <label class="switch-row setting"><span><span class="switch-title">Lock when the computer locks or sleeps</span><span class="switch-hint muted">Recommended, especially with auto-lock set to Never.</span></span><input id="lock-on-sleep" type="checkbox" role="switch" checked></label>
+          <label class="switch-row setting"><span><span class="switch-title">Confirm before opening Production</span><span class="switch-hint muted">The environment switcher asks first before moving a tab to a project's production address.</span></span><input id="confirm-production" type="checkbox" role="switch" checked></label>
           <label class="switch-row setting" id="biometric-row" hidden><span><span class="switch-title" id="biometric-title">Unlock with Touch ID</span><span class="switch-hint muted">Your master password still works and is never stored.</span></span><input id="biometric" type="checkbox" role="switch"></label>
           <div class="setting setting-action"><span><span class="switch-title">Master password</span><span class="switch-hint muted">Older backups still need the password they were made with.</span></span><button id="change-password" class="secondary-button" type="button">Change</button></div>
           <div class="setting setting-action"><span><span class="switch-title">Recovery kit</span><span class="switch-hint muted">Split vault recovery into shares — any few rebuild it, so people you trust can help you back in.</span></span><button id="create-kit" class="secondary-button" type="button">Create</button></div>
@@ -203,7 +211,7 @@
       </section>
 
       <section id="view-sites" class="view narrow" hidden>
-        <div class="view-header"><h2>Sites turned off</h2></div>
+        <div class="view-header"><h2>Site rules</h2><p class="muted">Per-site control of what KeyBit offers. Rules apply to the exact site unless “Include subdomains” is on.</p></div>
         <div id="disabled-sites" class="card list-card"></div>
       </section>
     </main>

@@ -1,9 +1,9 @@
 import { createEncryptedVault, decryptVault, decryptWithKey, encryptVault, parseBackup, validateEnvelope, newKdf } from "../crypto/crypto.js";
 import { splitSecret, encodeShare, recoveryPassphrase } from "./shamir.js";
 import { deriveKey, deriveRawKey, importRawKey } from "../crypto/kdf.js";
-import { emptyVault, createItem, validateSettings, duplicateKey, HISTORY_LIMIT, ENVIRONMENTS } from "./schema.js";
-import { matcherFor, scopeLabel, specificity } from "../matching/url-matcher.js";
-import { vaultHealth } from "./health.js";
+import { emptyVault, createItem, validateSettings, validateProjects, duplicateKey, HISTORY_LIMIT, ENVIRONMENTS } from "./schema.js";
+import { matcherFor, scopeLabel, specificity, parseWebsite } from "../matching/url-matcher.js";
+import { securityReport, vaultHealth } from "./health.js";
 import { toCsv } from "./csv.js";
 
 const MAX_IMPORT = 100000;
@@ -120,11 +120,69 @@ export class Vault {
   }
   projects(session) {
     this.require(session);
-    return [...new Set(this.#data.items.filter(item => !item.deletedAt).map(item => item.project).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const named = this.#data.items.filter(item => !item.deletedAt).map(item => item.project);
+    return [...new Set([...named, ...Object.keys(this.#data.projects ?? {})].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  }
+  // Every project's environment → URL map. `merged` is what switching resolves against: the
+  // configured map (vault.projects, returned as `configured`) wins; a login's own environment +
+  // first URL fills gaps so switching works before anything is configured.
+  environments(session) {
+    this.require(session);
+    const merged = {}, configured = {};
+    for (const [name, entry] of Object.entries(this.#data.projects ?? {})) {
+      configured[name] = { ...entry.environments };
+      merged[name] = { ...entry.environments };
+    }
+    for (const item of this.#data.items) {
+      if (item.deletedAt || !item.project || !item.urls?.length) continue;
+      merged[item.project] ??= {};
+      merged[item.project][item.environment] ??= item.urls[0];
+    }
+    return { merged, configured };
+  }
+  // Where an environment switch lands: the environment's URL plus the login (same project first)
+  // that would fill there — or no item, which the caller turns into a safe empty state. When the
+  // current page sits under one of this project's environment addresses, the part after that base —
+  // path, query, hash — is carried onto the target base, so /app/login.php maps across unchanged.
+  environmentTarget(session, project, environment, pageUrl = null) {
+    this.require(session);
+    const envs = this.environments(session).merged[project] ?? {};
+    const base = envs[environment];
+    if (!base) return { url: null };
+    let url = base;
+    try {
+      const page = parseWebsite(pageUrl);
+      const strip = value => { const u = parseWebsite(value); return { origin: u.origin, path: u.pathname.replace(/\/+$/, "") }; };
+      const current = Object.values(envs).map(strip)
+        .filter(b => b.origin === page.origin && (page.pathname === b.path || page.pathname.startsWith(`${b.path}/`)))
+        .sort((a, b) => b.path.length - a.path.length)[0];
+      if (current) {
+        const relative = page.href.slice(`${current.origin}${current.path}`.length);
+        const target = strip(base);
+        url = new URL(`${target.origin}${target.path}${relative}`).href;
+      }
+    } catch { /* No usable page URL — the environment's base address stands alone. */ }
+    const fits = matcherFor(url);
+    const logins = this.#data.items.filter(item => item.type === "login" && !item.deletedAt && fits(item));
+    const item = logins.find(login => login.project === project) ?? logins[0];
+    return { url, itemId: item?.id ?? null };
+  }
+  async setProjectEnvironments(session, revision, name, environments) {
+    this.require(session);
+    const project = String(name ?? "").slice(0, 100).trim();
+    let clean;
+    try { clean = validateProjects({ [project]: { environments } })[project]; }
+    catch { throw new Error("Use environment names like staging, and full http(s) URLs."); }
+    if (!clean) throw new Error("Use environment names like staging, and full http(s) URLs.");
+    const projects = { ...this.#data.projects };
+    if (Object.keys(clean.environments).length) projects[project] = clean; else delete projects[project];
+    return this.#save({ ...this.#data, projects }, session, revision);
   }
   health(session) {
     this.require(session);
-    return vaultHealth(this.#data.items.filter(item => item.type === "login" && !item.deletedAt));
+    const live = this.#data.items.filter(item => !item.deletedAt);
+    const logins = live.filter(item => item.type === "login");
+    return { flags: vaultHealth(logins), report: securityReport(live) };
   }
   // Recently deleted: same summaries as list(), newest deletion first, with the deletion date.
   listDeleted(session) {
@@ -290,7 +348,15 @@ export class Vault {
       } else if (seen.has(duplicateKey(incoming, scopeLabel))) unchanged++;
       else { items.push(incoming); seen.add(duplicateKey(incoming, scopeLabel)); added++; }
     }
-    const state = added || updated ? await this.#save({ ...this.#data, items }, session, revision) : await this.status();
+    // Environment maps ride along in backups too: merge per key, keeping local entries on conflict.
+    const projects = { ...this.#data.projects };
+    for (const [name, entry] of Object.entries(payload.projects ?? {})) {
+      if (!projects[name]) { projects[name] = entry; continue; }
+      for (const [env, url] of Object.entries(entry.environments))
+        if (!(env in projects[name].environments)) projects[name] = { environments: { ...projects[name].environments, [env]: url } };
+    }
+    const changed = added || updated || JSON.stringify(projects) !== JSON.stringify(this.#data.projects);
+    const state = changed ? await this.#save({ ...this.#data, items, projects }, session, revision) : await this.status();
     return { state, added, updated, unchanged };
   }
   async export() {

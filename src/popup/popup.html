@@ -34,6 +34,19 @@
         <span id="site-tile" class="tile tone-6" aria-hidden="true">?</span>
         <div class="site-text"><p id="site-name" class="site-name">Current tab</p><p id="detection-status" class="muted" role="status">Checking page…</p></div>
         <button id="check-page" class="icon-button" type="button" aria-label="Check this page again" title="Check again"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+        <button id="inspect-page" class="icon-button" type="button" aria-label="Inspect login form" title="Inspect login form" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/><path d="M8 11h6M11 8v6"/></svg></button>
+        <button id="site-rules-toggle" class="icon-button" type="button" aria-label="Site rules" title="Site rules" aria-expanded="false" aria-controls="site-rules" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="18" r="2"/></svg></button>
+      </div>
+      <div id="site-rules" class="site-rules" hidden>
+        <p class="rules-title muted">Site rules</p>
+        <label class="rule"><input type="checkbox" data-rule="enabled"> KeyBit enabled</label>
+        <label class="rule sub"><input type="checkbox" data-rule="logins"> Autofill suggestions</label>
+        <label class="rule sub"><input type="checkbox" data-rule="save"> Offer to save</label>
+        <label class="rule sub"><input type="checkbox" data-rule="generate"> Generated passwords</label>
+        <label class="rule sub"><input type="checkbox" data-rule="totp"> 2FA codes</label>
+        <label class="rule sub"><input type="checkbox" data-rule="cards"> Cards &amp; IDs</label>
+        <label class="rule"><input type="checkbox" data-rule="peek"> Peek external links</label>
+        <label class="rule muted"><input type="checkbox" data-rule="subdomains"> Apply to subdomains</label>
       </div>
     </section>
     <section id="auth" class="locked-panel"></section>

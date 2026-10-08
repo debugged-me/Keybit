@@ -161,7 +161,8 @@
   window.addEventListener("pageshow", event => { if (event.persisted) void show(); }, { signal: lifecycle.signal });
   window.addEventListener("pagehide", close, { signal: lifecycle.signal });
   function onRuntimeMessage(message) {
-    if (message?.event === "keybit-site-disabled") { disabled = true; close(); }
+    // The broadcast reaches every frame; only the disabled origin's own documents disable capture.
+    if (message?.event === "keybit-site-disabled" && (!message.origin || message.origin === location.origin)) { disabled = true; close(); }
     // Sent by KeyBit when this tab finishes loading while a save prompt is waiting (for example after a login redirect).
     if (message?.event === "keybit-save-prompt") void show();
   }

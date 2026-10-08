@@ -4,6 +4,7 @@ import { element, all, announce, clearFields, siteTile, icon, iconButton, copyTe
 import { combineShares, recoveryPassphrase } from "../vault/shamir.js";
 import { portableHtml } from "../vault/portable.js";
 import { scopeLabel } from "../matching/url-matcher.js";
+import { passwordAge } from "../vault/health.js";
 import { MAX_BACKUP_BYTES } from "../crypto/encoding.js";
 import { totpCode } from "../vault/totp.js";
 import { openLoginDialog, closeLoginDialog } from "../ui/login-form.js";
@@ -26,7 +27,7 @@ let items = [];
 let trash = [];
 let health = {};
 let projects = [];
-let disabledSites = [];
+let disabledSites = {};
 let selectedId = null;
 let passkeyCount = 0;
 let detail = null;           // { item, revision }: the selected item, including its secrets, until lock or deselect
@@ -37,6 +38,7 @@ let importToken = null;
 let importItems = null;
 let prefs = null;
 let peekSettings = null;
+let envMaps = { merged: {}, configured: {} };
 let backupInfo = { lastBackupAt: 0, snoozedUntil: 0 };
 let sort = (() => { try { return localStorage.getItem("keybit-sort") || "name"; } catch { return "name"; } })();
 
@@ -50,10 +52,20 @@ const client = new VaultClient((state, previous) => {
   if (!state.unlocked) { if (previous.unlocked) clearFields($("#import-form")); return; }
   updateAutoLock(state.settings.autoLockMinutes);
   $("#lock-on-sleep").checked = state.settings.lockOnScreenLock !== false;
+  $("#confirm-production").checked = state.settings.confirmProduction !== false;
   $("#biometric").checked = !!state.biometric;
   void refreshList();
   void refreshSites();
   if (location.hash === "#new") { history.replaceState(null, "", location.pathname); show("logins"); openAdd("login"); }
+  else if (location.hash === "#new-note") {
+    history.replaceState(null, "", location.pathname); show("notes");
+    // The context menu's "Save as secure note" parks the selected text here until the vault is unlocked.
+    void (async () => {
+      const pending = await chrome.storage.session.get("pending-note").catch(() => ({}));
+      if (pending?.["pending-note"]) await chrome.storage.session.remove("pending-note").catch(() => {});
+      openAdd("note", { notes: pending?.["pending-note"] ?? "" });
+    })();
+  }
   else if (location.hash === "#welcome") { history.replaceState(null, "", location.pathname); show("logins"); }
   // Another window or a save prompt changed the vault: reload the open item unless it is being edited.
   else if (selectedId && previous.revision !== state.revision && !$("#login-dialog")?.open) void select(selectedId);
@@ -76,7 +88,7 @@ function layout() {
 const isList = name => LIST_VIEWS.includes(name) || name.startsWith("project:");
 function show(name, remember = true) {
   view = VIEWS.includes(name) || (name.startsWith("project:") && projects.includes(name.slice(8))) ? name : "logins";
-  if (view === "sites" && !disabledSites.length) view = "logins";
+  if (view === "sites" && !Object.keys(disabledSites).length) view = "logins";
   if (view === "passkeys" && !passkeyCount) view = "logins";
   const section = isList(view) ? "logins" : view;
   for (const candidate of VIEWS.filter(name => !LIST_VIEWS.includes(name) || name === "logins")) $(`#view-${candidate}`).hidden = candidate !== section;
@@ -97,7 +109,7 @@ $("#back-to-unlock").addEventListener("click", () => { restoring = false; layout
 // Lists
 const badge = (text, kind = "") => element("span", { className: `badge ${kind}` }, text);
 function row(item, onClick) {
-  const flags = health[item.id] ?? {};
+  const flags = health.flags?.[item.id] ?? {};
   const note = item.type === "note";
   const passkey = item.type === "passkey";
   const card = item.type === "card";
@@ -133,10 +145,56 @@ function inView(item) {
   if (view.startsWith("project:")) return item.project === view.slice(8);
   return item.type === "login";
 }
+// Environment URL editor for a project view: the popup's switcher jumps between these addresses.
+// Entries marked "from login" resolve from a login's own environment + site; saving one writes an
+// explicit override into the project's environment map.
+function renderEnvEditor(project) {
+  const host = $("#env-editor");
+  host.replaceChildren();
+  host.hidden = !project;
+  if (!project) return;
+  const merged = envMaps.merged[project] ?? {};
+  const configured = envMaps.configured[project] ?? {};
+  const save = async environments => {
+    try {
+      client.update(await client.request("SET_PROJECT_ENV", { project, environments, revision: client.state.revision }));
+      announce("Environments saved.");
+      await refreshList();
+    } catch (error) { announce(error.message, true); }
+  };
+  const order = env => { const index = ENV_ORDER.indexOf(env); return index < 0 ? ENV_ORDER.length : index; };
+  const rows = Object.entries(merged).sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b)).map(([env, url]) => {
+    const input = element("input", { type: "url", value: url, "aria-label": `${env} address`, placeholder: "https://…" });
+    input.addEventListener("change", () => {
+      const value = input.value.trim();
+      if (value && value !== url) void save({ ...configured, [env]: value }); else input.value = url;
+    });
+    const remove = iconButton("close", `Remove ${env}`);
+    remove.addEventListener("click", () => { const { [env]: gone, ...rest } = configured; void gone; void save(rest); });
+    return element("div", { className: "env-row" }, element("span", { className: "env-name" }, env), input,
+      env in configured ? remove : element("span", { className: "badge", title: "Resolved from a login's environment — edit to override it" }, "from login"));
+  });
+  const envName = element("input", { list: "env-names", placeholder: "environment", "aria-label": "Environment name", maxlength: "40" });
+  const envUrl = element("input", { type: "url", placeholder: "https://staging.example.com", "aria-label": "Environment URL" });
+  const add = element("button", { type: "button", className: "secondary-button" }, "Add");
+  add.addEventListener("click", () => {
+    const env = envName.value.trim().toLowerCase(), url = envUrl.value.trim();
+    if (!env || !url) { announce("Name the environment and give its URL.", true); return; }
+    void save({ ...configured, [env]: url });
+  });
+  host.append(
+    element("div", { className: "env-head" },
+      element("h3", {}, "Environments"),
+      element("span", { className: "muted" }, "Addresses the popup environment switcher jumps between.")),
+    ...rows,
+    element("div", { className: "env-row env-add" }, envName, envUrl, add),
+    element("datalist", { id: "env-names" }, ENV_ORDER.map(env => element("option", { value: env }))));
+}
 function renderList() {
   if (!isList(view)) return;
   const query = $("#search").value;
   const project = view.startsWith("project:") ? view.slice(8) : null;
+  renderEnvEditor(project && !query ? project : null);
   const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes", passkeys: "Passkeys", cards: "Cards & IDs", trash: "Recently deleted" };
   $("#list-title").textContent = query ? `Results for “${query}”` : project ?? titles[view];
   $("#add-label").textContent = view === "notes" ? "Add note" : view === "cards" ? "Add card" : "Add login";
@@ -182,16 +240,20 @@ async function refreshList() {
   const session = client.state.session;
   try {
     // Health is extra information: if it is unavailable, the list must still show.
-    const [list, flags, names, deleted] = await Promise.all([client.request("LIST", { query: $("#search").value }),
-      client.request("HEALTH").catch(() => ({})), client.request("PROJECTS").catch(() => []), client.request("TRASH_LIST").catch(() => [])]);
+    const [list, flags, names, deleted, envs] = await Promise.all([client.request("LIST", { query: $("#search").value }),
+      client.request("HEALTH").catch(() => ({})), client.request("PROJECTS").catch(() => []), client.request("TRASH_LIST").catch(() => []),
+      client.request("ENVIRONMENTS").catch(() => ({ merged: {}, configured: {} }))]);
     if (!client.is(session) || request !== listRequest) return;
-    items = list; health = flags; projects = names; trash = deleted;
+    items = list; health = flags; projects = names; trash = deleted; envMaps = envs ?? { merged: {}, configured: {} };
     $("#count-trash").textContent = String(trash.length || "");
     renderProjects();
     renderList();
     const all = $("#search").value ? await client.request("LIST", { query: "" }) : items;
     if (!client.is(session)) return;
-    const flagged = all.filter(item => health[item.id]?.reused || health[item.id]?.weak);
+    const healthFlags = health.flags ?? {};
+    const report = health.report;
+    const flagged = all.filter(item => healthFlags[item.id]?.reused || healthFlags[item.id]?.weak ||
+      (item.type === "login" && item.updatedAt && passwordAge(item.updatedAt) === "old"));
     passkeyCount = all.filter(item => item.type === "passkey").length;
     $("#nav-passkeys").hidden = !passkeyCount;
     $("#count-passkeys").textContent = String(passkeyCount || "");
@@ -201,15 +263,26 @@ async function refreshList() {
     $("#count-cards").textContent = String(all.filter(item => item.type === "card" || item.type === "identity").length || "");
     $("#count-health").textContent = String(flagged.length); $("#count-health").hidden = !flagged.length;
     $("#health-list").replaceChildren(...flagged.map(item => row(item, () => { show("logins"); void select(item.id); })));
-    if (!flagged.length) $("#health-list").append(element("p", { className: "empty" }, "No weak or reused passwords. Nice."));
-    // Sidebar summary: share of logins that are neither weak nor reused.
-    const logins = all.filter(item => item.type === "login").length;
-    const weak = all.filter(item => health[item.id]?.weak).length;
-    const reused = all.filter(item => health[item.id]?.reused).length;
-    const score = logins ? Math.round((logins - flagged.length) / logins * 100) : 0;
-    $("#sidebar-health").hidden = !logins;
+    if (!flagged.length) $("#health-list").append(element("p", { className: "empty" }, "Nothing needs review. Nice."));
+    if (report) {
+      $("#health-score-big").textContent = `${report.score}%`;
+      $("#health-factors").replaceChildren(...(report.factors.length ? report.factors : [{ label: "everything looks good", count: 0, delta: 0 }])
+        .map(factor => element("li", { className: factor.delta >= 0 ? "good" : "bad" },
+          element("b", {}, `${factor.delta >= 0 ? "+" : ""}${factor.delta}`),
+          element("span", {}, factor.count ? `${factor.count} ${factor.label}` : factor.label))));
+      const tiles = [["Logins", report.metrics.logins], ["Strong passwords", report.metrics.strong], ["Weak passwords", report.metrics.weak],
+        ["Reused passwords", report.metrics.reused], ["Duplicate credentials", report.metrics.duplicates], ["Fresh passwords", report.metrics.fresh],
+        ["Aging passwords", report.metrics.aging], ["Old passwords", report.metrics.old], ["Accounts with 2FA", report.metrics.totp],
+        ["Saved passkeys", report.metrics.passkeys], ["Production logins", report.metrics.production], ["Needs review", report.metrics.needReview]];
+      $("#health-metrics").replaceChildren(...tiles.map(([label, value]) =>
+        element("div", { className: "metric" }, element("b", {}, String(value)), element("span", {}, label))));
+    }
+    // Sidebar summary uses the same report score so both numbers always agree.
+    const weak = all.filter(item => healthFlags[item.id]?.weak).length;
+    const reused = all.filter(item => healthFlags[item.id]?.reused).length;
+    $("#sidebar-health").hidden = !(report?.metrics.logins ?? 0);
     $("#sidebar-health").classList.toggle("warn", flagged.length > 0);
-    $("#health-score").textContent = `${score}%`;
+    $("#health-score").textContent = report ? `${report.score}%` : "";
     $("#health-detail").textContent = flagged.length ? `${weak} weak · ${reused} reused` : "All strong";
     await loadBackupInfo(all.length);
   } catch (error) { announce(error.message, true); }
@@ -222,6 +295,8 @@ function renderProjects() {
 }
 $("#search").addEventListener("input", () => { if (!isList(view)) show("logins"); void refreshList(); });
 $("#sidebar-health").addEventListener("click", () => show("health"));
+// A site-rule change from the popup or another window refreshes the rules view.
+chrome.runtime.onMessage.addListener(message => { if (message?.event === "site-rules") void refreshSites(); });
 // ⌘K / Ctrl+K jumps to search from anywhere; "/" works when not typing, like the popup.
 $("#search-kbd").textContent = /^Mac|iP/.test(navigator.platform) ? "⌘K" : "Ctrl K";
 document.addEventListener("keydown", event => {
@@ -291,7 +366,7 @@ function renderDetail() {
   const passkey = item.type === "passkey";
   const card = item.type === "card";
   const identity = item.type === "identity";
-  const flags = health[item.id] ?? {};
+  const flags = health.flags?.[item.id] ?? {};
   const scope = note || passkey || card || identity ? "" : scopeLabel(item.urls[0]);
   const back = iconButton("close", "Close", { className: "icon-button back-button" });
   back.addEventListener("click", clearDetail);
@@ -351,6 +426,8 @@ function renderDetail() {
   if (trashed) warnings.push(element("p", { className: "warning" }, icon("trash"), `Deleted ${relativeTime(Date.parse(item.deletedAt))}. Kept for 30 days, then removed forever.`));
   if (flags.reused) warnings.push(element("p", { className: "warning" }, icon("alert"), `This password is also used by ${flags.reused} other login${flags.reused === 1 ? "" : "s"}. Change it on this site to a unique one.`));
   if (flags.weak) warnings.push(element("p", { className: "warning weak" }, icon("alert"), "This password is short or simple. Generate a stronger one when you next change it."));
+  if (!trashed && item.type === "login" && passwordAge(item.updatedAt) === "old")
+    warnings.push(element("p", { className: "warning" }, icon("timer"), "This login has not been updated for over 2 years — worth a review, not necessarily unsafe."));
   let history = null;
   if (!note && !passkey && item.history.length) {
     history = element("details", { className: "history" }, element("summary", {}, `Password history (${item.history.length})`),
@@ -445,9 +522,9 @@ $("#empty-trash").addEventListener("click", async () => {
 });
 
 // Add and edit happen in a modal dialog (ui/login-form.js).
-function openAdd(kind = view === "notes" ? "note" : view === "cards" ? "card" : "login") {
+function openAdd(kind = view === "notes" ? "note" : view === "cards" ? "card" : "login", extra = {}) {
   const project = view.startsWith("project:") ? view.slice(8) : "";
-  openLoginDialog({ client, kind, revision: client.state.revision, existing: items, projects, prefill: { project }, onSaved: afterSave });
+  openLoginDialog({ client, kind, revision: client.state.revision, existing: items, projects, prefill: { project, ...extra }, onSaved: afterSave });
 }
 async function afterSave(state, id) {
   client.update(state); announce("Saved and encrypted.");
@@ -849,6 +926,10 @@ $("#lock-on-sleep").addEventListener("change", async event => {
   try { client.update(await client.request("SETTINGS", { settings: { lockOnScreenLock: event.target.checked } })); announce(event.target.checked ? "KeyBit locks when your computer locks or sleeps." : "KeyBit stays unlocked when your computer locks."); }
   catch (error) { event.target.checked = !event.target.checked; announce(error.message, true); }
 });
+$("#confirm-production").addEventListener("change", async event => {
+  try { client.update(await client.request("SETTINGS", { settings: { confirmProduction: event.target.checked } })); announce(event.target.checked ? "KeyBit confirms before opening a production environment." : "Environment switches open production without asking."); }
+  catch (error) { event.target.checked = !event.target.checked; announce(error.message, true); }
+});
 $("#biometric").addEventListener("change", async event => {
   const toggle = event.target;
   if (!toggle.checked) {
@@ -912,30 +993,54 @@ async function renderSettings() {
 }
 $("#edit-shortcuts").addEventListener("click", () => void chrome.tabs.create({ url: "chrome://extensions/shortcuts" }));
 
-// Sites turned off (the list and its section only exist while some site is off)
+// Site rules: every origin with a non-default rule, edited in place. A rule at defaults is dropped.
+const RULE_LABELS = { enabled: "On", logins: "Autofill", save: "Save prompts", generate: "Generated passwords", totp: "2FA codes", cards: "Cards & IDs", peek: "Peek", subdomains: "Include subdomains" };
 async function refreshSites() {
-  try { disabledSites = await client.request("DISABLED_SITES"); } catch { disabledSites = []; }
-  $("#nav-sites").hidden = !disabledSites.length;
-  $("#count-sites").textContent = String(disabledSites.length);
-  $("#disabled-sites").replaceChildren(...disabledSites.map(origin => {
-    const enable = element("button", { type: "button", className: "text-button" }, "Turn on");
-    enable.addEventListener("click", async () => {
-      const url = new URL(origin);
+  try { disabledSites = await client.request("SITE_RULES"); } catch { disabledSites = {}; }
+  const origins = Object.keys(disabledSites);
+  $("#nav-sites").hidden = !origins.length;
+  $("#count-sites").textContent = String(origins.length);
+  $("#disabled-sites").replaceChildren(...origins.map(origin => {
+    const rule = disabledSites[origin];
+    const card = element("div", { className: "site-permission rule-card" }, element("span", { className: "rule-origin" }, origin));
+    const toggles = element("span", { className: "rule-toggles" });
+    for (const [flag, text] of Object.entries(RULE_LABELS)) {
+      const input = element("input", { type: "checkbox", "data-flag": flag });
+      input.checked = !!rule[flag];
+      input.disabled = !rule.enabled && flag !== "enabled";
+      input.addEventListener("change", async () => {
+        try {
+          const url = new URL(origin);
+          // Re-enabling still needs the browser's host permission for that site.
+          if (flag === "enabled" && input.checked && !(await chrome.permissions.request({ origins: [`${url.protocol}//${url.hostname}/*`] }))) throw new Error("Site access was not allowed.");
+          await client.request("SET_SITE_RULE", { origin, patch: { [flag]: input.checked } });
+          announce(input.checked ? `${text} on for ${url.host}.` : `${text} off for ${url.host}.`);
+        } catch (error) { input.checked = !input.checked; announce(error.message, true); }
+        await refreshSites();
+      });
+      toggles.append(element("label", { className: "rule-toggle" }, input, text));
+    }
+    const reset = element("button", { type: "button", className: "text-button" }, "Reset");
+    reset.addEventListener("click", async () => {
       try {
-        if (!(await chrome.permissions.request({ origins: [`${url.protocol}//${url.hostname}/*`] }))) throw new Error("Site access was not allowed.");
-        await client.request("SET_SITE_ENABLED", { origin, enabled: true });
-        announce(`KeyBit is back on for ${url.host}.`);
+        await client.request("SET_SITE_RULE", { origin, patch: { enabled: true, logins: true, save: true, generate: true, totp: true, cards: true, peek: true, subdomains: false } });
+        announce(`Defaults restored for ${new URL(origin).host}.`);
         await refreshSites();
       } catch (error) { announce(error.message, true); }
     });
-    return element("div", { className: "site-permission" }, element("span", {}, origin), enable);
+    card.append(toggles, reset);
+    return card;
   }));
-  if (view === "sites" && !disabledSites.length) show("logins");
+  if (view === "sites" && !origins.length) show("logins");
 }
 
 $("#version").textContent = `v${chrome.runtime.getManifest().version}`;
 showReloadBanner(document.body);
 const initial = decodeURIComponent(location.hash.slice(1));
-show(["new", "welcome"].includes(initial) ? "logins" : initial, false);
+const [initialView, initialQuery] = initial.split("?");
+const focusId = initialView === "item" ? new URLSearchParams(initialQuery ?? "").get("id") : null;
+show(["new", "new-note", "welcome", "item"].includes(initialView) ? "logins" : initial, false);
 await client.refresh();
 layout();
+// The command palette's "Show in KeyBit" opens straight onto the item.
+if (focusId) void select(focusId);

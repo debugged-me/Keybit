@@ -1,5 +1,5 @@
 (() => {
-  if (window !== window.top) return;
+  // Runs in every frame: a login form inside an iframe gets the dropdown anchored inside that frame.
   // A copy injected before an extension reload/update has no runtime — retire quietly.
   if (!chrome.runtime?.id) return;
   // Re-injection after an install/update replaces the previous instance instead of stacking listeners.
@@ -131,14 +131,36 @@
   window.addEventListener("scroll", schedulePlace, { capture: true, passive: true, signal: lifecycle.signal });
   window.addEventListener("resize", schedulePlace, { signal: lifecycle.signal });
   window.addEventListener("pagehide", () => close(), { signal: lifecycle.signal });
+  // The browser's context menu reports no element — remember the last right-click target per frame.
+  let contextTarget = null;
+  document.addEventListener("contextmenu", event => { contextTarget = eventTarget(event); }, { capture: true, signal: lifecycle.signal });
+  async function generateInto(target) {
+    const response = await chrome.runtime.sendMessage({ type: "CONTEXT_GENERATE" }).catch(() => null);
+    const password = response?.ok ? response.data?.password : null;
+    if (!password || !target.isConnected) return;
+    const autofill = globalThis.__keybit;
+    // Sign-up/change forms take the password in both fields, matching the panel's generated fill.
+    const form = autofill.findNew().find(candidate => candidate.fields.includes(target));
+    for (const field of form ? form.fields : [target]) autofill.fillInput(field, password);
+    // No refocus: focus() would fire focusin and pop the dropdown right after the fill.
+  }
   function onRuntimeMessage(message) {
-    if (message?.event === "keybit-site-disabled") close();
+    // The broadcast reaches every frame; only the disabled origin's own documents close.
+    if (message?.event === "keybit-site-disabled" && (!message.origin || message.origin === location.origin)) close();
     if (message?.event === "keybit-show") {
       // Keyboard shortcut: open on the focused field, or focus the page's login field (which opens it).
       const focused = deepActiveElement();
       if (supported(focused)) { void show(focused); return; }
       const login = globalThis.__keybit.find()[0];
       (login?.username ?? login?.password ?? globalThis.__keybit.findNew()[0]?.fields[0])?.focus();
+    }
+    if (message?.event === "keybit-context-fill") {
+      const target = contextTarget?.isConnected ? contextTarget : deepActiveElement();
+      if (supported(target)) { target.focus(); void show(target); }
+    }
+    if (message?.event === "keybit-context-generate") {
+      const target = contextTarget?.isConnected ? contextTarget : deepActiveElement();
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) void generateInto(target);
     }
   }
   chrome.runtime.onMessage.addListener(onRuntimeMessage);

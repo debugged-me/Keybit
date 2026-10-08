@@ -13,11 +13,17 @@
   const { overlay, link, settings: peekSettings } = ns;
   const lifecycle = new AbortController();
   let settings = { ...(ns.utils?.DEFAULT_SETTINGS ?? {}) };
+  // Per-site rule for this page, resolved by the worker in the PEEK_GET_SETTINGS answer.
+  let siteAllowed = true;
   // Cached once so the click handler can decide synchronously; refreshes via worker broadcasts.
-  void peekSettings.load().then(loaded => { settings = loaded; }).catch(() => {});
+  const reload = () => peekSettings.load().then(loaded => { settings = loaded; siteAllowed = loaded.siteAllowed !== false; }).catch(() => {});
+  void reload();
 
   function onRuntimeMessage(message) {
     if (message?.event === "keybit-peek-settings") settings = peekSettings.sanitize(message.settings);
+    // A site-rule change for this page's origin asks Peek to re-read its allowance.
+    if (message?.event === "keybit-peek-site") void reload();
+    if (message?.event === "keybit-context-peek") ns.previewUrl?.(message.url);
   }
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
 
@@ -29,9 +35,32 @@
     });
   };
   link.attach({ signal: lifecycle.signal,
-    enabled: () => settings.peekEnabled === true,
+    enabled: () => settings.peekEnabled === true && siteAllowed,
     trigger: () => settings.peekTrigger,
     open });
+  // The command palette's "Peek this link" command: preview the focused link, else the first
+  // eligible link on the page. Same eligibility rules and settings as any other Peek trigger.
+  ns.previewFocusedLink = () => {
+    if (settings.peekEnabled !== true || !siteAllowed) return;
+    const utils = ns.utils;
+    const focused = utils.findAnchor(document.activeElement);
+    const anchor = focused ?? [...document.querySelectorAll("a[href]")]
+      .find(candidate => candidate instanceof HTMLAnchorElement && !candidate.hasAttribute("download") &&
+        candidate.getBoundingClientRect().height > 0 && utils.anchorUrl(candidate, document.baseURI, location.href));
+    if (!anchor) return;
+    const url = utils.anchorUrl(anchor, document.baseURI, location.href);
+    if (url) open(url, anchor);
+  };
+  // The context menu's "Preview with KeyBit": the URL comes from the menu click, so find the
+  // matching anchor for focus/scroll restore — the preview still opens when the link is gone.
+  ns.previewUrl = wanted => {
+    if (settings.peekEnabled !== true || !siteAllowed) return;
+    const utils = ns.utils;
+    const anchor = [...document.querySelectorAll("a[href]")].find(candidate =>
+      candidate instanceof HTMLAnchorElement && !candidate.hasAttribute("download") && candidate.href === wanted);
+    const url = anchor ? utils.anchorUrl(anchor, document.baseURI, location.href) : utils.peekUrl(wanted, location.href);
+    if (url) open(utils.destinationUrl(url).href, anchor ?? null);
+  };
   // Instant close on unload: the animation timer may never fire while navigating or entering the
   // back-forward cache, which would leave the page scroll-locked.
   window.addEventListener("pagehide", () => overlay.close({ restoreFocus: false, instant: true }), { signal: lifecycle.signal });

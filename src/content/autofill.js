@@ -16,8 +16,21 @@
     input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
     input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
   }
+  // The context-menu "Generate password" writes straight into the field that was right-clicked
+  // (plus its sign-up siblings), so it cannot reuse the form-wide finders above.
+  detector.fillInput = (input, value) => {
+    if (input instanceof HTMLTextAreaElement) {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set;
+      setter.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+      return;
+    }
+    setValue(input, value);
+  };
   detector.fill = (origin, username, password) => {
-    if (window !== window.top || location.origin !== origin) return { ok: false, error: "The page changed. Reopen the extension before filling." };
+    // Runs in whatever document the worker chose — `origin` is always that document's own origin.
+    if (location.origin !== origin) return { ok: false, error: "The page changed. Reopen the extension before filling." };
     const candidates = detector.find();
     if (candidates.length !== 1) return { ok: false, error: "There must be one visible, supported login form to fill." };
     const fields = candidates[0];
@@ -28,14 +41,14 @@
     return { ok: true };
   };
   detector.fillUsername = (origin, username) => {
-    if (window !== window.top || location.origin !== origin) return { ok: false, error: "The page changed. Click the username field again." };
+    if (location.origin !== origin) return { ok: false, error: "The page changed. Click the username field again." };
     const steps = detector.findUsernameOnly();
     if (steps.length !== 1) return { ok: false, error: "There must be one visible username field to fill." };
     setValue(steps[0].username, username);
     return { ok: true };
   };
   detector.fillOtp = (origin, code) => {
-    if (window !== window.top || location.origin !== origin) return { ok: false, error: "The page changed. Click the code field again." };
+    if (location.origin !== origin) return { ok: false, error: "The page changed. Click the code field again." };
     const forms = detector.findOtp();
     if (forms.length !== 1) return { ok: false, error: "There must be one visible 2FA code field to fill." };
     const { fields } = forms[0];
@@ -44,14 +57,14 @@
     return { ok: true };
   };
   detector.fillNew = (origin, password) => {
-    if (window !== window.top || location.origin !== origin) return { ok: false, error: "The page changed. Click the password field again." };
+    if (location.origin !== origin) return { ok: false, error: "The page changed. Click the password field again." };
     const forms = detector.findNew();
     if (forms.length !== 1) return { ok: false, error: "There must be one visible sign-up or change-password form." };
     for (const field of forms[0].fields) setValue(field, password);
     return { ok: true };
   };
   detector.fillCard = (origin, card) => {
-    if (window !== window.top || location.origin !== origin) return { ok: false, error: "The page changed. Click the card field again." };
+    if (location.origin !== origin) return { ok: false, error: "The page changed. Click the card field again." };
     const forms = detector.findPayment();
     if (forms.length !== 1) return { ok: false, error: "There must be one visible card form to fill." };
     const f = forms[0];
@@ -66,7 +79,7 @@
     return { ok: true };
   };
   detector.fillIdentity = (origin, person) => {
-    if (window !== window.top || location.origin !== origin) return { ok: false, error: "The page changed. Click the address field again." };
+    if (location.origin !== origin) return { ok: false, error: "The page changed. Click the address field again." };
     const forms = detector.findIdentity();
     if (forms.length !== 1) return { ok: false, error: "There must be one visible address or sign-up form to fill." };
     const values = { ...person, fullName: person.fullName || [person.firstName, person.lastName].filter(Boolean).join(" ") };
