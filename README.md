@@ -32,7 +32,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **Cards and IDs:** save a payment card or an ID (name, address, phone) in **Cards & IDs**. Focusing a card field or an address form shows the same dropdown — one click fills the number, expiry, CVV, or the whole address. Cards and IDs aren't site-bound; a masked number and cardholder name are all that ever leave the vault until you fill.
 - **Lookalike-site warnings:** if a page's address only *resembles* a saved site — swapped letters, Cyrillic lookalikes, punycode, a one-letter typo — the dropdown leads with a warning instead of filling. Saved credentials never autofill on a different site; this adds the "wait, this isn't right" moment for the near-misses.
 - **Sign-up and change-password fields** get a generated password in both fields.
-- To turn KeyBit off for one site, use the switch in the toolbar popup.
+- KeyBit is on for every site by default — there is nothing to switch on.
 
 **Saving**
 - KeyBit offers to save after you sign in. This works for normal forms, and for sites that sign in with a script button or the Enter key.
@@ -76,7 +76,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **Popup:**
   - shows this site's logins first, and searches all of them;
   - Fill, copy, and 2FA-code buttons;
-  - a quick generator, and the per-site switch;
+  - a quick generator, and one-click fill for the current site;
   - / searches, ↑↓ move, Enter fills.
 - **Notices** appear at the top centre.
 

@@ -45,10 +45,6 @@ async function renderLists() {
     if (query && !others.length) $("#results").append(element("p", { className: "empty" }, "No other logins match."));
   } catch (error) { announce(error.message, true); }
 }
-function showSite(site) {
-  $("#site-toggle").hidden = !site;
-  if (site) $("#site-enabled").checked = site.enabled && site.access;
-}
 async function checkPage() {
   const button = $("#check-page"); button.disabled = true;
   page = null; matches.replaceChildren(); ++listRequest;
@@ -57,13 +53,11 @@ async function checkPage() {
     const url = parseWebsite(tab?.url);
     $("#site-name").textContent = scopeLabel(url);
     $("#site-tile").replaceWith(Object.assign(siteTile(scopeLabel(url), "", url.href), { id: "site-tile" }));
-    const [result, site] = await Promise.all([client.request("DETECT", { tabId: tab.id }), client.request("SITE_STATUS", { origin: url.origin })]);
+    const result = await client.request("DETECT", { tabId: tab.id });
     page = { ...result, tabId: tab.id };
-    showSite(site);
     $("#detection-status").textContent = result.forms === 1 ? "Login form detected. Choose an account to fill." : result.forms > 1 ? "Multiple login forms found. Fill is unavailable."
       : result.newForms ? "Sign-up form detected. Click its password field for a strong password." : "No login form on this page.";
   } catch {
-    showSite(null);
     $("#site-name").textContent = "Page unavailable";
     $("#site-tile").replaceWith(Object.assign(siteTile("–"), { id: "site-tile" }));
     $("#detection-status").textContent = "KeyBit works on regular HTTP and HTTPS websites.";
@@ -93,20 +87,6 @@ $("#copy-generated").addEventListener("click", async () => {
     const armed = await copySecret(generated);
     announce(armed ? "Password copied. Clears in 30 seconds." : "Password copied. Clipboard is not cleared automatically.");
   } catch (error) { announce(error.message, true); }
-});
-$("#site-enabled").addEventListener("change", async event => {
-  if (!page) return;
-  const toggle = event.target;
-  const enabled = toggle.checked;
-  const url = new URL(page.origin);
-  toggle.disabled = true;
-  try {
-    // Browser-level site access can be restricted separately; asking needs this click.
-    if (enabled && !(await chrome.permissions.request({ origins: [`${url.protocol}//${url.hostname}/*`] }))) throw new Error("Site access was not allowed.");
-    await client.request("SET_SITE_ENABLED", { origin: page.origin, enabled });
-    announce(enabled ? "KeyBit will appear when you click a login field on this site." : `KeyBit is off for ${url.host}. Turn it back on here or in KeyBit → Sites turned off.`);
-  } catch (error) { toggle.checked = !enabled; announce(error.message, true); }
-  finally { toggle.disabled = false; }
 });
 $("#search").addEventListener("input", () => void renderLists());
 $("#check-page").addEventListener("click", () => void checkPage());

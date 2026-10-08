@@ -297,7 +297,7 @@ try {
     await waitFor(login.session, '!!document.querySelector("#user")');
   }
   // On by default: neither site approval nor the toolbar popup is needed for field suggestions.
-  assert.equal(await evaluate(popup, '!document.querySelector("#site-toggle").hidden && document.querySelector("#site-enabled").checked'), true);
+  assert.deepEqual((await rpc(popup, 'DISABLED_SITES')).data, []);
   await evaluate(popup, 'window.close()');
   await send('Target.activateTarget', { targetId: login.targetId });
   await evaluate(login.session, 'document.querySelector("#user").focus()');
@@ -321,15 +321,16 @@ try {
   await waitFor(login.session, `document.querySelector('#pass').value === ${JSON.stringify(loginPassword)}`);
   await absent(PANEL);
   console.log('PASS: field dropdown appears by default, survives scrolling, reopens on click of a focused field, and fills in an isolated frame.');
+  // A site can still be switched off through the Sites turned off list (or the per-site API);
+  // with it off, no dropdown appears, and turning it back on restores it.
   async function openPopup() {
     await send('Extensions.triggerAction', { id, targetId: loginTab.targetId });
     const session = await frameTarget('/src/popup/popup.html');
-    await waitFor(session, '!document.querySelector("#site-toggle").hidden && !document.querySelector("#site-enabled").disabled');
+    await waitFor(session, '!!document.querySelector("#site-name")');
     return session;
   }
   let sitePopup = await openPopup();
-  await click(sitePopup, '#site-enabled');
-  await waitFor(sitePopup, 'document.querySelector("#message").textContent.includes("is off")');
+  await rpc(sitePopup, 'SET_SITE_ENABLED', { origin: url, enabled: false });
   assert.deepEqual((await rpc(sitePopup, 'DISABLED_SITES')).data, [url]);
   await evaluate(sitePopup, 'window.close()');
   await send('Target.activateTarget', { targetId: login.targetId });
@@ -338,16 +339,14 @@ try {
   await trustedClick(login.session, '#user');
   await absent(PANEL);
   sitePopup = await openPopup();
-  assert.equal(await evaluate(sitePopup, 'document.querySelector("#site-enabled").checked'), false);
-  await click(sitePopup, '#site-enabled');
-  await waitFor(sitePopup, 'document.querySelector("#message").textContent.includes("will appear")');
+  await rpc(sitePopup, 'SET_SITE_ENABLED', { origin: url, enabled: true });
   assert.deepEqual((await rpc(sitePopup, 'DISABLED_SITES')).data, []);
   await evaluate(sitePopup, 'window.close()');
   await send('Target.activateTarget', { targetId: login.targetId });
   await evaluate(login.session, 'document.querySelector("#user").blur(); document.querySelector("#user").focus()');
   const keyboardPanel = await frameTarget(PANEL);
   await waitFor(keyboardPanel, 'document.querySelectorAll(".account").length === 1');
-  console.log('PASS: the popup switch turns KeyBit off and back on for one site.');
+  console.log('PASS: a site can be turned off and back on, and the dropdown follows.');
   await waitFor(login.session, 'document.documentElement.lastElementChild.style.opacity === "1"');
   await evaluate(login.session, 'document.querySelector("#pass").value = ""');
   const key = async (session, keyName, code, text) => { for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', {type, key: keyName, code: keyName, windowsVirtualKeyCode: code, ...(text && type === 'keyDown' ? {text} : {})}, session); };

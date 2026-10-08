@@ -198,7 +198,6 @@ async function handle(message, sender) {
     case "MERGE_BACKUP": return vault.mergeBackup(message.session, message.revision, message.text, message.password);
     case "BACKUP_NOW": await autoBackup(); return (await chrome.storage.local.get("autoBackup")).autoBackup ?? null;
     case "DETECT": return detect(message.tabId);
-    case "SITE_STATUS": return suggestions.site(message.origin);
     case "DISABLED_SITES": return suggestions.disabled;
     case "SET_SITE_ENABLED":
       if (!message.enabled) savePrompts.clear();

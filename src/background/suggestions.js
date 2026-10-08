@@ -40,10 +40,6 @@ export class Suggestions {
   async allows(origin) {
     return !this.disabled.includes(origin) && chrome.permissions.contains({ origins: [sitePattern(origin)] });
   }
-  async site(origin) {
-    origin = parseWebsite(origin).origin;
-    return { origin, enabled: !this.disabled.includes(origin), access: await chrome.permissions.contains({ origins: [sitePattern(origin)] }) };
-  }
   async setEnabled(origin, enabled) {
     origin = parseWebsite(origin).origin;
     if (enabled && !(await chrome.permissions.contains({ origins: [sitePattern(origin)] }))) throw new Error("Allow site access in the browser prompt first.");
