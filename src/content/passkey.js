@@ -2,6 +2,8 @@
 // ceremony to the background worker and hosts the prompt card as a trusted extension frame.
 (() => {
   if (window !== window.top) return;
+  // A copy injected before an extension reload/update has no runtime — retire quietly.
+  if (!chrome.runtime?.id) return;
   globalThis.__keybitPasskey?.dispose();
   const lifecycle = new AbortController();
   globalThis.__keybitPasskey = { dispose: () => {

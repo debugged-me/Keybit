@@ -1,5 +1,7 @@
 (() => {
   if (window !== window.top) return;
+  // A copy injected before an extension reload/update has no runtime — retire quietly.
+  if (!chrome.runtime?.id) return;
   // Re-injection after an install/update replaces the previous instance instead of stacking listeners.
   globalThis.__keybitInline?.dispose();
   const lifecycle = new AbortController();
