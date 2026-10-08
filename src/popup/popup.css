@@ -40,9 +40,6 @@ main { max-height: 520px; padding: 14px 16px 16px; overflow-y: auto; }
 .login-item .secondary { color: var(--muted); font-size: 12px; }
 .row-actions { display: flex; align-items: center; gap: 0; }
 .row-actions .icon-button { width: 30px; height: 30px; }
-/* Copy actions stay out of the way until the row is hovered or focused; Fill is always visible. */
-.row-actions [data-action^="copy"] { opacity: 0; transition: opacity .1s, background .12s, color .12s; }
-.login-item:hover .row-actions [data-action^="copy"], .login-item:focus-within .row-actions [data-action^="copy"], .row-actions [data-action^="copy"]:focus-visible { opacity: 1; }
 .row-actions [data-action="fill"]:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
 .row-actions [data-action="fill"]:hover:not(:disabled) { background: var(--accent); color: var(--accent-text); }
 /* The top match gets the solid fill button. */

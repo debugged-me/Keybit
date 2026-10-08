@@ -6,7 +6,8 @@
   globalThis.__keybitSave?.dispose();
   const lifecycle = new AbortController();
   globalThis.__keybitSave = { dispose: () => {
-    close(); lifecycle.abort();
+    close(); lifecycle.abort(); documentObserver.disconnect();
+    for (const observer of rootObservers) observer.disconnect();
     try { chrome.runtime.onMessage.removeListener(onRuntimeMessage); } catch { /* Orphaned after an extension reload. */ }
   } };
   let host = null;
@@ -49,7 +50,8 @@
   function send(capture) {
     if (disabled) return;
     const key = JSON.stringify(capture);
-    // One action can fire both a click and a submit; report it once. A deliberate resubmission comes later.
+    // One action can fire both a click and a submit (and a listener on both the root and the
+    // document sees a composed event twice); report it once. A deliberate resubmission comes later.
     if (key === last.key && Date.now() - last.at < 600) return;
     last = { key, at: Date.now() };
     try {
@@ -79,15 +81,18 @@
     if (!capture.password || capture.password.length > 4096 || capture.username.length > 1024) return;
     send(capture);
   }
-  document.addEventListener("submit", event => {
-    if (!event.isTrusted || !(event.target instanceof HTMLFormElement)) return;
-    const form = event.target;
+  // Events inside an open shadow root retarget to its host; the real node is the path's start.
+  const eventTarget = event => event.composedPath()[0] ?? event.target;
+  function onSubmit(event) {
+    if (!event.isTrusted) return;
+    const form = eventTarget(event);
+    if (!(form instanceof HTMLFormElement)) return;
     const submitter = /** @type {HTMLButtonElement | null} */ (event.submitter);
     const action = submitter?.hasAttribute("formaction") ? submitter.formAction : form.action;
     try { if (new URL(action, location.href).origin !== location.origin) return; } catch { return; }
     if (form.method === "dialog" || !["", "_self", "_top"].includes(event.submitter?.getAttribute("formtarget") ?? form.target)) return;
     captureFor(input => input.form === form);
-  }, { capture: true, signal: lifecycle.signal });
+  }
   // Many sites sign in with a script on a button or the Enter key and never submit a form.
   const SUBMIT_WORDS = /\b(log\s*-?\s*in|sign\s*-?\s*in|sign\s*-?\s*up|register|create|continue|next|submit|verify|enter|proceed|save|change|update)\b/i;
   function submitControl(target) {
@@ -98,24 +103,61 @@
     return SUBMIT_WORDS.test(`${control.textContent} ${control.value ?? ""} ${control.getAttribute("aria-label") ?? ""}`) ? control : null;
   }
   // A field belongs to a control when they share a form, or sit together in a small container.
+  // parentOf/deepContains step across open shadow boundaries so a control and its fields can share a root.
   function near(control) {
     return input => {
       if (input.form || control.form) return input.form === control.form;
-      for (let node = control.parentElement, depth = 0; node && depth < 6; node = node.parentElement, depth++) if (node.contains(input)) return true;
+      const { parentOf, deepContains } = globalThis.__keybit;
+      for (let node = parentOf(control), depth = 0; node && depth < 6; node = parentOf(node), depth++) if (deepContains(node, input)) return true;
       return false;
     };
   }
-  document.addEventListener("click", event => {
+  function onClick(event) {
     if (!event.isTrusted) return;
-    /** @type {any} */
-    const control = submitControl(event.target);
+    const control = submitControl(eventTarget(event));
     // Real form submissions are handled by the submit listener.
     if (control && !(control.form && control.matches('[type="submit" i], [type="image" i], button:not([type])'))) captureFor(near(control));
-  }, { capture: true, signal: lifecycle.signal });
-  document.addEventListener("keydown", event => {
-    if (!event.isTrusted || event.key !== "Enter" || !(event.target instanceof HTMLInputElement) || event.target.form) return;
-    captureFor(near(event.target));
-  }, { capture: true, signal: lifecycle.signal });
+  }
+  function onEnter(event) {
+    const target = eventTarget(event);
+    if (!event.isTrusted || event.key !== "Enter" || !(target instanceof HTMLInputElement) || target.form) return;
+    captureFor(near(target));
+  }
+  // Submit events inside an open shadow root never reach the document — they are scoped to the root —
+  // so each discovered root gets its own capture listeners; send() dedupes a doubly-heard event.
+  // A root can outrun our scan: `attachShadow` emits no mutation, and an element inserted before its
+  // custom-element upgrade has no `shadowRoot` yet. But focus/click/keydown are composed — they reach
+  // the document — and a real submission is always preceded by one, so each event hands us its roots.
+  const attachedRoots = new WeakSet();
+  const rootObservers = new Set();
+  const attachFromEvent = event => { for (const node of event.composedPath()) if (node instanceof ShadowRoot) attachRoot(node); };
+  function attachRoot(root) {
+    if (attachedRoots.has(root)) return;
+    attachedRoots.add(root);
+    const opts = { capture: true, signal: lifecycle.signal };
+    root.addEventListener("submit", onSubmit, opts);
+    root.addEventListener("click", onClick, opts);
+    root.addEventListener("keydown", onEnter, opts);
+    if (root instanceof ShadowRoot) {
+      // Fields can be added inside this root later, hosting deeper roots of their own.
+      const observer = new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) discoverRoots(node); });
+      rootObservers.add(observer);
+      observer.observe(root, { childList: true, subtree: true });
+    }
+  }
+  function discoverRoots(node) {
+    if (!(node instanceof Element)) return;
+    if (node.shadowRoot) attachRoot(node.shadowRoot);
+    // A dropped-in subtree can carry many hosts; scan it once, capped, rather than watching it forever.
+    const descendants = node.querySelectorAll("*");
+    for (let i = 0; i < descendants.length && i < 5000; i++) if (descendants[i].shadowRoot) attachRoot(descendants[i].shadowRoot);
+  }
+  // Composed events crossing an open root expose it on their path — attach before capture listeners need it.
+  for (const type of ["focusin", "click", "keydown", "submit"]) document.addEventListener(type, attachFromEvent, { capture: true, signal: lifecycle.signal });
+  attachRoot(document);
+  discoverRoots(document.documentElement ?? document);
+  const documentObserver = new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) discoverRoots(node); });
+  documentObserver.observe(document.documentElement ?? document, { childList: true, subtree: true });
   window.addEventListener("pageshow", event => { if (event.persisted) void show(); }, { signal: lifecycle.signal });
   window.addEventListener("pagehide", close, { signal: lifecycle.signal });
   function onRuntimeMessage(message) {

@@ -20,6 +20,15 @@
   let visible = false;
   let placing = 0;
   let refocusing = false;
+  // Events inside an open shadow root retarget to its host; the real field is the path's start.
+  // (Inside a closed root — our own panel — the path is truncated, so this still yields the host.)
+  const eventTarget = event => event.composedPath()[0] ?? event.target;
+  // The focused element, descending through open shadow roots (activeElement stops at each host).
+  function deepActiveElement() {
+    let current = document.activeElement;
+    while (current?.shadowRoot?.activeElement) current = current.shadowRoot.activeElement;
+    return current;
+  }
   // "login" fields get saved accounts; new-password fields on sign-up and change forms get a generated password.
   // Also: the username step of a two-step sign-in, and 2FA code fields. Only field types that can match are scanned.
   const CANDIDATE_TYPES = ["text", "email", "tel", "password", "number"];
@@ -92,20 +101,21 @@
     }, { signal: panelEvents.signal });
   }
   document.addEventListener("focusin", event => {
-    const target = event.target;
+    const target = eventTarget(event);
     if (target === host || refocusing) return;
     const mode = modeFor(target);
     if (mode) void show(target, mode); else close();
   }, { signal: lifecycle.signal });
   // Clicking a field that already has focus does not fire focusin, so reopen on click too.
   document.addEventListener("click", event => {
-    if (event.isTrusted && !(activeInput === event.target && host) && supported(event.target)) void show(event.target);
+    const target = eventTarget(event);
+    if (event.isTrusted && !(activeInput === target && host) && supported(target)) void show(target);
   }, { capture: true, signal: lifecycle.signal });
   document.addEventListener("pointerdown", event => {
-    if ((host || opening) && event.target !== activeInput && !event.composedPath().includes(host) && !supported(event.target)) close();
+    if ((host || opening) && eventTarget(event) !== activeInput && !event.composedPath().includes(host) && !supported(eventTarget(event))) close();
   }, { capture: true, signal: lifecycle.signal });
   document.addEventListener("keydown", event => {
-    if (!host || event.target !== activeInput) return;
+    if (!host || eventTarget(event) !== activeInput) return;
     if (event.key === "Escape") close();
     else if (event.key === "ArrowDown" && event.isTrusted && visible) {
       // Keyboard choice happens inside the extension frame, where the page cannot synthesize keys.
@@ -115,7 +125,7 @@
   }, { capture: true, signal: lifecycle.signal });
   // Typing in the username field narrows the account list. Password values are never sent.
   document.addEventListener("input", event => {
-    if (!host || event.target !== activeInput || activeInput.type === "password" || !["login", "username"].includes(activeMode)) return;
+    if (!host || eventTarget(event) !== activeInput || activeInput.type === "password" || !["login", "username"].includes(activeMode)) return;
     frame?.contentWindow?.postMessage({ type: "KEYBIT_FILTER", text: activeInput.value.slice(0, 200) }, new URL(frame.src).origin);
   }, { capture: true, signal: lifecycle.signal });
   window.addEventListener("scroll", schedulePlace, { capture: true, passive: true, signal: lifecycle.signal });
@@ -125,11 +135,12 @@
     if (message?.event === "keybit-site-disabled") close();
     if (message?.event === "keybit-show") {
       // Keyboard shortcut: open on the focused field, or focus the page's login field (which opens it).
-      if (supported(document.activeElement)) { void show(document.activeElement); return; }
+      const focused = deepActiveElement();
+      if (supported(focused)) { void show(focused); return; }
       const login = globalThis.__keybit.find()[0];
       (login?.username ?? login?.password ?? globalThis.__keybit.findNew()[0]?.fields[0])?.focus();
     }
   }
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
-  if (document.readyState !== "loading" && supported(document.activeElement)) void show(document.activeElement);
+  if (document.readyState !== "loading" && supported(deepActiveElement())) void show(deepActiveElement());
 })();

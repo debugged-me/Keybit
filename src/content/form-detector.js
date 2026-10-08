@@ -1,7 +1,35 @@
 (() => {
+  // Fields inside reachable open shadow roots are found by walking each tree. A closed root
+  // exposes no `shadowRoot` on its host, so it is skipped — closed roots stay unsupported.
+  // Depth-first order keeps results in shadow-including document order.
+  function deepQueryAll(selector, root = document) {
+    const out = [];
+    const visit = node => {
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT);
+      for (let element = /** @type {Element|null} */ (walker.nextNode()); element; element = /** @type {Element|null} */ (walker.nextNode())) {
+        if (element.matches(selector)) out.push(element);
+        if (element.shadowRoot) visit(element.shadowRoot);
+      }
+      // A root that is itself a host still owns its shadow contents.
+      if (node instanceof Element && node.shadowRoot) visit(node.shadowRoot);
+    };
+    visit(root);
+    return out;
+  }
+  // parentElement stops at a shadow boundary; step onto the host instead.
+  function parentOf(node) {
+    return node?.parentElement ?? (node?.getRootNode() instanceof ShadowRoot ? node.getRootNode().host : null);
+  }
+  // Node.contains() is not shadow-including; this chain climbs through open shadow roots' hosts.
+  function deepContains(ancestor, node) {
+    for (let current = node; current; current = current.parentNode ?? (current instanceof ShadowRoot ? current.host : null)) {
+      if (current === ancestor) return true;
+    }
+    return false;
+  }
   function usable(input) {
     if (input.disabled || input.readOnly || input.matches(":disabled") || !input.isConnected || !input.getClientRects().length) return false;
-    for (let node = input; node instanceof Element; node = node.parentElement) {
+    for (let node = input; node instanceof Element; node = parentOf(node)) {
       const style = getComputedStyle(node);
       if (style.visibility !== "visible" || style.display === "none" || Number(style.opacity) === 0) return false;
     }
@@ -10,14 +38,14 @@
   const tokens = input => input.autocomplete.toLowerCase().split(/\s+/);
   function scopeFor(password) {
     if (password.form) return password.form;
-    let scope = password.parentElement;
-    for (let i = 0; i < 3 && scope?.parentElement && scope !== document.body; i++, scope = scope.parentElement) {
-      if ([...scope.querySelectorAll("input")].some(input => ["text", "email"].includes(input.type) && usable(input))) return scope;
+    let scope = parentOf(password);
+    for (let i = 0; i < 3 && scope && parentOf(scope) && scope !== document.body; i++, scope = parentOf(scope)) {
+      if (deepQueryAll("input", scope).some(input => ["text", "email"].includes(input.type) && usable(input))) return scope;
     }
     return scope ?? document;
   }
   function usernameFor(password, scope) {
-    return [...scope.querySelectorAll("input")].filter(input => ["text", "email", "tel"].includes(input.type) && usable(input) &&
+    return deepQueryAll("input", scope).filter(input => ["text", "email", "tel"].includes(input.type) && usable(input) &&
       input.form === password.form && !!(input.compareDocumentPosition(password) & Node.DOCUMENT_POSITION_FOLLOWING))
       .map((input, index) => {
         const label = [...(input.labels ?? [])].map(label => label.textContent).join(" ");
@@ -27,10 +55,10 @@
       }).sort((a, b) => b.score - a.score || b.index - a.index)[0]?.input ?? null;
   }
   function find() {
-    const passwords = [...document.querySelectorAll('input[type="password" i]')].filter(input => usable(input) && !tokens(input).includes("new-password"));
+    const passwords = deepQueryAll('input[type="password" i]').filter(input => usable(input) && !tokens(input).includes("new-password"));
     return passwords.filter(password => {
       const scope = scopeFor(password);
-      const siblings = passwords.filter(input => scope.contains(input));
+      const siblings = passwords.filter(input => deepContains(scope, input));
       const current = siblings.filter(input => tokens(input).includes("current-password"));
       // Multiple unlabelled password fields are usually registration/change-password forms.
       return current.length ? current.includes(password) : siblings.length === 1;
@@ -39,7 +67,7 @@
   // Sign-up and change-password forms: one or two fields for the new password, optionally after the current one.
   function findNew() {
     const groups = new Map();
-    for (const input of document.querySelectorAll('input[type="password" i]')) {
+    for (const input of deepQueryAll('input[type="password" i]')) {
       if (!usable(input)) continue;
       const scope = scopeFor(input);
       groups.set(scope, [...(groups.get(scope) ?? []), input]);
@@ -62,8 +90,8 @@
   const IDENTIFIER = /user|e-?mail|login|account|identifier|phone|mobile|member|customer|student/i;
   // The first page of a two-step sign-in: one identifier field and no password field on the page.
   function findUsernameOnly() {
-    if ([...document.querySelectorAll('input[type="password" i]')].some(usable)) return [];
-    const inputs = /** @type {HTMLInputElement[]} */ ([...document.querySelectorAll('input[type="text" i], input[type="email" i], input[type="tel" i], input:not([type])')]);
+    if (deepQueryAll('input[type="password" i]').some(usable)) return [];
+    const inputs = /** @type {HTMLInputElement[]} */ (deepQueryAll('input[type="text" i], input[type="email" i], input[type="tel" i], input:not([type])'));
     const fields = inputs.filter(input =>
       usable(input) && !input.closest('[role="search"]') && !/search|query|^q$/i.test(`${input.name} ${input.id}`) &&
       (tokens(input).includes("username") || tokens(input).includes("email") || input.type === "email" || IDENTIFIER.test(describe(input))));
@@ -75,17 +103,17 @@
   const OTP = /one.?time|otp|totp|2fa|mfa|two.?factor|verification.?code|security.?code|auth(?:entication|enticator)?.?code|passcode/i;
   // A 2FA code field, or four to eight one-character boxes in one container.
   function findOtp() {
-    const inputs = /** @type {HTMLInputElement[]} */ ([...document.querySelectorAll('input[type="text" i], input[type="tel" i], input[type="number" i], input:not([type])')]).filter(usable);
+    const inputs = /** @type {HTMLInputElement[]} */ (deepQueryAll('input[type="text" i], input[type="tel" i], input[type="number" i], input:not([type])')).filter(usable);
     // "Security code" is how card forms label the CVV — a cc-* field is never a 2FA box.
     const marked = inputs.filter(input => tokens(input).includes("one-time-code") ||
       (!tokens(input).some(token => token.startsWith("cc-")) && !/cvv|cvc|\bcsc\b|card.?verif/i.test(describe(input)) && OTP.test(describe(input)) && input.maxLength !== 1));
     if (marked.length === 1) return [{ fields: marked }];
     const boxes = inputs.filter(input => input.maxLength === 1);
-    const container = boxes[0]?.closest("form") ?? boxes[0]?.parentElement?.parentElement;
-    if (boxes.length >= 4 && boxes.length <= 8 && boxes.every(box => container?.contains(box))) return [{ fields: boxes }];
+    const container = boxes[0]?.closest("form") ?? (boxes[0] ? parentOf(parentOf(boxes[0])) : null);
+    if (boxes.length >= 4 && boxes.length <= 8 && boxes.every(box => deepContains(container, box))) return [{ fields: boxes }];
     return [];
   }
-  const fields = () => /** @type {(HTMLInputElement|HTMLSelectElement)[]} */ ([...document.querySelectorAll('input:not([type="hidden" i]):not([type="checkbox" i]):not([type="radio" i]):not([type="submit" i]):not([type="button" i]), select')].filter(usable));
+  const fields = () => /** @type {(HTMLInputElement|HTMLSelectElement)[]} */ (deepQueryAll('input:not([type="hidden" i]):not([type="checkbox" i]):not([type="radio" i]):not([type="submit" i]):not([type="button" i]), select').filter(usable));
   // Payment card fields, keyed by autocomplete token with name/label heuristics as fallback.
   function findPayment() {
     const all = fields();
@@ -94,8 +122,8 @@
       (tokens(input).some(token => autocompleteNames.includes(token)) || pattern.test(describe(input))));
     const number = pick(["cc-number"], /card\s*number|card.?num|cc.?num|card.?no|pan/i, ["text", "tel", "number"]);
     if (!number) return [];
-    const scope = number.form ?? number.closest("fieldset, section, div, body") ?? document;
-    const inScope = input => scope.contains(input);
+    const scope = number.form ?? number.closest("fieldset, section, div, body") ?? (number.getRootNode() instanceof ShadowRoot ? number.getRootNode() : document);
+    const inScope = input => deepContains(scope, input);
     const csc = all.find(input => inScope(input) && (tokens(input).includes("cc-csc") || /cvv|cvc|csc|card.?verif|security.?code/i.test(describe(input))));
     const expMonth = all.find(input => inScope(input) && tokens(input).includes("cc-exp-month"));
     const expYear = all.find(input => inScope(input) && tokens(input).includes("cc-exp-year"));
@@ -111,12 +139,13 @@
     for (const input of fields()) {
       const token = tokens(input).find(value => value in IDENTITY_MAP);
       if (!token) continue;
-      const scope = input.form ?? input.closest("fieldset, section, form") ?? document.body;
+      const root = input.getRootNode();
+      const scope = input.form ?? input.closest("fieldset, section, form") ?? (root instanceof ShadowRoot ? root : document.body);
       const entry = forms.get(scope) ?? { scope, fields: new Map() };
       if (!entry.fields.has(token)) entry.fields.set(token, input);
       forms.set(scope, entry);
     }
     return [...forms.values()].filter(entry => entry.fields.size >= 3);
   }
-  globalThis.__keybit = { find, findNew, findUsernameOnly, findOtp, findPayment, findIdentity, IDENTITY_MAP, usable };
+  globalThis.__keybit = { find, findNew, findUsernameOnly, findOtp, findPayment, findIdentity, IDENTITY_MAP, usable, deepQueryAll, parentOf, deepContains };
 })();

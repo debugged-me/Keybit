@@ -244,6 +244,66 @@ try {
   await click(popup, '#check-page');
   await waitFor(popup, '!document.querySelector("#check-page").disabled && document.querySelector("#detection-status").textContent.startsWith("Login form detected")');
   console.log('PASS: plain, email, Bootstrap-style, controlled, dynamic, ambiguous, and iframe fixtures.');
+  // Open Shadow DOM: fields inside an open root are detected, fill through the popup, and the
+  // in-field dropdown opens once even when focus moves between shadow fields.
+  await send('Page.navigate', {url: `${url}/shadow-login.html`}, login.session);
+  await waitFor(login.session, `document.readyState === 'complete' && location.href === ${JSON.stringify(`${url}/shadow-login.html`)}`);
+  await click(popup, '#check-page');
+  await waitFor(popup, '!document.querySelector("#check-page").disabled && document.querySelector("#detection-status").textContent.startsWith("Login form detected")');
+  await click(popup, '.login-item [data-action="fill"]');
+  await waitFor(login.session, `document.querySelector('login-card').shadowRoot.querySelector('#pass').value === ${JSON.stringify(loginPassword)}`);
+  assert.equal(await evaluate(login.session, `document.querySelector('login-card').shadowRoot.querySelector('#user').value`), credentials.username);
+  await absent(PANEL);
+  await evaluate(login.session, `document.querySelector('login-card').shadowRoot.querySelector('#user').focus()`);
+  let shadowPanel = await frameTarget(PANEL);
+  await waitFor(shadowPanel, 'document.querySelectorAll(".account").length === 1');
+  // Focusing the sibling shadow field repositions the same dropdown instead of stacking another.
+  await evaluate(login.session, `document.querySelector('login-card').shadowRoot.querySelector('#pass').focus()`);
+  await delay(400);
+  assert.equal((await send('Target.getTargets')).targetInfos.filter(t => t.url.includes(PANEL)).length, 1, 'one dropdown across shadow fields');
+  await click(shadowPanel, '.account');
+  await waitFor(login.session, `document.querySelector('login-card').shadowRoot.querySelector('#pass').value === ${JSON.stringify(loginPassword)}`);
+  await absent(PANEL);
+  // Submitting a shadow form is captured like any other: a changed password offers an update.
+  await evaluate(login.session, `const r = document.querySelector('login-card').shadowRoot; r.querySelector('#user').value = ${JSON.stringify(credentials.username)}; r.querySelector('#pass').value = 'shadow-secret'`);
+  await evaluate(login.session, `document.querySelector('login-card').shadowRoot.querySelector('button').click()`);
+  const shadowSave = await savePanel();
+  await waitFor(shadowSave, 'document.querySelector("#heading").textContent === "Update this password?"');
+  await click(shadowSave, '#dismiss');
+  await noSavePanel();
+  console.log('PASS: open shadow root login detected, filled, deduped dropdown, and save-capture.');
+  // Nested open roots: username in the outer tree, password inside an inner component.
+  await send('Page.navigate', {url: `${url}/shadow-nested.html`}, login.session);
+  await waitFor(login.session, `document.readyState === 'complete' && location.href === ${JSON.stringify(`${url}/shadow-nested.html`)}`);
+  await click(popup, '#check-page');
+  await waitFor(popup, '!document.querySelector("#check-page").disabled && document.querySelector("#detection-status").textContent.startsWith("Login form detected")');
+  await click(popup, '.login-item [data-action="fill"]');
+  await waitFor(login.session, `document.querySelector('login-shell').shadowRoot.querySelector('login-fields').shadowRoot.querySelector('#pass').value === ${JSON.stringify(loginPassword)}`);
+  assert.equal(await evaluate(login.session, `document.querySelector('login-shell').shadowRoot.querySelector('#user').value`), credentials.username);
+  console.log('PASS: nested open shadow roots fill username and password.');
+  // A shadow root attached after load is detected when its field gets focus.
+  await send('Page.navigate', {url: `${url}/shadow-dynamic.html`}, login.session);
+  await waitFor(login.session, `document.readyState === 'complete' && location.href === ${JSON.stringify(`${url}/shadow-dynamic.html`)}`);
+  await click(popup, '#check-page');
+  await waitFor(popup, '!document.querySelector("#check-page").disabled && document.querySelector("#detection-status").textContent.startsWith("No login form")');
+  await evaluate(login.session, `document.querySelector('#add-shadow').click()`);
+  await waitFor(login.session, `!!document.querySelector('#mount').firstElementChild?.shadowRoot?.querySelector('#pass')`);
+  await evaluate(login.session, `document.querySelector('#mount').firstElementChild.shadowRoot.querySelector('#user').focus()`);
+  shadowPanel = await frameTarget(PANEL);
+  await waitFor(shadowPanel, 'document.querySelectorAll(".account").length === 1');
+  await evaluate(login.session, `document.querySelector('#mount').firstElementChild.shadowRoot.querySelector('#user').dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, composed: true}))`);
+  await absent(PANEL);
+  console.log('PASS: dynamically inserted open shadow root fields are detected.');
+  // A closed root stays invisible: nothing detected, and a real click inside shows no dropdown.
+  await send('Page.navigate', {url: `${url}/shadow-closed.html`}, login.session);
+  await waitFor(login.session, `document.readyState === 'complete' && location.href === ${JSON.stringify(`${url}/shadow-closed.html`)}`);
+  await click(popup, '#check-page');
+  await waitFor(popup, '!document.querySelector("#check-page").disabled && document.querySelector("#detection-status").textContent.startsWith("No login form")');
+  await trustedClick(login.session, 'login-card');
+  await absent(PANEL);
+  console.log('PASS: closed shadow roots fail safe.');
+  await send('Page.navigate', {url: `${url}/basic-login.html`}, login.session);
+  await waitFor(login.session, `document.readyState === 'complete' && location.href === ${JSON.stringify(`${url}/basic-login.html`)}`);
   await input(popup, '#search', 'zzz-no-match');
   await evaluate(popup, 'document.querySelector("#search").dispatchEvent(new Event("input"))');
   await waitFor(popup, '!document.querySelector("#others").hidden && document.querySelectorAll("#matches .login-item").length === 0');
