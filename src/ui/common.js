@@ -77,7 +77,7 @@ export function siteTile(label, className = "", pageUrl = null) {
   let hash = 0;
   for (const character of clean) hash = (hash * 31 + character.codePointAt(0)) >>> 0;
   const letter = [...(clean.split("/")[1] || clean)][0]?.toLocaleUpperCase() || "•";
-  const tile = element("span", { className: `tile tone-${hash % 8} ${className}`.trim(), "aria-hidden": "true" }, letter);
+  const tile = element("span", { className: `tile tone-${hash % 8} ${className}`.trim(), "aria-hidden": "true", title: clean || undefined }, letter);
   if (pageUrl) {
     const favicon = element("img", { className: "favicon", alt: "", src: `chrome-extension://${chrome.runtime.id}/_favicon/?pageUrl=${encodeURIComponent(pageUrl)}&size=32` });
     favicon.addEventListener("load", () => tile.classList.add("has-icon"));
