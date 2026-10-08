@@ -44,24 +44,29 @@ export async function copyText(value) {
 }
 let clearTimer = 0;
 // A copied secret wipes itself from the clipboard after 30 seconds — but only if the clipboard still
-// holds what KeyBit put there, which needs the optional clipboardRead permission. Returns whether
+// holds what KeyBit put there, which needs the optional clipboardRead permission. The clear is armed
+// in a background offscreen document, so it fires even after this page closes. Returns whether
 // clearing is armed so callers can phrase their confirmation honestly.
-export async function copySecret(value) {
+export async function copySecret(value, ms = 30000) {
   await copyText(value);
   clearTimeout(clearTimer);
   const granted = await chrome.permissions.contains({ permissions: ["clipboardRead"] }).catch(() => false);
   if (!granted && !localStorage.getItem("keybit-clipboard-denied")) {
     try {
-      if (!(await chrome.permissions.request({ permissions: ["clipboardRead"] }))) localStorage.setItem("keybit-clipboard-denied", "1");
+      // A browser context that cannot show the prompt may never resolve the request; move on anyway.
+      const answer = await Promise.race([chrome.permissions.request({ permissions: ["clipboardRead"] }), new Promise(resolve => setTimeout(() => resolve(null), 4000))]);
+      if (answer === false) localStorage.setItem("keybit-clipboard-denied", "1");
     } catch { /* The permission prompt is unavailable; clearing below will just fail. */ }
   }
   const armed = await chrome.permissions.contains({ permissions: ["clipboardRead"] }).catch(() => false);
-  if (armed) clearTimer = setTimeout(async () => {
+  if (!armed) return false;
+  const sent = await chrome.runtime.sendMessage({ type: "CLIPBOARD_ARM", value, ms }).then(response => response?.ok !== false).catch(() => false);
+  if (!sent) clearTimer = setTimeout(async () => { // Fallback while this page is still open.
     try {
       if (await navigator.clipboard.readText() === value) { await navigator.clipboard.writeText(""); announce("Clipboard cleared."); }
     } catch { /* Permission lost or clipboard unavailable: leave it alone. */ }
-  }, 30000);
-  return armed;
+  }, ms);
+  return true;
 }
 // A site tile: the first letter of the project folder or host, on a tone derived from the whole label.
 export function siteTile(label, className = "") {

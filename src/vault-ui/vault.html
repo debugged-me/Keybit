@@ -55,6 +55,10 @@
       <button class="nav-item" type="button" data-view="backup"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg><span>Backup</span><span id="backup-dot" class="dot" title="No recent backup" hidden></span></button>
       <button class="nav-item" type="button" data-view="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
       <button id="nav-sites" class="nav-item" type="button" data-view="sites" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span>Sites turned off</span><span id="count-sites" class="count"></span></button>
+      <button id="sidebar-health" class="sidebar-health" type="button" hidden>
+        <span id="health-score" class="health-score"></span>
+        <span class="health-lines"><span class="health-caption">Vault health</span><span id="health-detail"></span></span>
+      </button>
     </nav>
 
     <main class="content">
@@ -124,6 +128,11 @@
           <p class="muted">An encrypted copy of your vault. Restoring it needs the master password it was made with.</p>
           <p id="last-backup" class="notice"></p>
           <button id="export" class="primary-button" type="button" disabled>Export encrypted backup</button>
+        </div>
+        <div class="card" id="csv-export-card" hidden>
+          <h3>Readable CSV</h3>
+          <p class="muted">An unencrypted list of your logins and notes for moving to another password manager. <strong>Anyone who opens it can read your passwords</strong> — keep it offline and delete it when the move is done.</p>
+          <button id="export-csv" class="secondary-button" type="button">Export CSV</button>
         </div>
         <div class="card" id="auto-backup-card">
           <h3>Automatic backup</h3>

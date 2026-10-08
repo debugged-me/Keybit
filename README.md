@@ -47,10 +47,10 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **Weak & reused** lists passwords that need attention. The check runs on this device.
 - **Recently deleted** keeps deleted logins and notes for 30 days, then removes them forever. Restore them or empty the bin sooner.
 - **Generator:** random (length and character groups) or memorable ("Acorn-Tulip-Rugby-Mango-Spoon7", from the EFF word list). Your choice is remembered for every Generate button and for sign-up fields.
-- **Copied passwords and 2FA codes clear themselves from the clipboard after 30 seconds**, if you allow the optional clipboard-read permission. The clear only happens when the clipboard still holds what KeyBit copied, so it never erases something else you copied since.
+- **Copied passwords and 2FA codes clear themselves from the clipboard after 30 seconds**, if you allow the optional clipboard-read permission. The timer runs in the background, so it works even if you close the popup right after copying — and it only clears when the clipboard still holds what KeyBit copied, so it never erases something else you copied since.
 
 **One app window**
-- **Sidebar:** All logins, Favorites, Secure notes, Recently deleted, Projects, Weak & reused, Generator, Import, Backup, and Settings. **Sites turned off** appears only while a site is off.
+- **Sidebar:** All logins, Favorites, Secure notes, Recently deleted, Projects, Weak & reused, Generator, Import, Backup, and Settings. **Sites turned off** appears only while a site is off. A **vault health** card at the bottom shows how many passwords are strong; click it to open Weak & reused.
 - **Keyboard:** ⌘K (Ctrl+K on Windows) jumps to search; / does the same when you're not typing.
 - **Adding and editing happen in a dialog**, in the app and in the popup:
   - typing `example.com` is enough; KeyBit adds the http/https part;
@@ -81,6 +81,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
   - **Automatic backup** writes a fresh encrypted copy to a folder you choose (for example iCloud Drive or Dropbox) after every change.
   - **Restore** can **merge** (adds logins, newer copies win, nothing deleted) or **replace** the vault.
   - A reminder appears when there's no backup from the last 30 days.
+- **Plain-text CSV export** for moving to another password manager. It is not encrypted, so KeyBit asks before exporting — delete the file when the move is done.
 - **No practical limit on logins.** A vault can hold up to 32 MB of login data, about 100,000 typical logins.
 
 Forgotten master passwords cannot be recovered.

@@ -34,7 +34,7 @@ const COLUMNS = {
   name: ["name", "title", "account name", "item name", "account"],
   notes: ["note", "notes", "extra", "comments", "comment", "notesplain"],
   totp: ["totp", "otpauth", "login_totp", "one-time password", "otp", "2fa", "otpurl"],
-  project: ["folder", "grouping", "group", "category", "collection", "vault"],
+  project: ["folder", "grouping", "group", "category", "collection", "vault", "project"],
   favorite: ["favorite", "fav", "favourite"],
   type: ["type"]
 };

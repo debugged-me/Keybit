@@ -78,7 +78,12 @@ try {
   await click(app.session, '[data-view="project:SRMS"]');
   await waitFor(app.session, 'document.querySelector("#list-title").textContent === "SRMS" && [...document.querySelectorAll(".group-heading")].map(h => h.textContent).join() === "Production,Other"');
   await click(app.session, '#items .login-item');
-  await waitFor(app.session, '/^\\d{3} \\d{3}$/.test(document.querySelector(".totp-code")?.textContent ?? "")');
+  try {
+    await waitFor(app.session, '/^\\d{3} \\d{3}$/.test(document.querySelector(".totp-code")?.textContent ?? "")');
+  } catch (error) {
+    console.log('DIAG:', await evaluate(app.session, 'JSON.stringify({open: document.querySelector("#detail").open, fields: document.querySelector("#detail-view").children.length, msg: document.querySelector("#message").textContent, selected: document.querySelector(".item-row[aria-current=\'true\']")?.textContent})').catch(String));
+    throw error;
+  }
   await shot(app.session, 'project-view');
   // The detail dialog makes the page inert; close it before driving the sidebar again.
   await evaluate(app.session, 'document.querySelector("#detail").close()');
@@ -210,6 +215,12 @@ try {
   await waitFor(app.session, 'document.activeElement.id === "search"');
   console.log('PASS: Ctrl+K/⌘K and / jump to search in the app window.');
 
+  // The sidebar health card summarizes weak/reused counts and opens the health view.
+  await waitFor(app.session, 'document.querySelector("#sidebar-health").hidden === false && /^\\d+%$/.test(document.querySelector("#health-score").textContent)');
+  await click(app.session, '#sidebar-health');
+  await waitFor(app.session, '!document.querySelector("#view-health").hidden');
+  console.log('PASS: sidebar vault-health summary opens the Weak & reused view.');
+
   // A login made by a script button (no form submit) offers to save; so does pressing Enter.
   const site = await page(`${url}/spa-login.html`);
   await send('Target.activateTarget', { targetId: site.targetId });
@@ -302,6 +313,22 @@ try {
   await waitFor(site.session, '["fixture-secret-1", "fixture-secret-2", "spa-secret-1"].includes(document.querySelector("#pass").value)');
   await shot(popup, 'popup-keyboard');
   console.log('PASS: the popup works from the keyboard.');
+
+  // Clipboard clearing runs in a background offscreen document so it fires even after the copying
+  // page closed. (Headless cannot grant clipboardRead — permissions.request never resolves there —
+  // so this verifies the arm → document → timer → close lifecycle; the guarded read/write inside is
+  // the same comparison the unit tests cover.)
+  const armed = await evaluate(app.session, 'chrome.runtime.sendMessage({ type: "CLIPBOARD_ARM", value: "keybit-probe-a", ms: 500 })');
+  assert.equal(armed?.data, true, 'The worker armed the clipboard clear');
+  let docSeen = false, docGone = false;
+  for (let i = 0; i < 60 && !docGone; i++) {
+    const open = (await send('Target.getTargets')).targetInfos.some(t => t.url.includes('/src/offscreen/clipboard.html'));
+    if (open) docSeen = true;
+    if (docSeen && !open) docGone = true;
+    await delay(100);
+  }
+  assert.ok(docSeen && docGone, 'The offscreen document appeared, ran its timer, and closed');
+  console.log('PASS: clipboard clearing runs in a background offscreen document.');
 
   const unexpected = errors.filter(event => !JSON.stringify(event).includes('favicon.ico'));
   assert.deepEqual(unexpected, []);

@@ -3,6 +3,7 @@ import { deriveKey, deriveRawKey, importRawKey } from "../crypto/kdf.js";
 import { emptyVault, createItem, validateSettings, duplicateKey, HISTORY_LIMIT, ENVIRONMENTS } from "./schema.js";
 import { matcherFor, scopeLabel, specificity } from "../matching/url-matcher.js";
 import { vaultHealth } from "./health.js";
+import { toCsv } from "./csv.js";
 
 const MAX_IMPORT = 100000;
 export const TRASH_DAYS = 30;
@@ -262,6 +263,11 @@ export class Vault {
     const stored = await this.storage.read();
     if (!stored) throw new Error("There is no vault to export.");
     return validateEnvelope(stored);
+  }
+  // Plain-text CSV for moving to another manager. Recently deleted items are not exported.
+  exportCsv(session) {
+    this.require(session);
+    return toCsv(this.#data.items.filter(item => !item.deletedAt));
   }
   async prepareImport(text, password) {
     this.lock();

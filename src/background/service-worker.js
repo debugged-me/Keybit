@@ -53,6 +53,19 @@ async function autoBackup() {
     if (result.status !== "off") await chrome.storage.local.set({ autoBackup: result });
   } catch { await chrome.storage.local.set({ autoBackup: { status: "error" } }).catch(() => {}); }
 }
+// Clipboard clearing lives in an offscreen document: unlike a page's timer, it fires even if the
+// popup or window that copied is already closed, and it does not keep this worker awake.
+async function armClipboard(value, ms) {
+  if (typeof value !== "string" || !value || typeof chrome.offscreen?.createDocument !== "function") return false;
+  try {
+    await chrome.offscreen.createDocument({ url: chrome.runtime.getURL("src/offscreen/clipboard.html"),
+      reasons: ["CLIPBOARD"], justification: "Clear copied passwords and codes from the clipboard after 30 seconds." });
+  } catch (error) {
+    if (!/single offscreen/i.test(error?.message ?? "")) return false;
+  }
+  await chrome.runtime.sendMessage({ type: "CLIPBOARD_ARM", value, ms }).catch(() => {});
+  return true;
+}
 async function detect(tabId) {
   if (!Number.isInteger(tabId)) throw new Error("Open a website and reopen the extension.");
   try {
@@ -182,6 +195,8 @@ async function handle(message, sender) {
       return suggestions.setEnabled(message.origin, message.enabled === true);
     case "FILL": vault.touch(message.session); return fill(message);
     case "EXPORT": return vault.export();
+    case "EXPORT_CSV": vault.touch(message.session); return vault.exportCsv(message.session);
+    case "CLIPBOARD_ARM": return armClipboard(message.value, message.ms);
     case "PREPARE_IMPORT": return vault.prepareImport(message.text, message.password);
     case "COMMIT_IMPORT": {
       const state = await vault.commitImport(message.token, message.confirmed);

@@ -67,6 +67,27 @@ test("import skips duplicates and invalid rows in one encrypted write", async ()
   assert.equal(vault.item(result.state.session, added.id).totp, "", "A bad 2FA secret is dropped, the login kept");
 });
 
+test("CSV export quotes fields, splits extra websites into rows, skips trash, and re-imports cleanly", async () => {
+  const storage = memoryStorage();
+  const vault = new Vault(storage);
+  let state = await vault.create(password);
+  state = await vault.saveItem(state.session, state.revision, { name: 'Site, "quoted"', urls: ["https://a.example", "https://b.example"], username: "u", password: 'p,"w', notes: "line\nbreak", environment: "production", project: "Work", totp: "JBSWY3DPEHPK3PXP", favorite: true });
+  state = await vault.saveItem(state.session, state.revision, { type: "note", name: "Keys", notes: "ssh-key", project: "Ops" });
+  state = await vault.saveItem(state.session, state.revision, { name: "Gone", urls: ["https://gone.example"], username: "g", password: "gp", environment: "other" });
+  state = await vault.deleteItem(state.session, state.revision, vault.list(state.session, "gone")[0].id);
+  const csv = vault.exportCsv(state.session);
+  assert.match(csv, /^name,url,username,password,notes,totp,folder,environment,favorite,type\r\n/);
+  assert.ok(csv.includes('"Site, ""quoted"""') && csv.includes('"p,""w"') && csv.includes('"line\nbreak"'), "Fields with commas, quotes and newlines are quoted");
+  const parsed = parseImport(csv, "keybit.csv");
+  assert.equal(parsed.items.filter(item => item.name === "Gone").length, 0, "Recently deleted items are never exported");
+  const urls = parsed.items.filter(item => item.name === 'Site, "quoted"').flatMap(item => item.urls);
+  assert.deepEqual(urls.sort(), ["https://a.example/", "https://b.example/"], "Each website becomes its own row");
+  const login = parsed.items.find(item => item.urls.includes("https://a.example/"));
+  assert.deepEqual([login.password, login.notes, login.totp, login.project, login.favorite], ['p,"w', "line\nbreak", "JBSWY3DPEHPK3PXP", "Work", true]);
+  const note = parsed.items.find(item => item.name === "Keys");
+  assert.deepEqual([note.type, note.notes, note.project], ["note", "ssh-key", "Ops"], "Notes keep their type, text and folder");
+});
+
 test("secure notes, several addresses, projects, favorites and 2FA secrets", async () => {
   const vault = new Vault(memoryStorage());
   let state = await vault.create(password);

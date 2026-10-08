@@ -27,6 +27,7 @@ let projects = [];
 let disabledSites = [];
 let selectedId = null;
 let detail = null;           // { item, revision }: the selected item, including its secrets, until lock or deselect
+let pendingSelects = 0;      // selects still fetching: a queued `close` event must not clear them
 let codeTicker = null;
 let listRequest = 0;
 let importToken = null;
@@ -63,6 +64,7 @@ function layout() {
   $("#search-box").hidden = !unlocked; $("#header-actions").hidden = !unlocked;
   $("#back-to-unlock").hidden = unlocked;
   $("#merge-backup").hidden = !unlocked;
+  $("#csv-export-card").hidden = !unlocked;
   $("#welcome").hidden = !(location.hash === "#welcome" || (client.state.ready && !client.state.exists));
   if (restoring && !unlocked) show("backup", false);
 }
@@ -172,6 +174,15 @@ async function refreshList() {
     $("#count-health").textContent = String(flagged.length); $("#count-health").hidden = !flagged.length;
     $("#health-list").replaceChildren(...flagged.map(item => row(item, () => { show("logins"); void select(item.id); })));
     if (!flagged.length) $("#health-list").append(element("p", { className: "empty" }, "No weak or reused passwords. Nice."));
+    // Sidebar summary: share of logins that are neither weak nor reused.
+    const logins = all.filter(item => item.type === "login").length;
+    const weak = all.filter(item => health[item.id]?.weak).length;
+    const reused = all.filter(item => health[item.id]?.reused).length;
+    const score = logins ? Math.round((logins - flagged.length) / logins * 100) : 0;
+    $("#sidebar-health").hidden = !logins;
+    $("#sidebar-health").classList.toggle("warn", flagged.length > 0);
+    $("#health-score").textContent = `${score}%`;
+    $("#health-detail").textContent = flagged.length ? `${weak} weak · ${reused} reused` : "All strong";
     await loadBackupInfo(all.length);
   } catch (error) { announce(error.message, true); }
 }
@@ -182,6 +193,7 @@ function renderProjects() {
   if (view.startsWith("project:") && !projects.includes(view.slice(8))) show("logins");
 }
 $("#search").addEventListener("input", () => { if (!isList(view)) show("logins"); void refreshList(); });
+$("#sidebar-health").addEventListener("click", () => show("health"));
 // ⌘K / Ctrl+K jumps to search from anywhere; "/" works when not typing, like the popup.
 $("#search-kbd").textContent = /^Mac|iP/.test(navigator.platform) ? "⌘K" : "Ctrl K";
 document.addEventListener("keydown", event => {
@@ -202,11 +214,14 @@ function clearDetail() {
   if ($("#detail").open) $("#detail").close();
   for (const node of all(".item-row[aria-current='true']")) node.setAttribute("aria-current", "false");
 }
-// Escape and clicking the dimmed page behind the dialog both close it.
-$("#detail").addEventListener("close", clearDetail);
+// Escape and clicking the dimmed page behind the dialog both close it. The `close` event is
+// dispatched as a queued task: a select() started right after close() must still render,
+// so clearing waits until no selection is in flight.
+$("#detail").addEventListener("close", () => { if (!pendingSelects) clearDetail(); });
 $("#detail").addEventListener("click", event => { if (event.target === $("#detail")) clearDetail(); });
 async function select(id) {
   const session = client.state.session;
+  pendingSelects++;
   selectedId = id;
   for (const node of all(".item-row")) node.setAttribute("aria-current", String(node.dataset.id === id));
   try {
@@ -215,6 +230,7 @@ async function select(id) {
     detail = { item: response.item, revision: response.state.revision };
     renderDetail();
   } catch (error) { announce(error.message, true); clearDetail(); await client.refresh(); }
+  finally { pendingSelects--; }
 }
 async function copy(value, what) {
   try {
@@ -502,6 +518,18 @@ async function exportBackup() {
   } catch (error) { announce(error.message, true); }
 }
 $("#export").addEventListener("click", () => void exportBackup());
+$("#export-csv").addEventListener("click", async () => {
+  if (!confirm("Export a readable CSV? Anyone who opens it can see your passwords. Keep the file offline and delete it when the move is done.")) return;
+  try {
+    const csv = await client.request("EXPORT_CSV");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const link = document.createElement("a");
+    link.href = url; link.download = `keybit-${new Date().toLocaleDateString("en-CA")}.csv`;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    announce("CSV exported. Delete the file when you're done — it shows your passwords.");
+  } catch (error) { announce(error.message, true); }
+});
 $("#banner-export").addEventListener("click", () => void exportBackup());
 $("#banner-later").addEventListener("click", async () => {
   await chrome.storage.local.set({ backupSnoozedUntil: Date.now() + 7 * 86400000 }).catch(() => {});
