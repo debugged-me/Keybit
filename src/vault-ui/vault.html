@@ -73,9 +73,6 @@
           </div>
           <div id="items" class="item-list"></div>
         </div>
-        <aside id="detail" class="detail-pane" aria-label="Details" hidden>
-          <div id="detail-view"></div>
-        </aside>
       </section>
 
       <section id="view-health" class="view" hidden>
@@ -178,6 +175,9 @@
     </main>
   </div>
 
+  <dialog id="detail" class="modal detail-modal" aria-label="Details">
+    <div id="detail-view" class="modal-body"></div>
+  </dialog>
   <dialog id="password-dialog" class="modal small" aria-labelledby="password-dialog-title">
     <form id="password-form" autocomplete="off" novalidate>
       <header class="modal-header"><h2 id="password-dialog-title">Change master password</h2></header>

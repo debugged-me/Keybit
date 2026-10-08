@@ -185,7 +185,7 @@ $("#search").addEventListener("input", () => { if (!isList(view)) show("logins")
 // ⌘K / Ctrl+K jumps to search from anywhere; "/" works when not typing, like the popup.
 $("#search-kbd").textContent = /^Mac|iP/.test(navigator.platform) ? "⌘K" : "Ctrl K";
 document.addEventListener("keydown", event => {
-  if (!client.state.unlocked || $("#login-dialog")?.open || $("#password-dialog")?.open) return;
+  if (!client.state.unlocked || $("#login-dialog")?.open || $("#password-dialog")?.open || $("#detail")?.open) return;
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); $("#search").focus(); $("#search").select(); return; }
   const target = /** @type {HTMLElement} */ (event.target);
   const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable;
@@ -198,10 +198,13 @@ $("#sort").addEventListener("change", () => { sort = $("#sort").value; try { loc
 function clearDetail() {
   clearInterval(codeTicker); codeTicker = null;
   selectedId = null; detail = null;
-  $("#detail-view").replaceChildren(); $("#detail").hidden = true;
-  $("#view-logins").classList.remove("has-detail");
+  $("#detail-view").replaceChildren();
+  if ($("#detail").open) $("#detail").close();
   for (const node of all(".item-row[aria-current='true']")) node.setAttribute("aria-current", "false");
 }
+// Escape and clicking the dimmed page behind the dialog both close it.
+$("#detail").addEventListener("close", clearDetail);
+$("#detail").addEventListener("click", event => { if (event.target === $("#detail")) clearDetail(); });
 async function select(id) {
   const session = client.state.session;
   selectedId = id;
@@ -239,7 +242,7 @@ function renderDetail() {
   const note = item.type === "note";
   const flags = health[item.id] ?? {};
   const scope = note ? "" : scopeLabel(item.urls[0]);
-  const back = iconButton("back", "Back to list", { className: "icon-button back-button" });
+  const back = iconButton("close", "Close", { className: "icon-button back-button" });
   back.addEventListener("click", clearDetail);
   const star = iconButton("star", item.favorite ? "Remove from favorites" : "Add to favorites", { className: `icon-button star${item.favorite ? " on" : ""}`, "aria-pressed": String(item.favorite) });
   star.addEventListener("click", () => void toggleFavorite());
@@ -304,13 +307,13 @@ function renderDetail() {
     actions.push(edit, remove);
   }
   $("#detail-view").replaceChildren(...[
-    element("div", { className: "detail-header" }, back, note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) : siteTile(scope),
+    element("div", { className: "detail-header" }, note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) : siteTile(scope),
       element("h3", {}, item.name, element("span", { className: "site" }, note ? "Secure note" : scope,
-        !note && item.environment !== "other" ? badge(item.environment, item.environment === "production" ? "production" : "") : null)), star),
+        !note && item.environment !== "other" ? badge(item.environment, item.environment === "production" ? "production" : "") : null)), star, back),
     ...warnings, ...fields, history,
     element("div", { className: "detail-actions" }, ...actions, element("span", { className: "meta" }, meta))
   ].filter(Boolean));
-  $("#detail").hidden = false; $("#view-logins").classList.add("has-detail");
+  if (!$("#detail").open) $("#detail").showModal();
 }
 async function toggleFavorite() {
   if (!detail) return;

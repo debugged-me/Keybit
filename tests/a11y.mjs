@@ -37,8 +37,10 @@ try {
   await delay(800);
   await waitFor(app.session, '!document.querySelector("#app").hidden && document.querySelectorAll("#items .login-item").length === 2');
   await evaluate(app.session, 'document.querySelector("#items .login-item").click()');
-  await waitFor(app.session, '!document.querySelector("#detail").hidden');
+  await waitFor(app.session, 'document.querySelector("#detail").open');
   await audit(app.session, 'All logins + details');
+  // The detail dialog makes the page inert; close it so the sidebar clicks below reach.
+  await evaluate(app.session, 'document.querySelector("#detail").close()');
   for (const view of ['health', 'generator', 'import', 'backup', 'settings', 'project:SRMS', 'notes']) {
     await evaluate(app.session, `document.querySelector('[data-view="${view}"]').click()`);
     await delay(300);

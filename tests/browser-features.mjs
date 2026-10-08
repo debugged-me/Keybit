@@ -66,7 +66,7 @@ try {
   await waitFor(app.session, 'document.querySelector("#login-dialog").open && document.querySelector("#editor-title").textContent === "Add secure note"');
   await set(app.session, '#name', 'Server keys'); await set(app.session, '#notes', 'ssh root@srms'); await set(app.session, '#project', 'SRMS');
   await evaluate(app.session, 'document.querySelector("#login-form").requestSubmit()');
-  await waitFor(app.session, 'document.querySelector("#count-notes").textContent === "2" && !document.querySelector("#detail").hidden');
+  await waitFor(app.session, 'document.querySelector("#count-notes").textContent === "2" && document.querySelector("#detail").open');
   await click(app.session, '.detail-header .star');
   await waitFor(app.session, 'document.querySelector("#count-favorites").textContent === "1" && document.querySelector(".detail-header .star").classList.contains("on")');
   let s = await state(app.session);
@@ -74,11 +74,14 @@ try {
   const item = (await rpc(app.session, 'ITEM', { session: s.session, id: main.id })).data.item;
   await rpc(app.session, 'SAVE', { session: s.session, revision: s.revision, item: { ...item, project: 'SRMS', environment: 'production' } });
   await waitFor(app.session, '!document.querySelector("#projects-nav").hidden && !!document.querySelector(\'[data-view="project:SRMS"]\')');
+  await evaluate(app.session, 'document.querySelector("#detail").close()');
   await click(app.session, '[data-view="project:SRMS"]');
   await waitFor(app.session, 'document.querySelector("#list-title").textContent === "SRMS" && [...document.querySelectorAll(".group-heading")].map(h => h.textContent).join() === "Production,Other"');
   await click(app.session, '#items .login-item');
   await waitFor(app.session, '/^\\d{3} \\d{3}$/.test(document.querySelector(".totp-code")?.textContent ?? "")');
   await shot(app.session, 'project-view');
+  // The detail dialog makes the page inert; close it before driving the sidebar again.
+  await evaluate(app.session, 'document.querySelector("#detail").close()');
   console.log('PASS: secure notes, favorites, and a project view grouped by environment; the detail shows a live 2FA code.');
 
   // Generator: Memorable, remembered for every generator.
@@ -183,6 +186,7 @@ try {
   await waitFor(app.session, 'document.querySelector("#message").textContent.includes("Restored")');
   // It returns to its normal section; deleting it again then removing it forever is final.
   await waitFor(app.session, 'document.querySelector("#list-title").textContent === "All logins"');
+  await evaluate(app.session, 'document.querySelector("#detail").close()');
   await set(app.session, '#search', 'Trash test');
   await waitFor(app.session, 'document.querySelectorAll("#items .login-item").length === 1');
   await click(app.session, '#items .login-item');

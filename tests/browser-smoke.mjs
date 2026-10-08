@@ -180,7 +180,7 @@ try {
   await shotBoth([manager.session], 'add-login-modal');
   for (const [key, value] of Object.entries(credentials)) await input(manager.session, `#${key}`, value);
   await evaluate(manager.session, 'document.querySelector("#login-form").requestSubmit()');
-  await waitFor(manager.session, 'document.querySelectorAll(".login-item").length === 1 && !document.querySelector("#login-dialog").open && !document.querySelector("#detail").hidden');
+  await waitFor(manager.session, 'document.querySelectorAll(".login-item").length === 1 && !document.querySelector("#login-dialog").open && document.querySelector("#detail").open');
   const persisted = await evaluate(manager.session, 'chrome.storage.local.get(null).then(JSON.stringify)');
   for (const value of [password, loginPassword, credentials.username, credentials.notes, credentials.name]) assert.ok(!persisted.includes(value));
   await shot(manager.session, 'vault');
@@ -193,6 +193,8 @@ try {
   await waitFor(earlyPanel, 'document.querySelectorAll(".account").length === 1');
   await send('Target.closeTarget', { targetId: early.targetId });
   console.log('PASS: KeyBit is on for every site by default, including tabs opened before install; new vaults default to Never.');
+  // The detail dialog makes the page inert; close it before driving the list again.
+  await evaluate(manager.session, 'document.querySelector("#detail").close()');
   await input(manager.session, '#search', 'does not exist');
   await evaluate(manager.session, 'document.querySelector("#search").dispatchEvent(new Event("input"))');
   await waitFor(manager.session, 'document.querySelectorAll(".login-item").length === 0');
@@ -464,6 +466,7 @@ try {
   console.log('PASS: locking clears the pending prompt; submissions while locked do not save credentials.');
   await send('Target.activateTarget', {targetId: manager.targetId});
   await waitFor(manager.session, '!document.querySelector("#app").hidden && document.querySelectorAll(".login-item").length === 2');
+  await evaluate(manager.session, 'document.querySelector("#detail").close()');
   await click(manager.session, `.login-item[data-id="${captured.id}"]`);
   await waitFor(manager.session, 'document.querySelector(".history summary")?.textContent === "Password history (1)"');
   await evaluate(manager.session, 'document.querySelector(".history").open = true');
@@ -480,6 +483,7 @@ try {
   captureState = (await rpc(manager.session, 'STATUS')).data;
   await rpc(manager.session, 'SAVE', {session: captureState.session, revision: captureState.revision, item: {name: 'Weak one', urls: ['https://weak.example.test'], username: 'weak', password: 'admin123', notes: '', environment: 'other'}});
   await waitFor(manager.session, 'document.querySelector("#count-health").textContent === "1" && !document.querySelector("#count-health").hidden');
+  await evaluate(manager.session, 'document.querySelector("#detail").close()');
   await click(manager.session, '[data-view="health"]');
   await waitFor(manager.session, '!document.querySelector("#view-health").hidden && document.querySelectorAll("#health-list .login-item").length === 1');
   await shot(manager.session, 'health');
@@ -540,10 +544,11 @@ try {
   const overflow = 'JSON.stringify([...document.querySelectorAll("body *")].filter(node => node.getBoundingClientRect().right > innerWidth + 1 && !node.closest(".sidebar")).slice(0, 6).map(node => node.tagName + "#" + node.id + "." + node.className + " " + Math.round(node.getBoundingClientRect().right)))';
   assert.equal(await evaluate(settings.session, 'document.documentElement.scrollWidth <= innerWidth'), true, await evaluate(settings.session, overflow));
   await click(settings.session, '.login-item');
-  await waitFor(settings.session, '!document.querySelector("#detail").hidden && getComputedStyle(document.querySelector(".list-pane")).display === "none"');
+  await waitFor(settings.session, 'document.querySelector("#detail").open');
   assert.equal(await evaluate(settings.session, 'document.documentElement.scrollWidth <= innerWidth'), true, await evaluate(settings.session, overflow));
   await shotBoth([settings.session], 'app-narrow-detail');
   await click(settings.session, '.back-button');
+  await waitFor(settings.session, '!document.querySelector("#detail").open');
   await click(settings.session, '[data-view="backup"]');
   await shot(settings.session, 'app-narrow');
   await send('Emulation.clearDeviceMetricsOverride', {}, settings.session);
