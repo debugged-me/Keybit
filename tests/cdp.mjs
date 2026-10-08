@@ -87,8 +87,11 @@ export async function launch(profile, extraArgs = []) {
     throw new Error(`${path} did not appear`);
   };
   const absent = async path => {
-    await delay(500);
-    if ((await send('Target.getTargets')).targetInfos.some(t => t.url.includes(path))) throw new Error(`${path} should not be open`);
+    for (let i = 0; i < 30; i++) {
+      if (!(await send('Target.getTargets')).targetInfos.some(t => t.url.includes(path))) return;
+      await delay(100);
+    }
+    throw new Error(`${path} should not be open`);
   };
   const trustedClick = async (session, selector) => {
     const { x, y } = await evaluate(session, `(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2}; })()`);

@@ -20,14 +20,14 @@ main { max-height: 520px; padding: 14px 16px 16px; overflow-y: auto; }
 .site-row { display: flex; align-items: center; gap: 12px; }
 .site-row .tile { width: 38px; height: 38px; font-size: 16px; border-radius: 10px; }
 .site-text { flex: 1; min-width: 0; }
-.site-name { font-size: 14px; font-weight: 700; letter-spacing: -.1px; overflow-wrap: anywhere; }
+.site-name { font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: -.1px; overflow-wrap: anywhere; }
 .site-text .muted { font-size: 12px; }
 .switch-row { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .switch-title { display: block; font-size: 12.5px; font-weight: 600; }
 .switch-hint { display: block; margin-top: 1px; font-size: 11.5px; }
 
 .locked-panel { padding-top: 6px; }
-.locked-panel h2 { margin-top: 12px; }
+.locked-panel h2 { margin-top: 12px; font-family: var(--font-display); }
 #unlocked { padding-top: 14px; }
 .section-title { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 4px; }
 .section-title h2 { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }

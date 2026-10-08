@@ -1,3 +1,10 @@
+/* Sora is the display face for titles and brand moments (bundled under the SIL OFL — src/fonts/OFL.txt); body text stays on the system stack. */
+@font-face { font-family: "Sora"; font-style: normal; font-weight: 100 800; font-display: swap;
+  src: url("../fonts/sora-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Sora"; font-style: normal; font-weight: 100 800; font-display: swap;
+  src: url("../fonts/sora-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 :root {
   color-scheme: light dark;
   --bg: #f3f5f4; --surface: #ffffff; --subtle: #ecf0ee; --hover: #e3e9e5; --border: #dfe5e1; --border-strong: #c6d0ca;
@@ -9,6 +16,7 @@
   --shadow-lg: 0 4px 12px #15211b1a, 0 24px 64px #15211b2e;
   --r-sm: 7px; --r-md: 10px; --r-lg: 14px; --r-xl: 18px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px; line-height: 1.5;
+  --font-display: "Sora", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text); background: var(--bg);
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
@@ -49,7 +57,7 @@ a { color: var(--accent); text-underline-offset: 3px; }
 
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-icon { display: block; flex-shrink: 0; width: 28px; height: 28px; }
-.brand h1 { font-size: 16px; font-weight: 700; letter-spacing: -.35px; }
+.brand h1 { font-family: var(--font-display); font-size: 16px; font-weight: 700; letter-spacing: -.35px; }
 .muted { color: var(--muted); }
 
 label { display: block; margin: 14px 0 6px; font-size: 12px; font-weight: 600; letter-spacing: .1px; }
@@ -120,7 +128,7 @@ input[role="switch"]:checked::after { transform: translateX(16px); }
 @keyframes modal-in { from { opacity: 0; transform: translateY(6px) scale(.985); } }
 .modal form { display: flex; flex-direction: column; min-height: 0; }
 .modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 8px; }
-.modal-header h2 { font-size: 18px; font-weight: 700; letter-spacing: -.35px; }
+.modal-header h2 { font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: -.35px; }
 .modal-body { padding: 0 20px 6px; overflow-y: auto; }
 .modal-footer { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--subtle); }
 .modal-footer .spacer { flex: 1; }
@@ -155,7 +163,7 @@ input[role="switch"]:checked::after { transform: translateX(16px); }
 .update-banner p { flex: 1; }
 .update-banner strong { color: inherit; }
 /* Create/unlock form (rendered by ui/auth.js). */
-#auth h2 { font-size: 20px; font-weight: 700; letter-spacing: -.4px; text-align: center; }
+#auth h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -.4px; text-align: center; }
 #auth .intro { margin-top: 6px; color: var(--muted); text-align: center; }
 #auth label { text-align: left; }
 #auth .primary-button { width: 100%; margin-top: 16px; min-height: 40px; }

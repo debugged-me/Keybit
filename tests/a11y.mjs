@@ -11,7 +11,9 @@ const password = 'a unique a11y test passphrase';
 const results = [];
 async function audit(session, name, context = 'document') {
   for (const theme of ['light', 'dark']) {
-    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] }, session);
+    // Reduced motion is emulated so axe samples settled colors — a theme flip otherwise
+    // catches elements mid-transition (e.g. a button background animating to dark accent).
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, session);
     await delay(150);
     await evaluate(session, axeSource + ';true');
     const violations = await evaluate(session, `axe.run(${context}, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } }).then(r => r.violations.map(v => ({ id: v.id, impact: v.impact, help: v.help, targets: v.nodes.slice(0, 4).map(n => n.target.join(' ') + (n.any[0]?.message ? ' — ' + n.any[0].message : '')) })))`);

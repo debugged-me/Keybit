@@ -1,6 +1,6 @@
 body { height: auto; }
 main { flex: none; padding: 14px 16px 12px; overflow: visible; }
-h1 { margin: 0 0 12px; font-size: 16px; font-weight: 700; letter-spacing: -.25px; }
+h1 { margin: 0 0 12px; font-family: var(--font-display); font-size: 16px; font-weight: 700; letter-spacing: -.25px; }
 .credential { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--hover); }
 .credential .details { min-width: 0; flex: 1; }
 .credential .details span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
