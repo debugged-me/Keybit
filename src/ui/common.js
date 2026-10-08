@@ -150,3 +150,50 @@ export function relativeTime(time, now = Date.now()) {
   const days = Math.round(hours / 24);
   return days < 30 ? `${days} day${days === 1 ? "" : "s"} ago` : new Date(time).toLocaleDateString();
 }
+
+// Instant styled tooltips for every element with a `title`. The browser's own tooltip is
+// slow (~1s hover) and unstyled; this shows a small pill after a beat and uses a popover so
+// it paints in the top layer — above modal dialogs too. The title is parked in data-tip
+// while hovering so the native tooltip never stacks on ours.
+let tipEl = null, tipFor = null, tipTimer = 0;
+function hideTip() {
+  clearTimeout(tipTimer);
+  if (tipFor?.dataset.tip != null) { tipFor.title = tipFor.dataset.tip; delete tipFor.dataset.tip; }
+  tipFor = null;
+  if (tipEl?.matches(":popover-open")) tipEl.hidePopover();
+}
+function showTip(target) {
+  const text = target.dataset.tip ?? target.title;
+  if (!text || !target.isConnected) return;
+  tipEl ??= element("div", { className: "tip", popover: "manual", role: "tooltip", "aria-hidden": "true" });
+  if (!tipEl.isConnected) document.body.append(tipEl);
+  tipEl.textContent = text;
+  tipEl.showPopover();
+  const rect = target.getBoundingClientRect();
+  const { width, height } = tipEl.getBoundingClientRect();
+  const left = Math.max(6, Math.min(rect.left + rect.width / 2 - width / 2, innerWidth - width - 6));
+  const top = rect.bottom + 7 + height > innerHeight - 4 ? rect.top - height - 7 : rect.bottom + 7;
+  Object.assign(tipEl.style, { left: `${left}px`, top: `${Math.max(4, top)}px` });
+}
+function armTip(target, delay) {
+  if (target === tipFor) return;
+  hideTip();
+  tipFor = target;
+  // Park the title right away so the native tooltip never fires underneath ours.
+  if (target.title) { target.dataset.tip = target.title; target.removeAttribute("title"); }
+  tipTimer = setTimeout(() => { if (tipFor === target) showTip(target); }, delay);
+}
+if (typeof document !== "undefined") {
+  document.addEventListener("pointerover", event => {
+    const target = event.target instanceof Element ? event.target.closest("[title], [data-tip]") : null;
+    if (target) armTip(target, 220); else hideTip();
+  });
+  document.addEventListener("pointerdown", hideTip, true);
+  document.addEventListener("pointerout", event => { if (!event.relatedTarget) hideTip(); });
+  document.addEventListener("focusin", event => {
+    const target = event.target instanceof Element ? event.target.closest("[title], [data-tip]") : null;
+    if (target) armTip(target, 80);
+  });
+  document.addEventListener("focusout", hideTip);
+  document.addEventListener("scroll", hideTip, true);
+}

@@ -1,7 +1,7 @@
 body.app { display: flex; flex-direction: column; min-height: 100vh; font-size: 13.5px; }
 .app-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); }
 .app-header .brand { width: 208px; }
-.app-header .search { flex: 1; max-width: 520px; }
+.app-header .search { flex: 1; max-width: 540px; margin-inline: auto; }
 .header-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .menu-anchor { position: relative; }
 #autolock[aria-expanded="true"] { background: var(--hover); color: var(--text); }
