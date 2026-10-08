@@ -161,7 +161,6 @@ body.app { display: flex; flex-direction: column; min-height: 100vh; font-size: 
 .setting-action { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .setting .switch-title { display: block; font-weight: 600; }
 .setting .switch-hint { display: block; margin-top: 1px; font-size: 12px; }
-.peek-select { width: auto; min-height: 36px; padding: 5px 10px; }
 .shortcut { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 kbd { padding: 2px 8px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 6px; background: var(--subtle); font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
 #search-kbd { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); padding: 1px 6px; font-size: 11px; opacity: .75; pointer-events: none; }

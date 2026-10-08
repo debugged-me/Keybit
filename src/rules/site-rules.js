@@ -2,8 +2,8 @@ import { parseWebsite } from "../matching/url-matcher.js";
 
 // Per-site rules: the old single "off" switch becomes a structured set of offers. Rules are
 // non-secret preferences in chrome.storage.local — never usernames, passwords, or other vault data.
-export const RULE_FLAGS = ["enabled", "logins", "save", "generate", "totp", "cards", "peek"];
-export const DEFAULT_RULE = Object.freeze({ enabled: true, logins: true, save: true, generate: true, totp: true, cards: true, peek: true, subdomains: false });
+export const RULE_FLAGS = ["enabled", "logins", "save", "generate", "totp", "cards"];
+export const DEFAULT_RULE = Object.freeze({ enabled: true, logins: true, save: true, generate: true, totp: true, cards: true, subdomains: false });
 // Which rule a dropdown/panel mode consumes.
 export const MODE_FLAG = { login: "logins", username: "logins", otp: "totp", card: "cards", identity: "cards", new: "generate" };
 export function sanitizeRule(raw) {

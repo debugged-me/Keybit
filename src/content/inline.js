@@ -2,9 +2,6 @@
   // Runs in every frame: a login form inside an iframe gets the dropdown anchored inside that frame.
   // A copy injected before an extension reload/update has no runtime — retire quietly.
   if (!chrome.runtime?.id) return;
-  // Preview pages have relaxed embedding protections. Keep vault suggestions outside Peek,
-  // including any nested frames it loads; opening the page in a tab restores normal filling.
-  if ([...(location.ancestorOrigins ?? [])].includes(new URL(chrome.runtime.getURL("")).origin)) return;
   // Re-injection after an install/update replaces the previous instance instead of stacking listeners.
   globalThis.__keybitInline?.dispose();
   const lifecycle = new AbortController();

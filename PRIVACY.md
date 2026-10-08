@@ -16,9 +16,9 @@ KeyBit stores the items you save:
 They are encrypted with a key derived from your master password (AES-256-GCM) and saved in your browser's extension storage on your device. Backups, portable vault files, and recovery kits are encrypted copies of the same vault data; a recovery kit's passphrase is split into shares (Shamir's scheme) that you distribute yourself — KeyBit never keeps the shares.
 
 KeyBit also keeps a few things that are not secret:
-- **site rules** — the sites where KeyBit is on or off, and whether it may offer logins, save prompts, or link previews there;
+- **site rules** — the sites where KeyBit is on or off, and whether it may offer logins and save prompts there;
 - when each login was last used (by a random ID, not by site);
-- your generator, theme, and Peek choices;
+- your generator and theme choices;
 - the dates of your backups.
 
 If you turn on Touch ID or Windows Hello, your device creates a passkey for KeyBit. That passkey, not your master password, unlocks a sealed copy of the vault key.
@@ -29,17 +29,11 @@ Your master password is never stored. Without it, KeyBit cannot decrypt your dat
 
 To suggest and save logins, KeyBit looks for sign-in, sign-up, password-change, and 2FA code fields on the pages you visit. When you submit one of these forms, it reads the username and password you entered so it can ask whether to save them. Nothing is saved unless you confirm. Unconfirmed values are discarded within two minutes.
 
-For Peek, KeyBit checks the link you click (including links inside frames embedded in the page) and opens eligible ones in a preview above the page. The website receives an ordinary request from your browser, under the browser's usual cookie rules for embedded pages, and its own privacy policy applies. Like any embedded page, it can see which site you came from (not the exact page) and that it is shown in KeyBit's Peek.
-
-To show sites that refuse to be embedded, KeyBit removes their `X-Frame-Options` header, and a Content-Security-Policy header that sets `frame-ancestors`, only from pages its Peek window loads, only in that tab, and only while the preview is open. The browser rules that do this are temporary and are removed when Peek closes. **Show sites that block previews** in Settings → Peek turns this off.
-
-A small KeyBit script in the previewed page reads only its title, theme color, and icon link, and fetches that icon from the same site without cookies, so Peek can show them. It also passes the page's link navigations and Peek's keyboard shortcuts to the Peek window, and blocks clicks and key presses in the preview while something covers it. It reads nothing else on the page and never accesses the vault. Nothing Peek reads leaves your browser or is stored: KeyBit keeps no preview history.
-
 The command palette searches your vault titles and commands on your device — nothing is sent anywhere. The form inspector reports the *structure* of sign-in fields on the tab you inspect (field types, autocomplete attributes, which frame they live in); it never reads or reports the values in them.
 
 ## What KeyBit shares
 
-KeyBit has no servers and does not send your vault data to a service. It does not collect analytics, usage data, or crash reports, and it does not sell your data. Peek loads the website you choose directly, as described above, without sending it saved credentials. Encrypted backup files are written only where you choose, either with **Export** or to the folder you pick for automatic backups.
+KeyBit has no servers and does not send your vault data to a service. It does not collect analytics, usage data, or crash reports, and it does not sell your data. Encrypted backup files are written only where you choose, either with **Export** or to the folder you pick for automatic backups.
 
 ## Removing your data
 

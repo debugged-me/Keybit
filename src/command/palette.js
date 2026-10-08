@@ -52,8 +52,6 @@
 
   function onRuntimeMessage(message) {
     if (message?.event === "keybit-palette") void open();
-    // The palette's Peek command asks the page's Peek controller to preview a link.
-    if (message?.event === "keybit-peek-preview") { close(); globalThis.__keybitPeek?.previewFocusedLink?.(); }
     if (message?.event === "keybit-palette-close") close();
   }
   chrome.runtime.onMessage.addListener(onRuntimeMessage);

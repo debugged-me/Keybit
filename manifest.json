@@ -14,8 +14,7 @@
     "idle",
     "offscreen",
     "favicon",
-    "contextMenus",
-    "declarativeNetRequestWithHostAccess"
+    "contextMenus"
   ],
   "optional_permissions": [
     "clipboardRead"
@@ -29,30 +28,6 @@
     "type": "module"
   },
   "content_scripts": [
-    {
-      "matches": [
-        "http://*/*",
-        "https://*/*"
-      ],
-      "js": [
-        "src/peek/peek-utils.js",
-        "src/peek/peek-frame-events.js"
-      ],
-      "run_at": "document_start",
-      "all_frames": true
-    },
-    {
-      "matches": [
-        "http://*/*",
-        "https://*/*"
-      ],
-      "js": [
-        "src/peek/peek-frame-main.js"
-      ],
-      "run_at": "document_start",
-      "all_frames": true,
-      "world": "MAIN"
-    },
     {
       "matches": [
         "http://*/*",
@@ -74,10 +49,6 @@
       "js": [
         "src/content/save.js",
         "src/content/passkey.js",
-        "src/peek/peek-settings.js",
-        "src/peek/peek-overlay.js",
-        "src/peek/peek-link-handler.js",
-        "src/peek/peek-controller.js",
         "src/command/palette.js"
       ],
       "run_at": "document_start",
@@ -133,7 +104,7 @@
     "open_in_tab": true
   },
   "content_security_policy": {
-    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src http: https:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self' http: https:"
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self' http: https:"
   },
   "web_accessible_resources": [
     {
@@ -141,7 +112,6 @@
         "src/inline/panel.html",
         "src/inline/save.html",
         "src/inline/passkey.html",
-        "src/peek/peek.html",
         "src/command/palette.html"
       ],
       "matches": [

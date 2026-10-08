@@ -37,7 +37,6 @@ let listRequest = 0;
 let importToken = null;
 let importItems = null;
 let prefs = null;
-let peekSettings = null;
 let envMaps = { merged: {}, configured: {} };
 let backupInfo = { lastBackupAt: 0, snoozedUntil: 0 };
 let sort = (() => { try { return localStorage.getItem("keybit-sort") || "name"; } catch { return "name"; } })();
@@ -955,36 +954,8 @@ function renderTheme() {
   const theme = globalThis.keybitTheme?.get() ?? "system";
   for (const button of all("[data-theme-choice]")) button.setAttribute("aria-checked", String(button.dataset.themeChoice === theme));
 }
-// Peek preferences live in chrome.storage.local (handled by the worker's Peek path), not in the
-// vault — they are settings, not secrets, and pages need them without an unlocked session.
-async function loadPeekSettings() {
-  try { peekSettings = await client.request("PEEK_GET_SETTINGS"); } catch { peekSettings = null; }
-  renderPeek();
-}
-function renderPeek() {
-  if (!peekSettings) return;
-  $("#peek-enabled").checked = peekSettings.peekEnabled;
-  $("#peek-trigger").value = peekSettings.peekTrigger;
-  for (const button of all("[data-peek-size]")) button.setAttribute("aria-checked", String(button.dataset.peekSize === peekSettings.peekSize));
-  $("#peek-backdrop").checked = peekSettings.peekBackdropClose;
-  $("#peek-loading").checked = peekSettings.peekLoadingIndicator;
-  $("#peek-unblock").checked = peekSettings.peekUnblock;
-}
-async function savePeek(change) {
-  try {
-    peekSettings = await client.request("PEEK_SAVE_SETTINGS", { settings: { ...peekSettings, ...change } });
-    renderPeek();
-  } catch (error) { announce(error.message, true); renderPeek(); }
-}
-$("#peek-enabled").addEventListener("change", event => void savePeek({ peekEnabled: event.target.checked }));
-$("#peek-trigger").addEventListener("change", event => void savePeek({ peekTrigger: event.target.value }));
-$("#peek-backdrop").addEventListener("change", event => void savePeek({ peekBackdropClose: event.target.checked }));
-$("#peek-loading").addEventListener("change", event => void savePeek({ peekLoadingIndicator: event.target.checked }));
-$("#peek-unblock").addEventListener("change", event => void savePeek({ peekUnblock: event.target.checked }));
-for (const button of all("[data-peek-size]")) button.addEventListener("click", () => void savePeek({ peekSize: button.dataset.peekSize }));
 async function renderSettings() {
   renderTheme();
-  void loadPeekSettings();
   const available = await biometricAvailable();
   $("#biometric-row").hidden = !available && !client.state.biometric;
   $("#biometric-title").textContent = `Unlock with ${biometricName()}`;
@@ -996,7 +967,7 @@ async function renderSettings() {
 $("#edit-shortcuts").addEventListener("click", () => void chrome.tabs.create({ url: "chrome://extensions/shortcuts" }));
 
 // Site rules: every origin with a non-default rule, edited in place. A rule at defaults is dropped.
-const RULE_LABELS = { enabled: "On", logins: "Autofill", save: "Save prompts", generate: "Generated passwords", totp: "2FA codes", cards: "Cards & IDs", peek: "Peek", subdomains: "Include subdomains" };
+const RULE_LABELS = { enabled: "On", logins: "Autofill", save: "Save prompts", generate: "Generated passwords", totp: "2FA codes", cards: "Cards & IDs", subdomains: "Include subdomains" };
 async function refreshSites() {
   try { disabledSites = await client.request("SITE_RULES"); } catch { disabledSites = {}; }
   const origins = Object.keys(disabledSites);
@@ -1025,7 +996,7 @@ async function refreshSites() {
     const reset = element("button", { type: "button", className: "text-button" }, "Reset");
     reset.addEventListener("click", async () => {
       try {
-        await client.request("SET_SITE_RULE", { origin, patch: { enabled: true, logins: true, save: true, generate: true, totp: true, cards: true, peek: true, subdomains: false } });
+        await client.request("SET_SITE_RULE", { origin, patch: { enabled: true, logins: true, save: true, generate: true, totp: true, cards: true, subdomains: false } });
         announce(`Defaults restored for ${new URL(origin).host}.`);
         await refreshSites();
       } catch (error) { announce(error.message, true); }

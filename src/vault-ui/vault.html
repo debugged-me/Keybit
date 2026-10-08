@@ -188,23 +188,6 @@
             <div class="segmented" role="radiogroup" aria-label="Theme"><button type="button" role="radio" data-theme-choice="system">System</button><button type="button" role="radio" data-theme-choice="light">Light</button><button type="button" role="radio" data-theme-choice="dark">Dark</button></div></div>
         </div>
         <div class="card settings-list">
-          <h3>Peek</h3>
-          <label class="switch-row setting"><span><span class="switch-title">Peek link previews</span><span class="switch-hint muted">Preview links in this page. Ctrl/⌘+Click still opens a normal tab.</span></span><input id="peek-enabled" type="checkbox" role="switch" checked></label>
-          <div class="setting setting-action"><span><span class="switch-title">Trigger</span><span class="switch-hint muted">Click previews links to other sites, like Arc's pinned tabs. Shift + Click (Arc's default) previews any link. Menus and links within the current site stay normal.</span></span>
-            <select id="peek-trigger" class="peek-select" aria-label="Peek trigger">
-              <option value="click">Click</option>
-              <option value="shift-click">Shift + Click</option>
-              <option value="alt-click">Option/Alt + Click</option>
-              <option value="ctrl-shift-click">Ctrl + Shift + Click</option>
-              <option value="long-press">Long press</option>
-            </select></div>
-          <div class="setting setting-action"><span class="switch-title">Preview size</span>
-            <div class="segmented" role="radiogroup" aria-label="Peek preview size"><button type="button" role="radio" data-peek-size="compact">Compact</button><button type="button" role="radio" data-peek-size="default">Default</button><button type="button" role="radio" data-peek-size="large">Large</button></div></div>
-          <label class="switch-row setting" id="peek-backdrop-row"><span><span class="switch-title">Close on backdrop click</span><span class="switch-hint muted">Clicking the dimmed page behind a preview closes it.</span></span><input id="peek-backdrop" type="checkbox" role="switch" checked></label>
-          <label class="switch-row setting" id="peek-loading-row"><span><span class="switch-title">Show loading indicator</span><span class="switch-hint muted">A thin progress line above the preview while it loads.</span></span><input id="peek-loading" type="checkbox" role="switch" checked></label>
-          <label class="switch-row setting" id="peek-unblock-row"><span><span class="switch-title">Show sites that block previews</span><span class="switch-hint muted">Sites like GitHub, Google and X refuse to load inside other pages. KeyBit lets them load in Peek by ignoring those embed restrictions — only for the page you're previewing, only in that tab, and only while Peek is open. Peek pauses clicks if the page underneath tries to cover the preview. Turn off to open those sites in a tab instead.</span></span><input id="peek-unblock" type="checkbox" role="switch" checked></label>
-        </div>
-        <div class="card settings-list">
           <h3>Keyboard shortcuts</h3>
           <div id="shortcuts"></div>
           <div class="setting setting-action"><span class="switch-hint muted">In this window: ⌘K or Ctrl+K jumps to search, / does the same. In the popup: / searches, ↑ ↓ move, Enter fills.</span><button id="edit-shortcuts" class="secondary-button" type="button">Change shortcuts</button></div>

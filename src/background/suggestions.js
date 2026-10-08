@@ -52,11 +52,10 @@ export class Suggestions {
   async allows(origin) {
     return this.ruleFor(origin).enabled && chrome.permissions.contains({ origins: [sitePattern(origin)] });
   }
-  // One rule flag (logins, save, totp, cards, generate, peek) on top of the master switch.
-  // `peek` stands alone: Peek predates site rules and stays a separate feature switch.
+  // One rule flag (logins, save, totp, cards, generate) on top of the master switch.
   offered(origin, flag) {
     const rule = this.ruleFor(origin);
-    return flag === "peek" ? rule.peek : rule.enabled && rule[flag] !== false;
+    return rule.enabled && rule[flag] !== false;
   }
   ruleFor(origin) { return ruleFor(this.rules, origin); }
   siteRules() { return structuredClone(this.rules); }
@@ -73,7 +72,7 @@ export class Suggestions {
     this.disabled = Object.keys(this.rules).filter(value => this.rules[value].enabled === false);
     await chrome.storage.local.set({ siteRules: this.rules });
     // Live update for open tabs: pages under this rule's scope (exact, plus opted-in subdomains)
-    // get the off/on push and Peek re-reads its per-site allowance.
+    // get the off/on push.
     const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }).catch(() => []);
     for (const tab of tabs) {
       try {
@@ -86,7 +85,6 @@ export class Suggestions {
           await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: FRAME_SCRIPTS });
           await chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, files: ["src/content/save.js"] });
         }
-        await chrome.tabs.sendMessage(tab.id, { event: "keybit-peek-site" });
       } catch { /* Navigation may race injection; the manifest covers the next page load. */ }
     }
     // Close open panels whose offer is no longer allowed on this origin.

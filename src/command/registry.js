@@ -10,7 +10,6 @@ export function buildCommands({ vault, session, ctx, query = "", rule = {} }) {
   const unlocked = !!session;
   // The page's own site rule: a turned-off site gets no fills, and each offer flag gates its commands.
   const fillsAllowed = rule.enabled !== false && rule.logins !== false;
-  const peekAllowed = rule.peek !== false;
   const commands = [];
   const seen = new Set();
   const push = command => {
@@ -24,14 +23,12 @@ export function buildCommands({ vault, session, ctx, query = "", rule = {} }) {
     { id: "inspect", icon: "search", label: "Inspect login form", hint: "Developer form report for this page", keywords: "developer diagnose" },
     { id: "generate", icon: "key", label: "Generate password", hint: "Copy a new random password", keywords: "random strong" },
     { id: "note", icon: "note", label: "New secure note", hint: "Save text encrypted", keywords: "create" },
-    { id: "security", icon: "shield", label: "Open Security Center", hint: "Weak, reused and old passwords", keywords: "health audit" },
-    { id: "peek", icon: "eye", label: "Peek this link", hint: "Preview the focused link on this page", keywords: "preview" }
-  ].filter(command => command.id !== "peek" || peekAllowed) : [
+    { id: "security", icon: "shield", label: "Open Security Center", hint: "Weak, reused and old passwords", keywords: "health audit" }
+  ] : [
     { id: "unlock", icon: "lock", label: "Unlock KeyBit", hint: "Enter your master password", keywords: "sign in open" },
     { id: "open", icon: "external", label: "Open KeyBit", hint: "The vault stays locked", keywords: "vault manage" },
-    { id: "inspect", icon: "search", label: "Inspect login form", hint: "Developer form report for this page", keywords: "developer diagnose" },
-    { id: "peek", icon: "eye", label: "Peek this link", hint: "Preview the focused link on this page", keywords: "preview" }
-  ].filter(command => command.id !== "peek" || peekAllowed);
+    { id: "inspect", icon: "search", label: "Inspect login form", hint: "Developer form report for this page", keywords: "developer diagnose" }
+  ];
   if (unlocked && fillsAllowed) {
     // Page-matching logins become Fill commands, most relevant first.
     for (const item of vault.list(session, "", ctx.url).filter(item => item.type === "login").slice(0, 5))
