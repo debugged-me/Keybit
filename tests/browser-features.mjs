@@ -356,6 +356,51 @@ try {
   await click(app.session, '#detail .back-button');
   await absent('/src/inline/passkey.html#');
 
+  // Cards and identities: saved through the real dialog, then filled on checkout/address forms.
+  s = await state(app.session);
+  await rpc(app.session, 'SAVE', { session: s.session, revision: s.revision, item: { type: 'card', name: 'Test Visa', cardholder: 'Ada Lovelace', number: '4242424242424242', expiryMonth: '4', expiryYear: '2029', cvv: '123' } });
+  s = await state(app.session);
+  await rpc(app.session, 'SAVE', { session: s.session, revision: s.revision, item: { type: 'identity', name: 'Ada Home', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.test', address: '12 Analytical Way', city: 'London', region: 'CA', postal: '90210', country: 'United States' } });
+  await click(app.session, '[data-view="cards"]');
+  await waitFor(app.session, 'document.querySelectorAll("#items .item-row").length === 2 && document.querySelector("#count-cards").textContent === "2"');
+  assert.match(await evaluate(app.session, 'document.querySelector("#items").textContent'), /Visa ···· 4242/, 'Card rows show brand + last4, never the full number');
+  assert.doesNotMatch(await evaluate(app.session, 'document.querySelector("#items").textContent'), /4242424242424242/);
+  await evaluate(app.session, '[...document.querySelectorAll("#items .item-row")].find(r => r.textContent.includes("Test Visa")).click()');
+  await waitFor(app.session, 'document.querySelector("#detail").open && document.querySelector("#detail-view").textContent.includes("04/2029")');
+  await shot(app.session, 'card-detail');
+  await click(app.session, '#detail .back-button');
+
+  // Checkout form: focus the card field, pick the card, every field fills (selects included).
+  // (Focus events are deferred on a backgrounded tab — bring it forward first, then
+  // re-focus until the just-injected content script has its listener up.)
+  const openPanel = async selector => {
+    for (let i = 0; i < 20; i++) {
+      if ((await send('Target.getTargets')).targetInfos.some(t => t.url.includes(PANEL))) return;
+      await evaluate(site.session, `document.activeElement?.blur?.(); document.querySelector(${JSON.stringify(selector)}).focus()`);
+      await delay(300);
+    }
+  };
+  await send('Target.activateTarget', { targetId: site.targetId });
+  await navigate(site.session, `${url}/checkout.html`);
+  await openPanel('#cc-number');
+  panel = await frameTarget(PANEL);
+  await waitFor(panel, 'document.querySelectorAll(".account").length === 1 && document.querySelector(".account").textContent.includes("Test Visa")');
+  await shot(site.session, 'card-dropdown');
+  await click(panel, '.account');
+  await waitFor(site.session, 'document.querySelector("#cc-number").value === "4242424242424242"');
+  assert.equal(await evaluate(site.session, '[["#cc-name","Ada Lovelace"],["#cc-csc","123"],["#cc-exp-month","4"],["#cc-exp-year","2029"]].every(([sel, v]) => document.querySelector(sel).value === v)'), true, 'Every card field filled');
+  console.log('PASS: a saved card fills number, name, expiry selects, and CVV on a checkout form.');
+
+  // Address form: the same for an identity (focusing a street field — email stays a login field).
+  await navigate(site.session, `${url}/identity.html`);
+  await openPanel('#street');
+  panel = await frameTarget(PANEL);
+  await waitFor(panel, 'document.querySelectorAll(".account").length === 1 && document.querySelector(".account").textContent.includes("Ada Home")');
+  await click(panel, '.account');
+  await waitFor(site.session, 'document.querySelector("#street").value === "12 Analytical Way"');
+  assert.equal(await evaluate(site.session, '[["#fname","Ada"],["#lname","Lovelace"],["#email","ada@example.test"],["#city","London"],["#region","CA"],["#zip","90210"],["#country","United States"]].every(([sel, v]) => document.querySelector(sel).value === v)'), true, 'Every identity field filled');
+  console.log('PASS: a saved identity fills name, email, address, and selects on an address form.');
+
   // Signing in returns a real assertion and bumps the authenticator counter.
   await send('Target.activateTarget', { targetId: pk.targetId });
   await click(pk.session, '#signin');

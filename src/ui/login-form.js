@@ -52,9 +52,33 @@ function build() {
               element("span", { id: "strength", className: "strength", hidden: true }, element("span", { className: "strength-bar" }, element("i"), element("i"), element("i")), element("span", { className: "strength-label" }))),
             element("div", { className: "password-field" }, passwordInput, element("span", { className: "field-actions" }, reveal, generateButton)))),
         field("Project", element("input", { id: "project", maxlength: 100, list: "project-list", placeholder: "Optional, e.g. SRMS", autocomplete: "off" }), element("datalist", { id: "project-list" })),
+        element("div", { className: "card-only" },
+          field("Name on card", element("input", { id: "cardholder", maxlength: 200, autocomplete: "off", autocapitalize: "words" })),
+          field("Card number", element("input", { id: "card-number", maxlength: 32, inputmode: "numeric", autocomplete: "off", spellcheck: "false", placeholder: "Digits only" })),
+          element("div", { className: "field-row" },
+            field("Expiry month", element("select", { id: "card-month" }, ...Array.from({ length: 12 }, (_, index) => { const m = String(index + 1).padStart(2, "0"); return element("option", { value: String(index + 1) }, m); }))),
+            field("Expiry year", element("input", { id: "card-year", maxlength: 4, inputmode: "numeric", autocomplete: "off", placeholder: String(new Date().getFullYear()) })),
+            field("Security code", element("input", { id: "card-cvv", maxlength: 4, inputmode: "numeric", autocomplete: "off", spellcheck: "false" })))),
+        element("div", { className: "identity-only" },
+          element("div", { className: "field-row" },
+            field("First name", element("input", { id: "id-first", maxlength: 100, autocomplete: "off", autocapitalize: "words" })),
+            field("Last name", element("input", { id: "id-last", maxlength: 100, autocomplete: "off", autocapitalize: "words" }))),
+          element("div", { className: "field-row" },
+            field("Email", element("input", { id: "id-email", maxlength: 320, autocomplete: "off", autocapitalize: "off", spellcheck: "false" })),
+            field("Phone", element("input", { id: "id-phone", maxlength: 60, autocomplete: "off" }))),
+          field("Street address", element("input", { id: "id-address", maxlength: 300, autocomplete: "off", autocapitalize: "words" })),
+          element("div", { className: "field-row" },
+            field("City", element("input", { id: "id-city", maxlength: 120, autocomplete: "off" })),
+            field("State / region", element("input", { id: "id-region", maxlength: 120, autocomplete: "off" })),
+            field("ZIP / postal", element("input", { id: "id-postal", maxlength: 20, autocomplete: "off" }))),
+          element("div", { className: "field-row" },
+            field("Country", element("input", { id: "id-country", maxlength: 120, autocomplete: "off" })),
+            field("Company", element("input", { id: "id-company", maxlength: 200, autocomplete: "off" })))),
         element("div", { className: "login-only" },
           element("div", { id: "totp-field", className: "form-field", hidden: true },
             element("label", { for: "totp" }, "2FA setup key"), element("input", { id: "totp", maxlength: 1024, autocomplete: "off", spellcheck: "false", placeholder: "Setup key or otpauth:// link from the website" }),
+            element("button", { type: "button", id: "scan-qr", className: "text-button", hidden: !(/** @type {any} */ (window).BarcodeDetector) }, "Scan a QR image"),
+            element("input", { type: "file", id: "qr-file", accept: "image/*", hidden: true, "aria-label": "Choose a 2FA QR image" }),
             element("p", { className: "hint" }, "The key a website shows when you turn on an authenticator app. KeyBit then shows the 6-digit codes."))),
         element("div", { className: "form-field", id: "notes-field", hidden: true }, element("label", { for: "notes", id: "notes-label" }, "Notes"), element("textarea", { id: "notes", maxlength: 20000, spellcheck: "false" })),
         element("div", { className: "more-fields" },
@@ -89,7 +113,9 @@ function build() {
       const folder = loginScope(url) !== "/";
       $("scope-preview").replaceChildren(siteTile(label, "", url.href), element("span", {}, folder ? "Fills only in the " : "Fills on ", element("strong", {}, folder ? label.split("/").slice(1).join("/") : label), folder ? ` project on ${url.host}` : ""));
     }
-    $("name").placeholder = current?.kind === "note" ? "Server keys, licence, Wi-Fi…" : url ? scopeLabel(url) : "Shown in KeyBit";
+    $("name").placeholder = current?.kind === "note" ? "Server keys, licence, Wi-Fi…" :
+      current?.kind === "card" ? "Personal Visa, Work Amex…" :
+      current?.kind === "identity" ? "Home, Work, Shipping…" : url ? scopeLabel(url) : "Shown in KeyBit";
     duplicate(url);
   };
   // Same username on the same site or project: allowed, but say so before a second login is made.
@@ -118,12 +144,31 @@ function build() {
   });
   $("toggle-notes").addEventListener("click", () => { $("notes-field").hidden = false; $("toggle-notes").hidden = true; $("notes").focus(); });
   $("toggle-totp").addEventListener("click", () => { $("totp-field").hidden = false; $("toggle-totp").hidden = true; $("totp").focus(); });
+  // Reads the site photo/screenshot of a setup QR entirely in-browser (BarcodeDetector is
+  // a local Web API — nothing is uploaded). Accepts an otpauth:// link or a bare key.
+  $("scan-qr").addEventListener("click", () => $("qr-file").click());
+  $("qr-file").addEventListener("change", async () => {
+    const file = /** @type {HTMLInputElement} */ ($("qr-file")).files?.[0];
+    /** @type {HTMLInputElement} */ ($("qr-file")).value = "";
+    if (!file) return;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const Detector = /** @type {any} */ (window).BarcodeDetector;
+      const codes = await new Detector({ formats: ["qr_code"] }).detect(bitmap);
+      bitmap.close();
+      const found = codes.map((/** @type {any} */ code) => String(code.rawValue ?? "").trim()).find((/** @type {string} */ value) => /^otpauth:\/\//i.test(value) || /^[A-Z2-7][A-Z2-7\s=]{5,}$/i.test(value));
+      if (!found) throw new Error("That image doesn't contain a 2FA QR code.");
+      parseTotp(found);
+      /** @type {HTMLInputElement} */ ($("totp")).value = found;
+      showError("");
+    } catch (error) { showError(error instanceof Error ? error.message : "Couldn't read that image."); }
+  });
   $("close-dialog").addEventListener("click", () => requestClose());
   $("cancel").addEventListener("click", () => requestClose());
   dialog.addEventListener("cancel", event => { event.preventDefault(); requestClose(); });
   dialog.addEventListener("close", reset);
   $("delete").addEventListener("click", async () => {
-    if (!current?.item || !confirm(`Delete this ${current.kind === "note" ? "note" : "login"}? It is kept in Recently deleted for 30 days.`)) return;
+    if (!current?.item || !confirm(`Delete this ${{ note: "note", card: "card", identity: "ID" }[current.kind] ?? "login"}? It is kept in Recently deleted for 30 days.`)) return;
     const { item, revision, onDelete, client } = current;
     try { const state = await client.request("DELETE", { id: item.id, revision }); closeLoginDialog(); await onDelete?.(state, item.id); }
     catch (error) { showError(error.message); }
@@ -136,6 +181,25 @@ function build() {
     if (note) {
       if (!$("name").value.trim()) { showError("Give the note a title."); $("name").focus(); return; }
       item = { id: current.item?.id ?? null, type: "note", name: $("name").value.trim(), notes: $("notes").value, project: $("project").value.trim(), favorite: current.item?.favorite ?? false };
+    } else if (current.kind === "card") {
+      const number = $("card-number").value.replace(/[\s-]/g, "");
+      if (!/^\d{12,19}$/.test(number)) { showError("Enter the 12–19 digit card number."); $("card-number").focus(); return; }
+      const expiryMonth = Number($("card-month").value);
+      let expiryYear = Number($("card-year").value.trim());
+      if (!expiryMonth) { showError("Pick the card's expiry month."); $("card-month").focus(); return; }
+      if (!expiryYear || !/^\d{2}(\d{2})?$/.test($("card-year").value.trim())) { showError("Enter the card's expiry year, e.g. 2028."); $("card-year").focus(); return; }
+      if (expiryYear < 100) expiryYear += 2000;
+      const cvv = $("card-cvv").value.trim();
+      if (cvv && !/^\d{3,4}$/.test(cvv)) { showError("Security codes are 3–4 digits."); $("card-cvv").focus(); return; }
+      const name = $("name").value.trim() || $("cardholder").value.trim() || `Card ····${number.slice(-4)}`;
+      item = { id: current.item?.id ?? null, type: "card", name, cardholder: $("cardholder").value.trim(), number, expiryMonth, expiryYear, cvv, notes: $("notes").value, project: $("project").value.trim(), favorite: current.item?.favorite ?? false };
+    } else if (current.kind === "identity") {
+      const firstName = $("id-first").value.trim(), lastName = $("id-last").value.trim(), email = $("id-email").value.trim();
+      if (![firstName, lastName, email, $("id-address").value.trim(), $("id-phone").value.trim()].some(Boolean)) { showError("Give the ID at least a name, email, phone, or address."); $("id-first").focus(); return; }
+      const name = $("name").value.trim() || [firstName, lastName].filter(Boolean).join(" ") || email;
+      item = { id: current.item?.id ?? null, type: "identity", name, firstName, lastName, email, phone: $("id-phone").value.trim(),
+        address: $("id-address").value.trim(), city: $("id-city").value.trim(), region: $("id-region").value.trim(), postal: $("id-postal").value.trim(),
+        country: $("id-country").value.trim(), company: $("id-company").value.trim(), notes: $("notes").value, project: $("project").value.trim(), favorite: current.item?.favorite ?? false };
     } else {
       const urls = [];
       for (const input of urlInputs()) {
@@ -186,7 +250,9 @@ export function openLoginDialog({ client, item = null, kind = item?.type ?? "log
   current = { client, item, kind, revision, existing, onSaved, onDelete };
   const note = kind === "note";
   dialog.classList.toggle("note-mode", note);
-  $("editor-title").textContent = `${item ? "Edit" : "Add"} ${note ? "secure note" : "login"}`;
+  dialog.classList.toggle("card-mode", kind === "card");
+  dialog.classList.toggle("identity-mode", kind === "identity");
+  $("editor-title").textContent = `${item ? "Edit" : "Add"} ${{ note: "secure note", card: "card", identity: "ID" }[kind] ?? "login"}`;
   $("name").previousElementSibling.textContent = note ? "Title" : "Name";
   $("notes-label").textContent = note ? "Note" : "Notes";
   $("website").value = item?.urls?.[0] ?? prefill.website ?? "";
@@ -200,6 +266,12 @@ export function openLoginDialog({ client, item = null, kind = item?.type ?? "log
   $("project-list").replaceChildren(...projects.map(project => element("option", { value: project })));
   $("totp").value = item?.totp ?? "";
   $("notes").value = item?.notes ?? "";
+  if (kind === "card") {
+    $("cardholder").value = item?.cardholder ?? ""; $("card-number").value = item?.number ?? "";
+    $("card-month").value = String(item?.expiryMonth ?? ""); $("card-year").value = item?.expiryYear || ""; $("card-cvv").value = item?.cvv ?? "";
+  }
+  if (kind === "identity") for (const [fieldName, inputId] of [["firstName", "id-first"], ["lastName", "id-last"], ["email", "id-email"], ["phone", "id-phone"], ["address", "id-address"], ["city", "id-city"], ["region", "id-region"], ["postal", "id-postal"], ["country", "id-country"], ["company", "id-company"]])
+    $(inputId).value = item?.[fieldName] ?? "";
   $("notes-field").hidden = !note && !item?.notes; $("toggle-notes").hidden = note || !!item?.notes;
   $("totp-field").hidden = !item?.totp; $("toggle-totp").hidden = !!item?.totp;
   $("delete").hidden = !item;
@@ -208,5 +280,6 @@ export function openLoginDialog({ client, item = null, kind = item?.type ?? "log
   document.documentElement.classList.add("dialog-open");
   dialog.showModal();
   // Start where typing is needed.
-  (note ? $("name") : $("website").value ? (item ? $("name") : $("username")) : $("website")).focus();
+  const focusTarget = note ? $("name") : kind === "card" ? $("cardholder") : kind === "identity" ? $("id-first") : $("website").value ? (item ? $("name") : $("username")) : $("website");
+  focusTarget.focus();
 }

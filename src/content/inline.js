@@ -28,6 +28,8 @@
     if (input.type === "password") return keybit.findNew().some(form => form.fields.includes(input)) ? "new" : null;
     if (keybit.findOtp().some(form => form.fields.includes(input))) return "otp";
     if (keybit.findUsernameOnly().some(step => step.username === input)) return "username";
+    if (keybit.findPayment().some(form => [form.number, form.holder, form.csc, form.expiry, form.expMonth, form.expYear].includes(input))) return "card";
+    if (keybit.findIdentity().some(entry => [...entry.fields.values()].includes(input))) return "identity";
     return null;
   }
   const supported = input => modeFor(input) !== null;

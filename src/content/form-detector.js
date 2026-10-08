@@ -76,12 +76,47 @@
   // A 2FA code field, or four to eight one-character boxes in one container.
   function findOtp() {
     const inputs = /** @type {HTMLInputElement[]} */ ([...document.querySelectorAll('input[type="text" i], input[type="tel" i], input[type="number" i], input:not([type])')]).filter(usable);
-    const marked = inputs.filter(input => tokens(input).includes("one-time-code") || (OTP.test(describe(input)) && input.maxLength !== 1));
+    // "Security code" is how card forms label the CVV — a cc-* field is never a 2FA box.
+    const marked = inputs.filter(input => tokens(input).includes("one-time-code") ||
+      (!tokens(input).some(token => token.startsWith("cc-")) && !/cvv|cvc|\bcsc\b|card.?verif/i.test(describe(input)) && OTP.test(describe(input)) && input.maxLength !== 1));
     if (marked.length === 1) return [{ fields: marked }];
     const boxes = inputs.filter(input => input.maxLength === 1);
     const container = boxes[0]?.closest("form") ?? boxes[0]?.parentElement?.parentElement;
     if (boxes.length >= 4 && boxes.length <= 8 && boxes.every(box => container?.contains(box))) return [{ fields: boxes }];
     return [];
   }
-  globalThis.__keybit = { find, findNew, findUsernameOnly, findOtp, usable };
+  const fields = () => /** @type {(HTMLInputElement|HTMLSelectElement)[]} */ ([...document.querySelectorAll('input:not([type="hidden" i]):not([type="checkbox" i]):not([type="radio" i]):not([type="submit" i]):not([type="button" i]), select')].filter(usable));
+  // Payment card fields, keyed by autocomplete token with name/label heuristics as fallback.
+  function findPayment() {
+    const all = fields();
+    const pick = (autocompleteNames, pattern, types = []) => all.find(input =>
+      (input instanceof HTMLInputElement && (!types.length || types.includes(input.type))) &&
+      (tokens(input).some(token => autocompleteNames.includes(token)) || pattern.test(describe(input))));
+    const number = pick(["cc-number"], /card\s*number|card.?num|cc.?num|card.?no|pan/i, ["text", "tel", "number"]);
+    if (!number) return [];
+    const scope = number.form ?? number.closest("fieldset, section, div, body") ?? document;
+    const inScope = input => scope.contains(input);
+    const csc = all.find(input => inScope(input) && (tokens(input).includes("cc-csc") || /cvv|cvc|csc|card.?verif|security.?code/i.test(describe(input))));
+    const expMonth = all.find(input => inScope(input) && tokens(input).includes("cc-exp-month"));
+    const expYear = all.find(input => inScope(input) && tokens(input).includes("cc-exp-year"));
+    const expiry = all.find(input => inScope(input) && input !== expMonth && input !== expYear && (tokens(input).includes("cc-exp") || /expir|exp.?date|valid.?thru|mm\s*\/?\s*yy/i.test(describe(input))));
+    const holder = all.find(input => inScope(input) && (tokens(input).includes("cc-name") || /card.?holder|name.?on.?card|card.?name/i.test(describe(input))));
+    return [{ scope, number, holder, csc, expiry, expMonth, expYear }];
+  }
+  // Identity tokens → our field names. Only real address/sign-up forms (3+ mapped fields)
+  // get the dropdown — a lone email box is usually a login or a newsletter, not an address form.
+  const IDENTITY_MAP = { "name": "fullName", "given-name": "firstName", "additional-name": "middleName", "family-name": "lastName", "email": "email", "tel": "phone", "street-address": "address", "address-line1": "address", "address-line2": "address2", "address-level1": "region", "address-level2": "city", "postal-code": "postal", "country": "country", "country-name": "country", "organization": "company", "username": null, "bday": null };
+  function findIdentity() {
+    const forms = new Map();
+    for (const input of fields()) {
+      const token = tokens(input).find(value => value in IDENTITY_MAP);
+      if (!token) continue;
+      const scope = input.form ?? input.closest("fieldset, section, form") ?? document.body;
+      const entry = forms.get(scope) ?? { scope, fields: new Map() };
+      if (!entry.fields.has(token)) entry.fields.set(token, input);
+      forms.set(scope, entry);
+    }
+    return [...forms.values()].filter(entry => entry.fields.size >= 3);
+  }
+  globalThis.__keybit = { find, findNew, findUsernameOnly, findOtp, findPayment, findIdentity, IDENTITY_MAP, usable };
 })();

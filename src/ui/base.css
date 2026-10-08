@@ -152,6 +152,8 @@ input[role="switch"]:checked::after { transform: translateX(16px); }
 .more-fields { display: flex; gap: 18px; margin-top: 12px; }
 .modal.note-mode .login-only { display: none !important; }
 .modal.note-mode #notes { min-height: 180px; }
+.modal:not(.card-mode) .card-only, .modal:not(.identity-mode) .identity-only { display: none !important; }
+.modal.card-mode .login-only, .modal.identity-mode .login-only { display: none !important; }
 .extra-urls { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .extra-url { display: flex; align-items: center; gap: 4px; }
 #add-url { margin-top: 6px; font-size: 12px; }

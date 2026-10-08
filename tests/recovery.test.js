@@ -98,3 +98,21 @@ test("the recover-dialog chain: shares → import → unlock → new master pass
   assert.equal(vault.list(state.session).length, 1);
   assert.equal(vault.item(state.session, vault.list(state.session)[0].id).password, login.password);
 });
+
+test("the portable viewer file embeds only ciphertext and decrypts under the same password", async () => {
+  const { portableHtml } = await import("../src/vault/portable.js");
+  const vault = new Vault(memoryStorage());
+  let state = await vault.create(password);
+  await vault.saveItem(state.session, state.revision, { ...login, name: "odd</script><img>", password: "pw</body>" });
+  const envelope = await vault.export();
+  const html = portableHtml(envelope);
+  // Exactly one script close tag — vault text can never forge an early one.
+  assert.equal(html.split("</script>").length - 1, 1);
+  assert.match(html, /const ENVELOPE = \{/);
+  const json = html.slice(html.indexOf("const ENVELOPE = ") + 17, html.indexOf(";", html.indexOf("const ENVELOPE = ")));
+  const embedded = JSON.parse(json.replace(/\\u003c/g, "<"));
+  assert.equal(embedded.formatVersion, 1);
+  const { payload } = await decryptVault(embedded, password);
+  assert.equal(payload.items[0].password, "pw</body>", "the embedded vault decrypts verbatim");
+  await assert.rejects(decryptVault(embedded, "the wrong password"));
+});

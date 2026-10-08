@@ -43,3 +43,25 @@ test("the version constant matches the manifest", async () => {
   const { VERSION } = await import("../src/version.js");
   assert.equal(VERSION, JSON.parse(await readFile(new URL("../manifest.json", import.meta.url), "utf8")).version);
 });
+
+test("lookalike domains are caught: confusables, punycode, typos — but not legit variants", async () => {
+  const { lookalikeOf } = await import("../src/matching/lookalike.js");
+  const saved = ["paypal.com", "apple.com", "github.com", "amazon.com"];
+  // Digit and letter substitutions
+  assert.equal(lookalikeOf("paypa1.com", saved), "paypal.com");
+  assert.equal(lookalikeOf("githud.com", saved), "github.com"); // one-letter typo
+  assert.equal(lookalikeOf("pay-pal.com", saved), "paypal.com"); // hyphen squat
+  // Cyrillic homograph, both raw and in its punycode spelling (аррӏе.com = xn--80ak6aa92e)
+  assert.equal(lookalikeOf("\u0430\u0440\u0440\u04cf\u0435.com", saved), "apple.com");
+  assert.equal(lookalikeOf("xn--80ak6aa92e.com", saved), "apple.com");
+  // Subdomains of a lookalike domain still warn; the exact site never does.
+  assert.equal(lookalikeOf("login.paypa1.com", saved), "paypal.com");
+  assert.equal(lookalikeOf("www.paypal.com", saved), null);
+  assert.equal(lookalikeOf("paypal.com", saved), null);
+  // Legit differences are quiet: country TLDs and unrelated names.
+  assert.equal(lookalikeOf("amazon.de", saved), null);
+  assert.equal(lookalikeOf("amazon.co.uk", saved), null);
+  assert.equal(lookalikeOf("127.0.0.1", saved), null);
+  assert.equal(lookalikeOf("fixture.test", saved), null);
+  assert.equal(lookalikeOf("totallydifferent.io", saved), null);
+});

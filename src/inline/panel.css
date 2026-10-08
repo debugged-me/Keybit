@@ -75,6 +75,8 @@ footer { display: flex; flex-shrink: 0; align-items: center; justify-content: sp
 .code { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .code strong { font: 600 15px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .5px; color: var(--accent); }
 .code .remaining { color: var(--muted); font-size: 10.5px; }
+.phish-warning { display: flex; gap: 7px; align-items: flex-start; margin: 4px 6px 8px; padding: 8px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-text); font-size: 11.5px; line-height: 1.45; }
+.phish-warning svg { flex-shrink: 0; width: 15px; height: 15px; margin-top: 1px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Styled hover tooltip (common.js parks [title] into this popover, above any dialog). */

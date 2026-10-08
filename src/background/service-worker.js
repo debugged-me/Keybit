@@ -81,18 +81,22 @@ async function detect(tabId) {
     return { ...main.result, documentId: main.documentId };
   } catch { throw new Error("Cannot inspect this page. Open a regular HTTP or HTTPS website and reopen the extension."); }
 }
-// Fills the page's login form, the username step of a two-step sign-in, or (otp) its 2FA code field.
+// Fills the page's login form, the username step of a two-step sign-in, a card or identity
+// form, or (otp) its 2FA code field. Cards and IDs fill anywhere — they are not site-bound.
 async function fill(message) {
   const item = vault.item(message.session, message.id);
-  if (item.type !== "login" || !matchesCredential(item, message.url)) throw new Error("This login does not match the current website.");
+  if (item.type === "login" && !matchesCredential(item, message.url)) throw new Error("This login does not match the current website.");
+  if (!["login", "card", "identity"].includes(item.type)) throw new Error("This item can't be filled.");
   const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (active?.id !== message.tabId) throw new Error("The active tab changed. Reopen the extension.");
   const page = await detect(message.tabId);
   vault.require(message.session);
-  if (page.origin !== parseWebsite(message.url).origin || !matchesCredential(item, page.url)) throw new Error("The page changed. Reopen the extension.");
-  if (message.expectedDocumentId && page.documentId !== message.expectedDocumentId) throw new Error("The page changed. Focus the login field again.");
+  if (page.origin !== parseWebsite(message.url).origin || (item.type === "login" && !matchesCredential(item, page.url))) throw new Error("The page changed. Reopen the extension.");
+  if (message.expectedDocumentId && page.documentId !== message.expectedDocumentId) throw new Error("The page changed. Focus the field again.");
   let call;
-  if (message.otp) {
+  if (item.type === "card") call = ["fillCard", { number: item.number, cardholder: item.cardholder, expiryMonth: item.expiryMonth, expiryYear: item.expiryYear, cvv: item.cvv }];
+  else if (item.type === "identity") call = ["fillIdentity", { firstName: item.firstName, lastName: item.lastName, email: item.email, phone: item.phone, address: item.address, address2: "", city: item.city, region: item.region, postal: item.postal, country: item.country, company: item.company }];
+  else if (message.otp) {
     if (!item.totp) throw new Error("This login has no 2FA code.");
     if (page.otpForms !== 1) throw new Error("There must be one visible 2FA code field to fill.");
     call = ["fillOtp", (await totpCode(item.totp)).code];
@@ -102,7 +106,7 @@ async function fill(message) {
   let results;
   try {
     results = await chrome.scripting.executeScript({ target: { tabId: message.tabId, documentIds: [page.documentId] }, world: "ISOLATED",
-      func: (origin, method, ...args) => ["fill", "fillUsername", "fillOtp"].includes(method) ? globalThis.__keybit[method](origin, ...args) : null,
+      func: (origin, method, ...args) => ["fill", "fillUsername", "fillOtp", "fillCard", "fillIdentity"].includes(method) ? globalThis.__keybit[method](origin, ...args) : null,
       args: [page.origin, ...call] });
   } catch { throw new Error("The page changed before filling. Reopen the extension and try again."); }
   const result = results[0]?.result;

@@ -36,8 +36,8 @@ function message(title, text, action) {
   return box;
 }
 // The visible text is the button's accessible name; a hidden prefix says what choosing it does.
-function fillButton(item, action, secondary, extra = null) {
-  const button = element("button", { type: "button", className: "account" }, element("span", { className: "visually-hidden" }, `${action} `), siteTile(item.scope || item.name, "", item.urls?.[0]),
+function fillButton(item, action, secondary, extra = null, tile = null) {
+  const button = element("button", { type: "button", className: "account" }, element("span", { className: "visually-hidden" }, `${action} `), tile ?? siteTile(item.scope || item.name, "", item.urls?.[0]),
     element("span", { className: "details" }, element("span", { className: "primary" }, item.username || item.name), element("span", { className: "secondary" }, secondary)), extra);
   button.addEventListener("click", async () => {
     button.disabled = true;
@@ -97,9 +97,18 @@ async function render(result) {
     if (Number.isFinite(soonest)) codeTimer = setTimeout(() => void refresh(), soonest * 1000 + 250);
     return;
   }
+  // Cards and identities fill anywhere — they carry no site binding.
+  if (result.mode === "card" || result.mode === "identity") {
+    accounts.replaceChildren(...result.items.map(item => {
+      const secondary = item.type === "card" ? `${item.brand} ···· ${item.last4}${item.cardholder ? ` · ${item.cardholder}` : ""}` : [item.fullName, item.city, item.country].filter(Boolean).join(" · ");
+      return fillButton(item, `Fill this ${item.type}`, secondary, null, element("span", { className: "tile tone-key", "aria-hidden": "true" }, icon(item.type === "card" ? "card" : "id")));
+    }));
+    if (!result.items.length) accounts.append(message("Nothing to fill", `No ${result.mode === "card" ? "cards" : "identities"} in the vault yet.`));
+    return;
+  }
   const needle = filter.trim().toLocaleLowerCase();
   const shown = needle ? result.items.filter(item => `${item.username} ${item.name}`.toLocaleLowerCase().includes(needle)) : result.items;
-  accounts.replaceChildren(...shown.map(accountButton));
+  accounts.replaceChildren(...(result.warning ? [element("div", { className: "phish-warning", role: "alert" }, icon("alert"), element("span", {}, result.warning))] : []), ...shown.map(accountButton));
   if (!result.items.length) accounts.append(message("No saved logins here", "Sign in normally and KeyBit will offer to save it."));
   else if (!shown.length) accounts.append(message("No match", `No saved login matches “${filter.trim()}”.`));
 }

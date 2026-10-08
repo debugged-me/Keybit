@@ -1,4 +1,5 @@
 import { parseWebsite, scopeLabel, specificity } from "../matching/url-matcher.js";
+import { lookalikeOf } from "../matching/lookalike.js";
 import { totpCode } from "../vault/totp.js";
 
 export const SITE_SCRIPTS = ["src/content/form-detector.js", "src/content/autofill.js", "src/content/inline.js", "src/content/save.js"];
@@ -7,7 +8,7 @@ export const sitePattern = origin => {
   return `${url.protocol}//${url.hostname}/*`;
 };
 const MAX_DISABLED = 1000;
-const MODES = ["login", "username", "new", "otp"];
+const MODES = ["login", "username", "new", "otp", "card", "identity"];
 // KeyBit runs on every HTTP/HTTPS site unless the user turns it off for that exact origin.
 export class Suggestions {
   disabled = [];
@@ -69,10 +70,14 @@ export class Suggestions {
     if (parseWebsite(tab.url).origin !== origin) return { enabled: false };
     mode = MODES.includes(mode) ? mode : "login";
     // Username-only steps and 2FA fields also appear on pages that are not sign-ins; offer KeyBit there only
-    // when it has something to fill.
+    // when it has something to fill. Card and identity dropdowns likewise only open with matching items.
     if (mode === "username" || mode === "otp") {
       const state = await this.vault.status();
       if (!state.unlocked || !this.ranked(state.session, url, tab.id, origin).some(item => mode !== "otp" || item.hasTotp)) return { enabled: false };
+    }
+    if (mode === "card" || mode === "identity") {
+      const state = await this.vault.status();
+      if (!state.unlocked || !this.vault.list(state.session).some(item => item.type === mode)) return { enabled: false };
     }
     for (const [key, value] of this.panels) if (value.expires < Date.now() || value.tabId === tab.id) this.panels.delete(key);
     if (this.panels.size > 100) this.panels.clear();
@@ -96,11 +101,21 @@ export class Suggestions {
       case "PANEL_STATE": {
         const state = await this.vault.status();
         let items = state.unlocked && context.mode !== "new" ? this.ranked(state.session, context.url, context.tabId, context.origin) : [];
+        // Card and identity fields aren't site-bound: any saved card or ID is offered, most recently used first.
+        if (context.mode === "card" || context.mode === "identity") {
+          items = state.unlocked ? (this.usage ? this.usage.annotate(this.vault.list(state.session)) : this.vault.list(state.session))
+            .filter(item => item.type === context.mode).sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0)) : [];
+        }
         if (context.mode === "otp") {
           // Codes are short-lived; secrets never leave the worker.
           items = await Promise.all(items.filter(item => item.hasTotp).map(async item => ({ ...item, ...(await totpCode(this.vault.item(state.session, item.id).totp)) })));
         }
-        return { state, origin: context.origin, site: scopeLabel(context.url), mode: context.mode, items };
+        // Phishing guard: the page's domain is compared to every saved domain — folded for
+        // confusable glyphs and punycode — so a lookalike site gets a warning banner even
+        // when it correctly matches no login.
+        const lookalike = state.unlocked ? lookalikeOf(parseWebsite(context.origin).hostname, this.vault.hosts(state.session)) : null;
+        const warning = lookalike ? `This isn't ${lookalike} — the address only looks similar. Check the URL before filling anything.` : null;
+        return { state, origin: context.origin, site: scopeLabel(context.url), mode: context.mode, items, warning };
       }
       case "PANEL_FILL": {
         if (context.mode === "new") throw new Error("Unsupported suggestion action.");

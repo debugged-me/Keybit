@@ -1,8 +1,18 @@
 (() => {
   const detector = globalThis.__keybit;
   function setValue(input, value) {
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
-    setter.call(input, value);
+    if (input instanceof HTMLSelectElement) {
+      // `value` may be a list of spellings to try, e.g. a month as "04" or "4".
+      const wanted = [].concat(value).map(entry => String(entry).toLowerCase());
+      const option = [...input.options].find(opt => wanted.includes(opt.value.toLowerCase()) || wanted.includes(opt.textContent.trim().toLowerCase()))
+        ?? [...input.options].find(opt => wanted.some(w => w.length > 2 && (opt.value.toLowerCase().includes(w) || opt.textContent.trim().toLowerCase().includes(w))));
+      if (!option) return;
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set;
+      setter.call(input, option.value);
+    } else {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+      setter.call(input, value);
+    }
     input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
     input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
   }
@@ -38,6 +48,33 @@
     const forms = detector.findNew();
     if (forms.length !== 1) return { ok: false, error: "There must be one visible sign-up or change-password form." };
     for (const field of forms[0].fields) setValue(field, password);
+    return { ok: true };
+  };
+  detector.fillCard = (origin, card) => {
+    if (window !== window.top || location.origin !== origin) return { ok: false, error: "The page changed. Click the card field again." };
+    const forms = detector.findPayment();
+    if (forms.length !== 1) return { ok: false, error: "There must be one visible card form to fill." };
+    const f = forms[0];
+    setValue(f.number, card.number);
+    if (f.holder && card.cardholder) setValue(f.holder, card.cardholder);
+    if (f.csc && card.cvv) setValue(f.csc, card.cvv);
+    const month = String(card.expiryMonth).padStart(2, "0");
+    const year = String(card.expiryYear);
+    if (f.expMonth) setValue(f.expMonth, [month, String(card.expiryMonth)]);
+    if (f.expYear) setValue(f.expYear, [year, year.slice(-2)]);
+    if (f.expiry) setValue(f.expiry, Number(f.expiry.maxLength) > 0 && Number(f.expiry.maxLength) <= 5 || /yy([^y]|$)/i.test(String(f.expiry.placeholder)) ? `${month}/${year.slice(-2)}` : `${month}/${year}`);
+    return { ok: true };
+  };
+  detector.fillIdentity = (origin, person) => {
+    if (window !== window.top || location.origin !== origin) return { ok: false, error: "The page changed. Click the address field again." };
+    const forms = detector.findIdentity();
+    if (forms.length !== 1) return { ok: false, error: "There must be one visible address or sign-up form to fill." };
+    const values = { ...person, fullName: person.fullName || [person.firstName, person.lastName].filter(Boolean).join(" ") };
+    for (const [token, input] of forms[0].fields) {
+      const key = detector.IDENTITY_MAP[token];
+      // Mapped fields fill when empty; selects always update so a preset "Country" placeholder is replaced.
+      if (key && values[key] && (input instanceof HTMLSelectElement || !input.value)) setValue(input, values[key]);
+    }
     return { ok: true };
   };
 })();

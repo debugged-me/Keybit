@@ -28,7 +28,9 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - The dropdown appears when you click a login field on any site, including a field that already has focus. It follows the field when the page scrolls.
 - **Typing narrows the list**, and the account you used last comes first.
 - **Two-step sign-ins:** on a username-only page, KeyBit fills the username. On the password page that follows, the same account is listed first ("Continue").
-- **2FA codes:** add a login's authenticator setup key. KeyBit then shows the 6-digit code in the login's details and in the dropdown on code fields, including six one-digit boxes.
+- **2FA codes:** add a login's authenticator setup key — type it, paste the `otpauth://` link, or **Scan a QR image** (a screenshot of the site's setup QR, decoded entirely on-device). KeyBit then shows the 6-digit code in the login's details and in the dropdown on code fields, including six one-digit boxes.
+- **Cards and IDs:** save a payment card or an ID (name, address, phone) in **Cards & IDs**. Focusing a card field or an address form shows the same dropdown — one click fills the number, expiry, CVV, or the whole address. Cards and IDs aren't site-bound; a masked number and cardholder name are all that ever leave the vault until you fill.
+- **Lookalike-site warnings:** if a page's address only *resembles* a saved site — swapped letters, Cyrillic lookalikes, punycode, a one-letter typo — the dropdown leads with a warning instead of filling. Saved credentials never autofill on a different site; this adds the "wait, this isn't right" moment for the near-misses.
 - **Sign-up and change-password fields** get a generated password in both fields.
 - To turn KeyBit off for one site, use the switch in the toolbar popup.
 
@@ -56,7 +58,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **Copied passwords and 2FA codes clear themselves from the clipboard after 30 seconds**, if you allow the optional clipboard-read permission. The timer runs in the background, so it works even if you close the popup right after copying — and it only clears when the clipboard still holds what KeyBit copied, so it never erases something else you copied since.
 
 **One app window**
-- **Sidebar:** All logins, Favorites, Secure notes, Passkeys, Recently deleted, Projects, Weak & reused, Generator, Import, Backup, and Settings. **Sites turned off** appears only while a site is off. A **vault health** card at the bottom shows how many passwords are strong; click it to open Weak & reused.
+- **Sidebar:** All logins, Favorites, Secure notes, Cards & IDs, Passkeys, Recently deleted, Projects, Weak & reused, Generator, Import, Backup, and Settings. **Sites turned off** appears only while a site is off. A **vault health** card at the bottom shows how many passwords are strong; click it to open Weak & reused.
 - **Keyboard:** ⌘K (Ctrl+K on Windows) jumps to search; / does the same when you're not typing.
 - **Adding and editing happen in a dialog**, in the app and in the popup:
   - typing `example.com` is enough; KeyBit adds the http/https part;
@@ -87,6 +89,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
   - **Automatic backup** writes a fresh encrypted copy to a folder you choose (for example iCloud Drive or Dropbox) after every change.
   - **Restore** can **merge** (adds logins, newer copies win, nothing deleted) or **replace** the vault.
   - A reminder appears when there's no backup from the last 30 days.
+- **Portable vault** (Backup → Portable vault): a `.kvault` backup as a single HTML file that opens in any browser — no KeyBit install needed. It contains only the encrypted data; type the master password and it decrypts locally, right in the file. For a lost laptop or an emergency, this is the vault that survives everything.
 - **Plain-text CSV export** for moving to another password manager. It is not encrypted, so KeyBit asks before exporting — delete the file when the move is done.
 - **Share one item** from its details with **Share…**: a `.kvault` file encrypted with a passphrase you choose for it, with no server involved. Send it any way you like — AirDrop, a message, a USB stick. The recipient merges it into their KeyBit vault like a backup. Anyone holding both the file and the passphrase can read the item; choose a different passphrase than your master password.
 - **Recovery kit** (Settings → Recovery kit) splits vault recovery across people you trust — no account, no escrow service:
@@ -226,8 +229,8 @@ KEYBIT_BROWSER="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" np
 
 All browser tests use isolated temporary profiles, never yours. On October 8, 2026, version 1.3 passed:
 
-- **Unit tests (31):** RFC 6238 2FA vectors, imports from five managers, duplicate handling, notes/projects/favourites, master password change, merge, Touch ID sealing, passphrases, WebAuthn attestation/assertion signing, Shamir share split/combine and the full recovery-kit chain, and 20,000-login scale.
-- **Browser checks (51, on both Helium 0.18.3.1 and Google Chrome 154):**
+- **Unit tests (37):** RFC 6238 2FA vectors, imports from five managers, duplicate handling, notes/projects/favourites, master password change, merge, Touch ID sealing, passphrases, WebAuthn attestation/assertion signing, Shamir share split/combine and the full recovery-kit chain, lookalike-domain detection (confusables, punycode, typos), portable-viewer encryption, card/identity schema and summary safety, and 20,000-login scale.
+- **Browser checks (on both Helium 0.18.3.1 and Google Chrome 154):**
   - the earlier suite;
   - welcome and import;
   - projects with live 2FA codes;
@@ -236,6 +239,7 @@ All browser tests use isolated temporary profiles, never yours. On October 8, 20
   - merge restore;
   - creating a passkey and signing in with a real assertion;
   - a recovery kit end to end: shares created, the vault rebuilt from any two, the old master password dead, and a single share refused;
+  - a saved card filling number, expiry selects and CVV on a checkout form, and a saved ID filling an address form;
   - script-button and Enter sign-ins, two-step sign-ins, and 2FA fills (one field and six boxes);
   - dropdown filtering and recently-used order;
   - popup keyboard use;

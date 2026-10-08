@@ -2,6 +2,7 @@ import { VaultClient } from "../ui/client.js";
 import { renderAuth } from "../ui/auth.js";
 import { element, all, announce, clearFields, siteTile, icon, iconButton, copyText, copySecret, showReloadBanner, relativeTime, revealButton, passwordField } from "../ui/common.js";
 import { combineShares, recoveryPassphrase } from "../vault/shamir.js";
+import { portableHtml } from "../vault/portable.js";
 import { scopeLabel } from "../matching/url-matcher.js";
 import { MAX_BACKUP_BYTES } from "../crypto/encoding.js";
 import { totpCode } from "../vault/totp.js";
@@ -13,7 +14,7 @@ import { biometricAvailable, biometricName, createBiometric } from "../ui/biomet
 
 /** @type {(selector: string) => any} Page elements are looked up by known IDs. */
 const $ = selector => document.querySelector(selector);
-const LIST_VIEWS = ["logins", "favorites", "notes", "passkeys", "trash"];
+const LIST_VIEWS = ["logins", "favorites", "notes", "passkeys", "cards", "trash"];
 const VIEWS = [...LIST_VIEWS, "health", "generator", "import", "backup", "settings", "sites"];
 const LOCK_LABELS = { 0: "Never", 1: "1 minute", 5: "5 minutes", 10: "10 minutes", 15: "15 minutes", 30: "30 minutes" };
 const ENV_ORDER = ["production", "staging", "development", "local", "other"];
@@ -67,6 +68,7 @@ function layout() {
   $("#back-to-unlock").hidden = unlocked;
   $("#merge-backup").hidden = !unlocked;
   $("#csv-export-card").hidden = !unlocked;
+  $("#portable-card").hidden = !unlocked;
   $("#welcome").hidden = !(location.hash === "#welcome" || (client.state.ready && !client.state.exists));
   if (restoring && !unlocked) show("backup", false);
 }
@@ -97,12 +99,19 @@ function row(item, onClick) {
   const flags = health[item.id] ?? {};
   const note = item.type === "note";
   const passkey = item.type === "passkey";
+  const card = item.type === "card";
+  const identity = item.type === "identity";
   const secondary = item.deletedAt ? `Deleted ${relativeTime(Date.parse(item.deletedAt))}` :
     note ? ["Secure note", item.project].filter(Boolean).join(" · ") :
-    passkey ? `Passkey · ${item.rpId}` : `${item.username || "No username"} · ${item.scope}`;
+    passkey ? `Passkey · ${item.rpId}` :
+    card ? `${item.brand} ···· ${item.last4}` :
+    identity ? [item.fullName, item.city, item.country].filter(Boolean).join(" · ") || "Identity" :
+    `${item.username || "No username"} · ${item.scope}`;
   const button = element("button", { type: "button", className: "item-row login-item", "data-id": item.id, "aria-current": String(item.id === selectedId) },
     note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) :
-    passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) : siteTile(item.scope, "", item.urls?.[0]),
+    passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) :
+    card ? element("span", { className: "tile tone-4", "aria-hidden": "true" }, icon("card")) :
+    identity ? element("span", { className: "tile tone-5", "aria-hidden": "true" }, icon("id")) : siteTile(item.scope, "", item.urls?.[0]),
     element("span", { className: "details" }, element("span", { className: "primary" }, item.favorite ? "★ " : "", item.name), element("span", { className: "secondary" }, secondary)),
     element("span", { className: "row-badges" }, item.environment === "production" ? badge("Production", "production") : null,
       passkey ? badge("Passkey") : null, item.hasTotp ? badge("2FA", "totp") : null, flags.reused ? badge("Reused", "warn") : null, flags.weak ? badge("Weak", "weak") : null));
@@ -119,6 +128,7 @@ function inView(item) {
   if (view === "favorites") return item.favorite;
   if (view === "notes") return item.type === "note";
   if (view === "passkeys") return item.type === "passkey";
+  if (view === "cards") return item.type === "card" || item.type === "identity";
   if (view.startsWith("project:")) return item.project === view.slice(8);
   return item.type === "login";
 }
@@ -126,11 +136,13 @@ function renderList() {
   if (!isList(view)) return;
   const query = $("#search").value;
   const project = view.startsWith("project:") ? view.slice(8) : null;
-  const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes", passkeys: "Passkeys", trash: "Recently deleted" };
+  const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes", passkeys: "Passkeys", cards: "Cards & IDs", trash: "Recently deleted" };
   $("#list-title").textContent = query ? `Results for “${query}”` : project ?? titles[view];
-  $("#add-label").textContent = view === "notes" ? "Add note" : "Add login";
+  $("#add-label").textContent = view === "notes" ? "Add note" : view === "cards" ? "Add card" : "Add login";
   // Passkeys are created by websites, not by hand; there is nothing to add in that view.
+  // The cards view adds either type, so it gets a second button.
   $("#add-login").hidden = view === "passkeys";
+  $("#add-id").hidden = view !== "cards";
   // Trash always lists the newest deletion first; the sort menu is not meaningful there.
   $("#sort").hidden = view === "trash";
   $("#empty-trash").hidden = view !== "trash" || !trash.length;
@@ -150,6 +162,7 @@ function renderList() {
   else $("#items").append(element("p", { className: "empty" }, view === "favorites" ? "Star a login or note to keep it here."
     : view === "notes" ? "Keep licence keys, server details, or Wi-Fi passwords here, encrypted."
     : view === "passkeys" ? "No passkeys yet. When a site offers to create one, KeyBit asks to keep it here."
+    : view === "cards" ? "Save a payment card or an ID (name, address, phone) and KeyBit fills checkout and sign-up forms."
     : view === "trash" ? "Nothing deleted. Items you delete are kept here for 30 days." : "Nothing in this project yet."));
 }
 function gettingStarted() {
@@ -184,6 +197,7 @@ async function refreshList() {
     $("#count-logins").textContent = String(all.filter(item => item.type === "login").length);
     $("#count-favorites").textContent = String(all.filter(item => item.favorite).length || "");
     $("#count-notes").textContent = String(all.filter(item => item.type === "note").length || "");
+    $("#count-cards").textContent = String(all.filter(item => item.type === "card" || item.type === "identity").length || "");
     $("#count-health").textContent = String(flagged.length); $("#count-health").hidden = !flagged.length;
     $("#health-list").replaceChildren(...flagged.map(item => row(item, () => { show("logins"); void select(item.id); })));
     if (!flagged.length) $("#health-list").append(element("p", { className: "empty" }, "No weak or reused passwords. Nice."));
@@ -251,18 +265,18 @@ async function select(id) {
 }
 async function copy(value, what) {
   try {
-    const secret = what === "password" || what === "2FA code";
+    const secret = ["password", "2FA code", "card number", "CVV"].includes(what);
     const armed = secret ? await copySecret(value) : (await copyText(value), false);
     const label = `${what[0].toUpperCase()}${what.slice(1)} copied.`;
     announce(!secret ? label : armed ? `${label} Clears in 30 seconds.` : `${label} Clipboard is not cleared automatically.`);
   } catch (error) { announce(error.message, true); }
 }
-function secretValue(password) {
+function secretValue(password, what = "password") {
   const value = element("span", { className: "secret masked" }, "••••••••••••");
-  const reveal = iconButton("eye", "Show password", { "aria-pressed": "false" });
+  const reveal = iconButton("eye", `Show ${what}`, { "aria-pressed": "false" });
   reveal.addEventListener("click", () => {
     const shown = reveal.getAttribute("aria-pressed") !== "true";
-    reveal.setAttribute("aria-pressed", String(shown)); reveal.title = shown ? "Hide password" : "Show password"; reveal.setAttribute("aria-label", reveal.title);
+    reveal.setAttribute("aria-pressed", String(shown)); reveal.title = shown ? `Hide ${what}` : `Show ${what}`; reveal.setAttribute("aria-label", reveal.title);
     value.textContent = shown ? password : "••••••••••••"; value.classList.toggle("masked", !shown);
   });
   return [value, reveal];
@@ -274,8 +288,10 @@ function renderDetail() {
   const { item } = detail;
   const note = item.type === "note";
   const passkey = item.type === "passkey";
+  const card = item.type === "card";
+  const identity = item.type === "identity";
   const flags = health[item.id] ?? {};
-  const scope = note || passkey ? "" : scopeLabel(item.urls[0]);
+  const scope = note || passkey || card || identity ? "" : scopeLabel(item.urls[0]);
   const back = iconButton("close", "Close", { className: "icon-button back-button" });
   back.addEventListener("click", clearDetail);
   const star = iconButton("star", item.favorite ? "Remove from favorites" : "Add to favorites", { className: `icon-button star${item.favorite ? " on" : ""}`, "aria-pressed": String(item.favorite) });
@@ -287,6 +303,19 @@ function renderDetail() {
     fields.push(fieldBlock("Account", element("span", {}, item.userName), copyButton(item.userName, "username")));
     fields.push(fieldBlock("Last used", element("span", {}, item.lastUsedAt ? `${relativeTime(Date.parse(item.lastUsedAt))} · ${item.signCount} sign-in${item.signCount === 1 ? "" : "s"}` : "Not used yet")));
     fields.push(fieldBlock("Created", element("span", {}, new Date(item.createdAt).toLocaleString())));
+    if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes)));
+  }
+  else if (card) {
+    if (item.cardholder) fields.push(fieldBlock("Name on card", element("span", {}, item.cardholder), copyButton(item.cardholder, "name")));
+    fields.push(fieldBlock("Number", ...secretValue(item.number, "card number"), copyButton(item.number, "card number")));
+    fields.push(fieldBlock("Expiry", element("span", {}, `${String(item.expiryMonth).padStart(2, "0")}/${item.expiryYear}`)));
+    if (item.cvv) fields.push(fieldBlock("Security code", ...secretValue(item.cvv, "CVV"), copyButton(item.cvv, "CVV")));
+    if (item.brand) fields.push(fieldBlock("Brand", element("span", {}, item.brand)));
+    if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes)));
+  }
+  else if (identity) {
+    const pairs = [["Name", [item.firstName, item.lastName].filter(Boolean).join(" ")], ["Email", item.email], ["Phone", item.phone], ["Address", [item.address, [item.city, item.region, item.postal].filter(Boolean).join(", "), item.country].filter(Boolean).join("\n")], ["Company", item.company]];
+    for (const [label, value] of pairs) if (value) fields.push(fieldBlock(label, element("span", { className: "notes" }, value), copyButton(value, label.toLowerCase())));
     if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes)));
   }
   else {
@@ -355,8 +384,10 @@ function renderDetail() {
   }
   $("#detail-view").replaceChildren(...[
     element("div", { className: "detail-header" }, note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) :
-      passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) : siteTile(scope, "", item.urls?.[0]),
-      element("h3", {}, item.name, element("span", { className: "site" }, note ? "Secure note" : passkey ? `Passkey · ${item.rpId}` : scope,
+      passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) :
+      card ? element("span", { className: "tile tone-4", "aria-hidden": "true" }, icon("card")) :
+      identity ? element("span", { className: "tile tone-5", "aria-hidden": "true" }, icon("id")) : siteTile(scope, "", item.urls?.[0]),
+      element("h3", {}, item.name, element("span", { className: "site" }, note ? "Secure note" : passkey ? `Passkey · ${item.rpId}` : card ? `${item.brand} ···· ${item.last4}` : identity ? "Identity" : scope,
         !note && item.environment !== "other" ? badge(item.environment, item.environment === "production" ? "production" : "") : null)), star, back),
     ...warnings, ...fields, history,
     element("div", { className: "detail-actions" }, ...actions, element("span", { className: "meta" }, meta))
@@ -379,7 +410,7 @@ async function restorePassword(password) {
     await select(detail.item.id);
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
-const kindWord = type => ({ note: "note", passkey: "passkey" }[type] ?? "login");
+const kindWord = type => ({ note: "note", passkey: "passkey", card: "card", identity: "identity" }[type] ?? "login");
 async function deleteItem(id) {
   if (!confirm(`Delete this ${kindWord(detail?.item.type)}? It is kept in Recently deleted for 30 days.`)) return;
   try {
@@ -393,7 +424,7 @@ async function restoreItem(id) {
     const state = await client.request("RESTORE", { id, revision: detail?.revision ?? client.state.revision });
     clearDetail(); client.update(state); announce("Restored.");
     await refreshList();
-    if (["note", "login", "passkey"].includes(kind)) { show({ note: "notes", passkey: "passkeys" }[kind] ?? "logins"); await select(id); }
+    if (["note", "login", "passkey", "card", "identity"].includes(kind)) { show({ note: "notes", passkey: "passkeys", card: "cards", identity: "cards" }[kind] ?? "logins"); await select(id); }
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
 async function purgeItem(id) {
@@ -413,7 +444,7 @@ $("#empty-trash").addEventListener("click", async () => {
 });
 
 // Add and edit happen in a modal dialog (ui/login-form.js).
-function openAdd(kind = view === "notes" ? "note" : "login") {
+function openAdd(kind = view === "notes" ? "note" : view === "cards" ? "card" : "login") {
   const project = view.startsWith("project:") ? view.slice(8) : "";
   openLoginDialog({ client, kind, revision: client.state.revision, existing: items, projects, prefill: { project }, onSaved: afterSave });
 }
@@ -428,6 +459,7 @@ async function afterSave(state, id) {
 }
 async function afterDelete(state) { clearDetail(); client.update(state); announce("Deleted."); }
 $("#add-login").addEventListener("click", () => openAdd());
+$("#add-id").addEventListener("click", () => openAdd("identity"));
 
 // Encrypted share: one item, protected by its own passphrase, merged by the recipient like a backup.
 // Eye toggles for every passphrase/password field in static markup.
@@ -674,6 +706,14 @@ $("#export-csv").addEventListener("click", async () => {
     document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 30000);
     announce("CSV exported. Delete the file when you're done — it shows your passwords.");
+  } catch (error) { announce(error.message, true); }
+});
+$("#export-portable").addEventListener("click", async () => {
+  if (!confirm("Export a portable vault? The HTML file opens your vault in any browser with the master password — keep it like a backup.")) return;
+  try {
+    const data = await client.request("EXPORT");
+    downloadText(`keybit-vault-${new Date().toLocaleDateString("en-CA")}.html`, portableHtml(data));
+    announce("Portable vault exported. It opens in any browser — guarded by the same master password.");
   } catch (error) { announce(error.message, true); }
 });
 $("#banner-export").addEventListener("click", () => void exportBackup());

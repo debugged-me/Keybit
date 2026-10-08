@@ -33,6 +33,8 @@ try {
     { name: 'Fixture', urls: [url], username: 'test-user@example.test', password: 'Fixture-secret-1!xyz', notes: '', environment: 'production', project: 'SRMS', totp: 'JBSWY3DPEHPK3PXP' },
     { name: 'Weak', urls: ['https://weak.example.test'], username: 'weak', password: 'admin123', notes: '', environment: 'other' },
     { type: 'note', name: 'Server keys', notes: 'ssh', project: 'SRMS' },
+    { type: 'card', name: 'Test Visa', cardholder: 'Ada Lovelace', number: '4242424242424242', expiryMonth: '4', expiryYear: '2029', cvv: '123' },
+    { type: 'identity', name: 'Ada Home', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.test', address: '12 Analytical Way', city: 'London', country: 'United Kingdom' },
     { type: 'passkey', name: 'Alice Fixture', rpId: new URL(url).hostname, credentialId: 'a2V5Yml0LWFsbHktdGVzdA',
       userName: 'alice@fixture.test', userHandle: 'YWxpY2U', privateKey: 'fixture-pkcs8-bytes', signCount: 3, lastUsedAt: new Date().toISOString() }]) {
     state = (await evaluate(app.session, `chrome.runtime.sendMessage(${JSON.stringify({ type: 'SAVE', session: state.session, revision: state.revision, item })})`)).data;
@@ -45,7 +47,7 @@ try {
   await audit(app.session, 'All logins + details');
   // The detail dialog makes the page inert; close it so the sidebar clicks below reach.
   await evaluate(app.session, 'document.querySelector("#detail").close()');
-  for (const view of ['health', 'generator', 'import', 'backup', 'settings', 'project:SRMS', 'notes', 'passkeys']) {
+  for (const view of ['health', 'generator', 'import', 'backup', 'settings', 'project:SRMS', 'notes', 'cards', 'passkeys']) {
     await evaluate(app.session, `document.querySelector('[data-view="${view}"]').click()`);
     await delay(300);
     await audit(app.session, `View: ${view}`);
@@ -54,6 +56,19 @@ try {
   await waitFor(app.session, 'document.querySelector("#detail").open');
   await audit(app.session, 'Passkey details');
   await evaluate(app.session, 'document.querySelector("#detail").close()');
+  // Card detail, and the card + ID editor dialogs.
+  await evaluate(app.session, `document.querySelector('[data-view="cards"]').click()`);
+  await waitFor(app.session, 'document.querySelectorAll("#items .item-row").length === 2');
+  await evaluate(app.session, '[...document.querySelectorAll("#items .item-row")].find(r => r.textContent.includes("Test Visa")).click()');
+  await waitFor(app.session, 'document.querySelector("#detail").open');
+  await audit(app.session, 'Card details');
+  await evaluate(app.session, 'document.querySelector("#detail").close(); document.querySelector("#add-login").click()');
+  await waitFor(app.session, 'document.querySelector("#login-dialog").open');
+  await audit(app.session, 'Add card dialog');
+  await evaluate(app.session, 'document.querySelector("#login-dialog").close(); document.querySelector("#add-id").click()');
+  await waitFor(app.session, 'document.querySelector("#login-dialog").open');
+  await audit(app.session, 'Add ID dialog');
+  await evaluate(app.session, 'document.querySelector("#login-dialog").close()');
   await evaluate(app.session, `document.querySelector('[data-view="logins"]').click()`);
   await waitFor(app.session, 'document.querySelectorAll("#items .login-item").length === 2');
   await evaluate(app.session, 'document.querySelector("#items .login-item").click()');

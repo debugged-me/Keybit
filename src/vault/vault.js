@@ -94,18 +94,29 @@ export class Vault {
     catch { raw.fill(0); throw new Error("Incorrect master password."); }
     return raw;
   }
+  // Every distinct site hostname in the vault — used to spot lookalike pages before filling.
+  hosts(session) {
+    const hosts = new Set();
+    for (const item of this.list(session)) for (const url of item.urls ?? []) {
+      try { hosts.add(new URL(url).hostname); } catch { /* A saved address that no longer parses is ignored. */ }
+    }
+    return [...hosts];
+  }
   list(session, query = "", url = null) {
     this.require(session);
     if (typeof query !== "string" || query.length > 200) throw new Error("Search is too long.");
     const needle = query.toLocaleLowerCase();
     const fits = url ? matcherFor(url) : null;
     const items = this.#data.items.filter(item => !item.deletedAt && (!fits || fits(item)) &&
-      (!needle || [item.name, item.username, item.project, item.rpId ?? "", ...item.urls].some(value => value.toLocaleLowerCase().includes(needle))));
+      (!needle || [item.name, item.username, item.project, item.rpId ?? "", item.cardholder ?? "", item.firstName ?? "", item.lastName ?? "", item.email ?? "", item.number?.slice(-4) ?? "", ...item.urls].some(value => value.toLocaleLowerCase().includes(needle))));
     // On a page, a project-folder login is a better match than a whole-site one.
     if (url) items.sort((a, b) => specificity(b) - specificity(a));
-    return items.map(({ id, type, name, urls, username, environment, project, favorite, totp, updatedAt, rpId, credentialId, userName, lastUsedAt }) => ({ id, type, name, urls: [...urls],
+    return items.map(({ id, type, name, urls, username, environment, project, favorite, totp, updatedAt, rpId, credentialId, userName, lastUsedAt, cardholder, brand, number, firstName, lastName, email, city, country }) => ({ id, type, name, urls: [...urls],
       scope: urls.length ? scopeLabel(urls[0]) : "", username, environment, project, favorite, hasTotp: !!totp, updatedAt,
-      ...(type === "passkey" ? { rpId, credentialId, userName, lastUsedAt } : {}) }));
+      ...(type === "passkey" ? { rpId, credentialId, userName, lastUsedAt } : {}),
+      // Only display-safe card/identity fields join the list; the PAN, CVV, and street stay in the encrypted item.
+      ...(type === "card" ? { cardholder, brand, last4: number.slice(-4), lastUsedAt } : {}),
+      ...(type === "identity" ? { fullName: [firstName, lastName].filter(Boolean).join(" "), email, city, country, lastUsedAt } : {}) }));
   }
   projects(session) {
     this.require(session);
@@ -120,9 +131,11 @@ export class Vault {
     this.require(session);
     return this.#data.items.filter(item => item.deletedAt)
       .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt))
-      .map(({ id, type, name, urls, username, environment, project, favorite, totp, updatedAt, deletedAt, rpId, credentialId, userName, lastUsedAt }) => ({ id, type, name, urls: [...urls],
+      .map(({ id, type, name, urls, username, environment, project, favorite, totp, updatedAt, deletedAt, rpId, credentialId, userName, lastUsedAt, cardholder, brand, number, firstName, lastName, email, city, country }) => ({ id, type, name, urls: [...urls],
         scope: urls.length ? scopeLabel(urls[0]) : "", username, environment, project, favorite, hasTotp: !!totp, updatedAt, deletedAt,
-        ...(type === "passkey" ? { rpId, credentialId, userName, lastUsedAt } : {}) }));
+        ...(type === "passkey" ? { rpId, credentialId, userName, lastUsedAt } : {}),
+        ...(type === "card" ? { cardholder, brand, last4: number.slice(-4) } : {}),
+        ...(type === "identity" ? { fullName: [firstName, lastName].filter(Boolean).join(" "), email, city, country } : {}) }));
   }
   // WebAuthn lookup for a sign-in ceremony: credentials at this relying party, narrowed by the
   // page's allowCredentials list when it gave one (an empty list means any passkey here may serve).
