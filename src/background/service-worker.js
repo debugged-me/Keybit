@@ -204,6 +204,7 @@ async function handle(message, sender) {
     case "EXPORT_CSV": vault.touch(message.session); return vault.exportCsv(message.session);
     case "CLIPBOARD_ARM": return armClipboard(message.value, message.ms);
     case "SHARE_ITEM": vault.touch(message.session); return vault.shareItem(message.session, message.id, message.password);
+    case "RECOVERY_KIT": vault.touch(message.session); return vault.recoveryKit(message.session, message.threshold, message.count);
     case "PREPARE_IMPORT": return vault.prepareImport(message.text, message.password);
     case "COMMIT_IMPORT": {
       const state = await vault.commitImport(message.token, message.confirmed);

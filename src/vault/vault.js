@@ -1,4 +1,5 @@
 import { createEncryptedVault, decryptVault, decryptWithKey, encryptVault, parseBackup, validateEnvelope, newKdf } from "../crypto/crypto.js";
+import { splitSecret, encodeShare, recoveryPassphrase } from "./shamir.js";
 import { deriveKey, deriveRawKey, importRawKey } from "../crypto/kdf.js";
 import { emptyVault, createItem, validateSettings, duplicateKey, HISTORY_LIMIT, ENVIRONMENTS } from "./schema.js";
 import { matcherFor, scopeLabel, specificity } from "../matching/url-matcher.js";
@@ -300,6 +301,19 @@ export class Vault {
     const kdf = newKdf();
     const key = await deriveKey(passphrase, kdf);
     return encryptVault(payload, key, kdf);
+  }
+  // A recovery kit: the vault snapshot encrypted under a random secret that is then split
+  // M-of-N — any `threshold` shares rebuild the passphrase that opens this bundle. Shares go
+  // to people you trust; the bundle is safe to store anywhere, even next to the shares list
+  // you did not keep.
+  async recoveryKit(session, threshold, count) {
+    this.require(session);
+    const secret = crypto.getRandomValues(new Uint8Array(32));
+    const { kit, shares } = splitSecret(secret, threshold, count);
+    const kdf = newKdf();
+    const bundle = await encryptVault(this.#data, await deriveKey(recoveryPassphrase(secret), kdf), kdf);
+    secret.fill(0);
+    return { bundle, threshold, count, shares: shares.map(share => encodeShare(kit, threshold, share.index, share.bytes)) };
   }
   async prepareImport(text, password) {
     this.lock();

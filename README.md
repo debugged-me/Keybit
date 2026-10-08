@@ -89,9 +89,15 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
   - A reminder appears when there's no backup from the last 30 days.
 - **Plain-text CSV export** for moving to another password manager. It is not encrypted, so KeyBit asks before exporting — delete the file when the move is done.
 - **Share one item** from its details with **Share…**: a `.kvault` file encrypted with a passphrase you choose for it, with no server involved. Send it any way you like — AirDrop, a message, a USB stick. The recipient merges it into their KeyBit vault like a backup. Anyone holding both the file and the passphrase can read the item; choose a different passphrase than your master password.
+- **Recovery kit** (Settings → Recovery kit) splits vault recovery across people you trust — no account, no escrow service:
+  - Creating a kit seals an encrypted copy of the vault into `keybit-recovery.kvault` and splits its passphrase into *N* shares (Shamir's scheme, over GF(256)). You pick the threshold: any *M* shares rebuild it; *M−1* shares reveal nothing at all.
+  - Keep the file and the shares in different places — for example the file on a USB stick and the shares with family. A share alone, or even the file alone, opens nothing.
+  - To recover, the locked screen's **Recover with shares** takes the file plus enough pasted shares, then asks for a new master password.
+  - The kit is a snapshot of the vault **as it was when created** — make a fresh kit after big changes, and if a share is ever lost.
+  - KeyBit never receives, stores, or transmits shares or kits — splitting and rebuilding happen entirely on your device.
 - **No practical limit on logins.** A vault can hold up to 32 MB of login data, about 100,000 typical logins.
 
-Forgotten master passwords cannot be recovered.
+Without a backup or recovery kit, forgotten master passwords cannot be recovered.
 
 ## Keeping your logins
 
@@ -194,7 +200,7 @@ icons/                 Logo and PNG icons
 src/
   background/          Messages, keep-alive, screen-lock lock, site switch, dropdown modes, save prompts, passkey ceremonies, last-used order, folder backups
   crypto/              Encoding, PBKDF2, AES-GCM, backup parsing, Touch ID key sealing
-  vault/               Schema (logins, notes, passkeys, history, 2FA), storage, CRUD, import, merge, single-item shares, password change, health, TOTP, WebAuthn encoding and ECDSA signing
+  vault/               Schema (logins, notes, passkeys, history, 2FA), storage, CRUD, import, merge, single-item shares, Shamir recovery kits, password change, health, TOTP, WebAuthn encoding and ECDSA signing
   matching/            Exact-origin matching with project folders, cached
   generator/           Secure random and memorable passwords, remembered preferences, EFF word list
   import/              CSV and Bitwarden JSON parsers
@@ -220,14 +226,16 @@ KEYBIT_BROWSER="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" np
 
 All browser tests use isolated temporary profiles, never yours. On October 8, 2026, version 1.3 passed:
 
-- **Unit tests (22):** RFC 6238 2FA vectors, imports from five managers, duplicate handling, notes/projects/favourites, master password change, merge, Touch ID sealing, passphrases, and 20,000-login scale.
-- **Browser checks (43, on both Helium 0.18.3.1 and Google Chrome 154):**
+- **Unit tests (31):** RFC 6238 2FA vectors, imports from five managers, duplicate handling, notes/projects/favourites, master password change, merge, Touch ID sealing, passphrases, WebAuthn attestation/assertion signing, Shamir share split/combine and the full recovery-kit chain, and 20,000-login scale.
+- **Browser checks (51, on both Helium 0.18.3.1 and Google Chrome 154):**
   - the earlier suite;
   - welcome and import;
   - projects with live 2FA codes;
   - Touch ID with a virtual authenticator, and master password change;
   - automatic folder backup, written by the background worker;
   - merge restore;
+  - creating a passkey and signing in with a real assertion;
+  - a recovery kit end to end: shares created, the vault rebuilt from any two, the old master password dead, and a single share refused;
   - script-button and Enter sign-ins, two-step sign-ins, and 2FA fills (one field and six boxes);
   - dropdown filtering and recently-used order;
   - popup keyboard use;

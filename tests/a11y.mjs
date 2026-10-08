@@ -67,6 +67,10 @@ try {
   await audit(app.session, 'Add login dialog');
   await evaluate(app.session, 'document.querySelector("#login-dialog").close(); document.querySelector("#autolock").click()');
   await audit(app.session, 'Auto-lock menu');
+  await evaluate(app.session, 'document.querySelector("#autolock").click(); document.querySelector(\'[data-view="settings"]\').click(); document.querySelector("#create-kit").click()');
+  await waitFor(app.session, 'document.querySelector("#kit-dialog").open');
+  await audit(app.session, 'Recovery kit dialog');
+  await evaluate(app.session, 'document.querySelector("#kit-dialog").close()');
   const site = await page(`${url}/basic-login.html`);
   await send('Target.activateTarget', { targetId: site.targetId });
   await evaluate(site.session, 'document.querySelector("#user").focus()');
@@ -92,6 +96,10 @@ try {
   await evaluate(app.session, `chrome.runtime.sendMessage({ type: 'LOCK' })`);
   await waitFor(app.session, '!!document.querySelector("#master-password")');
   await audit(app.session, 'Unlock');
+  await evaluate(app.session, 'document.querySelector("#recover-instead").click()');
+  await waitFor(app.session, 'document.querySelector("#recover-dialog").open');
+  await audit(app.session, 'Recover dialog');
+  await evaluate(app.session, 'document.querySelector("#recover-dialog").close()');
   let total = 0;
   for (const { name, violations } of results) {
     total += violations.length;

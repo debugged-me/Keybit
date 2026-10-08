@@ -1,6 +1,7 @@
 import { VaultClient } from "../ui/client.js";
 import { renderAuth } from "../ui/auth.js";
 import { element, all, announce, clearFields, siteTile, icon, iconButton, copyText, copySecret, showReloadBanner, relativeTime, revealButton, passwordField } from "../ui/common.js";
+import { combineShares, recoveryPassphrase } from "../vault/shamir.js";
 import { scopeLabel } from "../matching/url-matcher.js";
 import { MAX_BACKUP_BYTES } from "../crypto/encoding.js";
 import { totpCode } from "../vault/totp.js";
@@ -430,10 +431,83 @@ $("#add-login").addEventListener("click", () => openAdd());
 
 // Encrypted share: one item, protected by its own passphrase, merged by the recipient like a backup.
 // Eye toggles for every passphrase/password field in static markup.
-for (const id of ["share-password", "backup-password", "current-password", "next-password", "next-confirm"]) {
+for (const id of ["share-password", "backup-password", "current-password", "next-password", "next-confirm", "recover-password", "recover-confirm"]) {
   const input = $(`#${id}`);
   if (input) passwordField(input, revealButton(input));
 }
+function downloadText(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url; link.download = name;
+  document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+// Recovery kit: an encrypted vault snapshot sealed under a random secret, split M-of-N.
+// Any threshold of shares rebuilds the passphrase; the file merges in like any backup.
+let kitBundle = null;
+$("#create-kit").addEventListener("click", () => {
+  kitBundle = null; $("#kit-setup").hidden = false; $("#kit-result").hidden = true;
+  $("#kit-create").hidden = false; $("#kit-error").hidden = true;
+  $("#kit-dialog").showModal();
+});
+$("#kit-cancel").addEventListener("click", () => $("#kit-dialog").close());
+$("#kit-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const threshold = Number($("#kit-threshold").value), count = Number($("#kit-count").value);
+  const fail = text => { $("#kit-error").textContent = text; $("#kit-error").hidden = false; };
+  if (count < threshold) return fail("Total shares must be at least the shares needed.");
+  $("#kit-create").disabled = true;
+  try {
+    const result = await client.request("RECOVERY_KIT", { threshold, count });
+    kitBundle = result.bundle;
+    $("#kit-shares").replaceChildren(...result.shares.map((share, index) => {
+      const copy = iconButton("copy", `Copy share ${index + 1}`);
+      copy.addEventListener("click", () => void copyText(share).then(() => announce(`Share ${index + 1} copied.`)).catch(error => announce(error.message, true)));
+      return element("li", {}, element("code", {}, share), copy);
+    }));
+    $("#kit-setup").hidden = true; $("#kit-result").hidden = false; $("#kit-create").hidden = true;
+  } catch (error) { fail(error.message); }
+  finally { $("#kit-create").disabled = false; }
+});
+$("#kit-copy-all").addEventListener("click", () => {
+  const shares = all("#kit-shares code").map(node => node.textContent).join("\n");
+  if (shares) void copyText(shares).then(() => announce("All shares copied — keep them separate.")).catch(error => announce(error.message, true));
+});
+$("#kit-download").addEventListener("click", () => {
+  if (kitBundle) downloadText("keybit-recovery.kvault", JSON.stringify(kitBundle, null, 2));
+});
+
+// Recovering: shares rebuild the bundle's passphrase locally, then the ordinary restore
+// path replaces the vault, unlocks it with that passphrase, and sets the new master.
+$("#recover-instead").addEventListener("click", () => {
+  $("#recover-form").reset(); $("#recover-error").hidden = true;
+  $("#recover-dialog").showModal();
+});
+$("#recover-cancel").addEventListener("click", () => $("#recover-dialog").close());
+$("#recover-dialog").addEventListener("close", () => $("#recover-form").reset());
+$("#recover-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const fail = text => { $("#recover-error").textContent = text; $("#recover-error").hidden = false; };
+  const file = $("#recover-file").files[0];
+  if (!file || file.size > 48 * 1024 * 1024) return fail("Choose the recovery file (.kvault).");
+  const next = $("#recover-password").value;
+  if ([...next].length < 12) return fail("Choose a new master password of at least 12 characters.");
+  if (next !== $("#recover-confirm").value) return fail("The new passwords don't match.");
+  let passphrase;
+  try { passphrase = recoveryPassphrase(combineShares($("#recover-shares").value)); }
+  catch (error) { return fail(error.message); }
+  $("#recover-go").disabled = true;
+  try {
+    const preview = await client.request("PREPARE_IMPORT", { text: await file.text(), password: passphrase });
+    await client.request("COMMIT_IMPORT", { token: preview.token, confirmed: true });
+    client.update(await client.request("UNLOCK", { password: passphrase }));
+    client.update(await client.request("CHANGE_PASSWORD", { current: passphrase, next }));
+    $("#recover-dialog").close();
+    announce(`Vault recovered — ${preview.count} item${preview.count === 1 ? "" : "s"}. Your new master password is active.`);
+  } catch (error) { fail(error.message); await client.refresh(); }
+  finally { passphrase = ""; $("#recover-go").disabled = false; }
+});
 let sharingId = null;
 function openShare(item) {
   sharingId = item.id;

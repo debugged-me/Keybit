@@ -372,6 +372,59 @@ try {
   await absent('/src/inline/passkey.html#');
   console.log('PASS: passkeys create, sign in with a real assertion, and delegate unknown credentials natively.');
 
+  // Recovery kit: split the vault's recovery into shares, lock, and rebuild with any two.
+  await click(app.session, '[data-view="settings"]');
+  await click(app.session, '#create-kit');
+  await waitFor(app.session, 'document.querySelector("#kit-dialog").open');
+  await evaluate(app.session, 'document.querySelector("#kit-threshold").value = "2"; document.querySelector("#kit-count").value = "3"');
+  // Capture the downloaded bundle: hook createObjectURL before the download click.
+  await evaluate(app.session, 'window.__kitFile = null; const orig = URL.createObjectURL.bind(URL); URL.createObjectURL = blob => { blob.text().then(text => { window.__kitFile = text; }); return orig(blob); }');
+  await click(app.session, '#kit-create');
+  await waitFor(app.session, '!document.querySelector("#kit-result").hidden && document.querySelectorAll("#kit-shares code").length === 3');
+  const shares = await evaluate(app.session, '[...document.querySelectorAll("#kit-shares code")].map(node => node.textContent)');
+  await click(app.session, '#kit-download');
+  await waitFor(app.session, 'typeof window.__kitFile === "string" && window.__kitFile.length > 200');
+  const kitFile = join(scratch, 'recovery.kvault');
+  await writeFile(kitFile, await evaluate(app.session, 'window.__kitFile'));
+  await shot(app.session, 'kit-result');
+  await click(app.session, '#kit-cancel');
+  console.log('PASS: recovery kit dialog splits the vault secret into shares and downloads the encrypted bundle.');
+
+  // Lock, then recover with two shares: the vault is replaced and the new master takes over.
+  await rpc(app.session, 'LOCK', {});
+  await waitFor(app.session, '!document.querySelector("#locked").hidden');
+  await click(app.session, '#recover-instead');
+  await waitFor(app.session, 'document.querySelector("#recover-dialog").open');
+  await chooseFile('#recover-file', kitFile);
+  await set(app.session, '#recover-shares', shares.slice(0, 2).join('\n'));
+  await set(app.session, '#recover-password', 'a fresh master password');
+  await set(app.session, '#recover-confirm', 'a fresh master password');
+  await click(app.session, '#recover-go');
+  await waitFor(app.session, 'document.querySelector("#message").textContent.startsWith("Vault recovered")', 90);
+  await click(app.session, '[data-view="logins"]');
+  await waitFor(app.session, 'document.querySelectorAll("#items .login-item").length > 0');
+  await shot(app.session, 'recovered');
+  console.log('PASS: two shares plus the recovery file restore the vault with a new master password.');
+
+  // The old master password is dead; too few shares are rejected before any change.
+  await rpc(app.session, 'LOCK', {});
+  await waitFor(app.session, '!document.querySelector("#locked").hidden');
+  await set(app.session, '#master-password', password);
+  await evaluate(app.session, 'document.querySelector("#auth form").requestSubmit()');
+  await waitFor(app.session, 'document.querySelector("#message").textContent.includes("Incorrect master password")');
+  await click(app.session, '#recover-instead');
+  await chooseFile('#recover-file', kitFile);
+  await set(app.session, '#recover-shares', shares[0]);
+  await set(app.session, '#recover-password', 'a fresh master password');
+  await set(app.session, '#recover-confirm', 'a fresh master password');
+  await click(app.session, '#recover-go');
+  await waitFor(app.session, '!document.querySelector("#recover-error").hidden && document.querySelector("#recover-error").textContent.includes("needs 2 shares")');
+  await click(app.session, '#recover-cancel');
+  await set(app.session, '#master-password', 'a fresh master password');
+  await evaluate(app.session, 'document.querySelector("#auth form").requestSubmit()');
+  await waitFor(app.session, '!document.querySelector("#app").hidden');
+  console.log('PASS: the old master password stops working and a single share cannot recover.');
+
   const unexpected = errors.filter(event => !JSON.stringify(event).includes('favicon.ico'));
   assert.deepEqual(unexpected, []);
   console.log('PASS: no captured extension JavaScript/CSP errors.');

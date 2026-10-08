@@ -23,7 +23,7 @@ body.app { display: flex; flex-direction: column; min-height: 100vh; font-size: 
 .auth-brand { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 18px; }
 .auth-brand img { width: 52px; height: 52px; border-radius: 13px; box-shadow: var(--shadow-sm); }
 .auth-brand span { font-family: var(--font-display); font-size: 15px; font-weight: 700; letter-spacing: -.2px; }
-.auth-card #restore-instead { display: block; margin: 14px auto 0; }
+.auth-card .auth-links { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 12px; }
 
 .app-layout { flex: 1; display: flex; min-height: 0; animation: view-in .18s ease-out; }
 .sidebar { flex-shrink: 0; width: 232px; padding: 14px 10px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
@@ -93,6 +93,11 @@ body.app { display: flex; flex-direction: column; min-height: 100vh; font-size: 
 .history-entry { display: flex; align-items: center; gap: 4px; padding: 6px 0; border-top: 1px solid var(--border); }
 .history-entry .when { flex: 1; color: var(--muted); font-size: 12px; }
 .history-entry .secret { display: block; color: var(--text); font-size: 12.5px; word-break: break-all; }
+.share-list { margin: 12px 0 0; padding-left: 20px; }
+.share-list li { padding: 5px 0; }
+.share-list li::marker { color: var(--muted); font-size: 11.5px; }
+.share-list code { display: inline-block; max-width: calc(100% - 34px); vertical-align: middle; font-size: 11.5px; word-break: break-all; }
+.share-list .icon-button { vertical-align: middle; margin-left: 4px; }
 .detail-actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
 .detail-actions .meta { margin-left: auto; color: var(--muted); font-size: 11.5px; }
 

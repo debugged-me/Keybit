@@ -37,7 +37,7 @@
         <ol class="steps"><li><strong>Create your vault</strong> with a master password below.</li><li><strong>Import</strong> logins from Chrome, Apple Passwords, Bitwarden, 1Password, or LastPass.</li><li><strong>Pin KeyBit</strong>: click the puzzle icon in the toolbar, then the pin next to KeyBit.</li></ol>
       </div>
       <div id="auth"></div>
-      <button id="restore-instead" class="text-button" type="button">Restore from a backup instead</button>
+      <div class="auth-links"><button id="restore-instead" class="text-button" type="button">Restore from a backup instead</button><button id="recover-instead" class="text-button" type="button">Recover with shares instead</button></div>
     </div>
   </div>
 
@@ -165,6 +165,7 @@
           <label class="switch-row setting"><span><span class="switch-title">Lock when the computer locks or sleeps</span><span class="switch-hint muted">Recommended, especially with auto-lock set to Never.</span></span><input id="lock-on-sleep" type="checkbox" role="switch" checked></label>
           <label class="switch-row setting" id="biometric-row" hidden><span><span class="switch-title" id="biometric-title">Unlock with Touch ID</span><span class="switch-hint muted">Your master password still works and is never stored.</span></span><input id="biometric" type="checkbox" role="switch"></label>
           <div class="setting setting-action"><span><span class="switch-title">Master password</span><span class="switch-hint muted">Older backups still need the password they were made with.</span></span><button id="change-password" class="secondary-button" type="button">Change</button></div>
+          <div class="setting setting-action"><span><span class="switch-title">Recovery kit</span><span class="switch-hint muted">Split vault recovery into shares — any few rebuild it, so people you trust can help you back in.</span></span><button id="create-kit" class="secondary-button" type="button">Create</button></div>
         </div>
         <div class="card settings-list">
           <h3>Appearance</h3>
@@ -197,6 +198,42 @@
         <p id="share-error" class="form-error" role="alert" hidden></p>
       </div>
       <footer class="modal-footer"><span class="spacer"></span><button id="share-cancel" class="secondary-button" type="button">Cancel</button><button id="share-save" class="primary-button" type="submit">Create share file</button></footer>
+    </form>
+  </dialog>
+  <dialog id="kit-dialog" class="modal" aria-labelledby="kit-title">
+    <form id="kit-form" autocomplete="off" novalidate>
+      <header class="modal-header"><h2 id="kit-title">Create a recovery kit</h2></header>
+      <div class="modal-body">
+        <div id="kit-setup">
+          <p class="hint">An encrypted copy of the vault is sealed inside a recovery file whose passphrase is split into shares. Any <strong>threshold</strong> of them rebuild it — fewer reveal nothing.</p>
+          <div class="field-row">
+            <div class="form-field"><label for="kit-threshold">Shares needed to recover</label><select id="kit-threshold"><option>2</option><option selected>3</option><option>4</option><option>5</option></select></div>
+            <div class="form-field"><label for="kit-count">Total shares</label><select id="kit-count"><option>3</option><option>4</option><option selected>5</option><option>6</option><option>7</option></select></div>
+          </div>
+          <p class="callout warning">The file holds your vault <em>as it is right now</em> — remake the kit after big changes. Keep the file apart from the shares: the file plus enough shares opens the vault.</p>
+        </div>
+        <div id="kit-result" hidden>
+          <p class="hint">Kit created. Save <strong>keybit-recovery.kvault</strong> somewhere safe, then give each share to a different person or place. A share alone opens nothing.</p>
+          <ol id="kit-shares" class="share-list"></ol>
+          <div class="button-row"><button id="kit-copy-all" class="secondary-button" type="button">Copy all shares</button><button id="kit-download" class="primary-button" type="button">Download recovery file</button></div>
+        </div>
+        <p id="kit-error" class="form-error" role="alert" hidden></p>
+      </div>
+      <footer class="modal-footer"><span class="spacer"></span><button id="kit-cancel" class="secondary-button" type="button">Close</button><button id="kit-create" class="primary-button" type="submit">Create kit</button></footer>
+    </form>
+  </dialog>
+  <dialog id="recover-dialog" class="modal" aria-labelledby="recover-title">
+    <form id="recover-form" autocomplete="off" novalidate>
+      <header class="modal-header"><h2 id="recover-title">Recover with shares</h2></header>
+      <div class="modal-body">
+        <p class="hint">Pick the recovery file and paste enough shares — one per line. This replaces what's in this vault with the file's contents.</p>
+        <div class="form-field"><label for="recover-file">Recovery file (.kvault)</label><input id="recover-file" type="file" accept=".kvault,.cvault,application/json" required></div>
+        <div class="form-field"><label for="recover-shares">Recovery shares</label><textarea id="recover-shares" rows="4" maxlength="8192" spellcheck="false" autocomplete="off" placeholder="kb1-…&#10;kb1-…&#10;kb1-…" required></textarea></div>
+        <div class="form-field"><label for="recover-password">New master password</label><input id="recover-password" type="password" autocomplete="new-password" maxlength="1024" required></div>
+        <div class="form-field"><label for="recover-confirm">Confirm new master password</label><input id="recover-confirm" type="password" autocomplete="new-password" maxlength="1024" required></div>
+        <p id="recover-error" class="form-error" role="alert" hidden></p>
+      </div>
+      <footer class="modal-footer"><span class="spacer"></span><button id="recover-cancel" class="secondary-button" type="button">Cancel</button><button id="recover-go" class="primary-button" type="submit">Recover vault</button></footer>
     </form>
   </dialog>
   <dialog id="password-dialog" class="modal small" aria-labelledby="password-dialog-title">
