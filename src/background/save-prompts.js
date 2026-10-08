@@ -96,7 +96,7 @@ export class SavePrompts {
     const candidates = entry.candidates.flatMap(id => {
       try {
         const { name, urls, environment, updatedAt } = this.vault.item(entry.session, id);
-        return [{ id, name, scope: scopeLabel(urls[0]), environment, updatedAt }];
+        return [{ id, name, scope: scopeLabel(urls[0]), url: urls[0], environment, updatedAt }];
       } catch { return []; }
     });
     return { origin: entry.origin, site: scopeLabel(entry.url), username: entry.username, kind: entry.kind,

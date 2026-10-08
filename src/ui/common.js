@@ -68,13 +68,23 @@ export async function copySecret(value, ms = 30000) {
   }, ms);
   return true;
 }
-// A site tile: the first letter of the project folder or host, on a tone derived from the whole label.
-export function siteTile(label, className = "") {
+// A site tile: the site's favicon from Chrome's local cache when a page address is known
+// (the "favicon" permission; no network), otherwise the first letter of the project folder
+// or host on a tone derived from the whole label. Chrome supplies a lettered icon of its
+// own for sites with no cached favicon, so the letter remains as the load/error fallback.
+export function siteTile(label, className = "", pageUrl = null) {
   const clean = String(label ?? "").replace(/^www\./, "");
   let hash = 0;
   for (const character of clean) hash = (hash * 31 + character.codePointAt(0)) >>> 0;
   const letter = [...(clean.split("/")[1] || clean)][0]?.toLocaleUpperCase() || "•";
-  return element("span", { className: `tile tone-${hash % 8} ${className}`.trim(), "aria-hidden": "true" }, letter);
+  const tile = element("span", { className: `tile tone-${hash % 8} ${className}`.trim(), "aria-hidden": "true" }, letter);
+  if (pageUrl) {
+    const favicon = element("img", { className: "favicon", alt: "", src: `chrome-extension://${chrome.runtime.id}/_favicon/?pageUrl=${encodeURIComponent(pageUrl)}&size=32` });
+    favicon.addEventListener("load", () => tile.classList.add("has-icon"));
+    favicon.addEventListener("error", () => favicon.remove());
+    tile.append(favicon);
+  }
+  return tile;
 }
 const ICONS = {
   key: '<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M14 9l2 2"/>',
@@ -110,6 +120,25 @@ export function icon(name) {
 }
 export function iconButton(name, label, attributes = {}) {
   return element("button", { type: "button", className: "icon-button", title: label, "aria-label": label, ...attributes }, icon(name));
+}
+// An eye button that reveals a password input while pressed on.
+export function revealButton(input, attributes = {}) {
+  const reveal = iconButton("eye", "Show password", { "aria-pressed": "false", ...attributes });
+  reveal.addEventListener("click", () => {
+    const shown = reveal.getAttribute("aria-pressed") !== "true";
+    reveal.setAttribute("aria-pressed", String(shown));
+    input.type = shown ? "text" : "password";
+    const label = shown ? "Hide password" : "Show password";
+    reveal.title = label; reveal.setAttribute("aria-label", label);
+  });
+  return reveal;
+}
+// Wraps an existing password input with an in-field action button (used for static markup).
+export function passwordField(input, ...actions) {
+  const wrap = element("div", { className: "password-field" });
+  input.replaceWith(wrap);
+  wrap.append(input, element("span", { className: "field-actions" }, ...actions));
+  return wrap;
 }
 // "just now", "5 min ago", "3 days ago": short, for last-used hints.
 export function relativeTime(time, now = Date.now()) {

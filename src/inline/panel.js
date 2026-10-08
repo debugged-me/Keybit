@@ -37,7 +37,7 @@ function message(title, text, action) {
 }
 // The visible text is the button's accessible name; a hidden prefix says what choosing it does.
 function fillButton(item, action, secondary, extra = null) {
-  const button = element("button", { type: "button", className: "account" }, element("span", { className: "visually-hidden" }, `${action} `), siteTile(item.scope || item.name),
+  const button = element("button", { type: "button", className: "account" }, element("span", { className: "visually-hidden" }, `${action} `), siteTile(item.scope || item.name, "", item.urls?.[0]),
     element("span", { className: "details" }, element("span", { className: "primary" }, item.username || item.name), element("span", { className: "secondary" }, secondary)), extra);
   button.addEventListener("click", async () => {
     button.disabled = true;

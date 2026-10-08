@@ -56,7 +56,7 @@ async function checkPage() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const url = parseWebsite(tab?.url);
     $("#site-name").textContent = scopeLabel(url);
-    $("#site-tile").replaceWith(Object.assign(siteTile(scopeLabel(url)), { id: "site-tile" }));
+    $("#site-tile").replaceWith(Object.assign(siteTile(scopeLabel(url), "", url.href), { id: "site-tile" }));
     const [result, site] = await Promise.all([client.request("DETECT", { tabId: tab.id }), client.request("SITE_STATUS", { origin: url.origin })]);
     page = { ...result, tabId: tab.id };
     showSite(site);

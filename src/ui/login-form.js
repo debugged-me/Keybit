@@ -1,4 +1,4 @@
-import { element, siteTile, icon, iconButton, clearFields } from "./common.js";
+import { element, siteTile, icon, iconButton, clearFields, revealButton } from "./common.js";
 import { parseWebsite, scopeLabel, loginScope } from "../matching/url-matcher.js";
 import { isWeak } from "../vault/health.js";
 import { parseTotp } from "../vault/totp.js";
@@ -30,7 +30,7 @@ const $ = id => dialog.querySelector(`#${id}`);
 function field(label, input, ...extra) { return element("div", { className: "form-field" }, element("label", { for: input.id }, label), input, ...extra); }
 function build() {
   const passwordInput = element("input", { id: "password", type: "password", autocomplete: "new-password", maxlength: 4096, spellcheck: "false" });
-  const reveal = element("button", { type: "button", className: "icon-button", id: "reveal", title: "Show password", "aria-label": "Show password", "aria-pressed": "false" }, icon("eye"));
+  const reveal = revealButton(passwordInput, { id: "reveal" });
   const generateButton = element("button", { type: "button", className: "icon-button", id: "generate", title: "Generate a strong password", "aria-label": "Generate a strong password" }, icon("key"));
   dialog = element("dialog", { id: "login-dialog", className: "modal", "aria-labelledby": "editor-title" },
     element("form", { id: "login-form", autocomplete: "off", novalidate: true },
@@ -87,7 +87,7 @@ function build() {
     if (url) {
       const label = scopeLabel(url);
       const folder = loginScope(url) !== "/";
-      $("scope-preview").replaceChildren(siteTile(label), element("span", {}, folder ? "Fills only in the " : "Fills on ", element("strong", {}, folder ? label.split("/").slice(1).join("/") : label), folder ? ` project on ${url.host}` : ""));
+      $("scope-preview").replaceChildren(siteTile(label, "", url.href), element("span", {}, folder ? "Fills only in the " : "Fills on ", element("strong", {}, folder ? label.split("/").slice(1).join("/") : label), folder ? ` project on ${url.host}` : ""));
     }
     $("name").placeholder = current?.kind === "note" ? "Server keys, licence, Wi-Fi…" : url ? scopeLabel(url) : "Shown in KeyBit";
     duplicate(url);
@@ -109,11 +109,6 @@ function build() {
   $("username").addEventListener("input", preview);
   $("add-url").addEventListener("click", () => addUrl().focus());
   passwordInput.addEventListener("input", meter);
-  reveal.addEventListener("click", () => {
-    const shown = reveal.getAttribute("aria-pressed") !== "true";
-    reveal.setAttribute("aria-pressed", String(shown)); passwordInput.type = shown ? "text" : "password";
-    reveal.title = shown ? "Hide password" : "Show password"; reveal.setAttribute("aria-label", reveal.title);
-  });
   generateButton.addEventListener("click", async () => {
     try {
       passwordInput.value = await generate(await loadPrefs());

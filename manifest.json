@@ -12,7 +12,8 @@
     "unlimitedStorage",
     "clipboardWrite",
     "idle",
-    "offscreen"
+    "offscreen",
+    "favicon"
   ],
   "optional_permissions": [
     "clipboardRead"

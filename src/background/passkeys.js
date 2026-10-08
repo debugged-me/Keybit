@@ -82,7 +82,7 @@ export class PasskeyPrompts {
   }
 
   describe(entry) {
-    return { kind: entry.kind, site: entry.rpId, user: entry.user ?? null,
+    return { kind: entry.kind, site: entry.rpId, origin: entry.origin, user: entry.user ?? null,
       candidates: (entry.candidates ?? []).map(item => ({ credentialId: item.credentialId, userName: item.userName, lastUsedAt: item.lastUsedAt })) };
   }
   async panel(message, sender) {

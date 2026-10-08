@@ -1,6 +1,6 @@
 import { VaultClient } from "../ui/client.js";
 import { renderAuth } from "../ui/auth.js";
-import { element, all, announce, clearFields, siteTile, icon, iconButton, copyText, copySecret, showReloadBanner, relativeTime } from "../ui/common.js";
+import { element, all, announce, clearFields, siteTile, icon, iconButton, copyText, copySecret, showReloadBanner, relativeTime, revealButton, passwordField } from "../ui/common.js";
 import { scopeLabel } from "../matching/url-matcher.js";
 import { MAX_BACKUP_BYTES } from "../crypto/encoding.js";
 import { totpCode } from "../vault/totp.js";
@@ -101,7 +101,7 @@ function row(item, onClick) {
     passkey ? `Passkey · ${item.rpId}` : `${item.username || "No username"} · ${item.scope}`;
   const button = element("button", { type: "button", className: "item-row login-item", "data-id": item.id, "aria-current": String(item.id === selectedId) },
     note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) :
-    passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) : siteTile(item.scope),
+    passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) : siteTile(item.scope, "", item.urls?.[0]),
     element("span", { className: "details" }, element("span", { className: "primary" }, item.favorite ? "★ " : "", item.name), element("span", { className: "secondary" }, secondary)),
     element("span", { className: "row-badges" }, item.environment === "production" ? badge("Production", "production") : null,
       passkey ? badge("Passkey") : null, item.hasTotp ? badge("2FA", "totp") : null, flags.reused ? badge("Reused", "warn") : null, flags.weak ? badge("Weak", "weak") : null));
@@ -354,7 +354,7 @@ function renderDetail() {
   }
   $("#detail-view").replaceChildren(...[
     element("div", { className: "detail-header" }, note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) :
-      passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) : siteTile(scope),
+      passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) : siteTile(scope, "", item.urls?.[0]),
       element("h3", {}, item.name, element("span", { className: "site" }, note ? "Secure note" : passkey ? `Passkey · ${item.rpId}` : scope,
         !note && item.environment !== "other" ? badge(item.environment, item.environment === "production" ? "production" : "") : null)), star, back),
     ...warnings, ...fields, history,
@@ -429,6 +429,11 @@ async function afterDelete(state) { clearDetail(); client.update(state); announc
 $("#add-login").addEventListener("click", () => openAdd());
 
 // Encrypted share: one item, protected by its own passphrase, merged by the recipient like a backup.
+// Eye toggles for every passphrase/password field in static markup.
+for (const id of ["share-password", "backup-password", "current-password", "next-password", "next-confirm"]) {
+  const input = $(`#${id}`);
+  if (input) passwordField(input, revealButton(input));
+}
 let sharingId = null;
 function openShare(item) {
   sharingId = item.id;

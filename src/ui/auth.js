@@ -1,4 +1,4 @@
-import { element, announce, clearFields } from "./common.js";
+import { element, announce, clearFields, revealButton } from "./common.js";
 import { biometricName, unlockWithBiometric } from "./biometric.js";
 
 export function renderAuth(container, client) {
@@ -14,8 +14,10 @@ export function renderAuth(container, client) {
   const form = element("form", { autocomplete: "off" },
     element("h2", {}, state.exists ? "Unlock your vault" : "Your private vault"),
     element("p", { className: "muted intro" }, state.exists ? "Enter your master password to continue." : "Choose a long, unique passphrase. At least 12 characters."),
-    element("label", { for: "master-password" }, "Master password"), input,
-    ...(!state.exists ? [element("label", { for: "confirm-password" }, "Confirm master password"), confirm] : []), button,
+    element("label", { for: "master-password" }, "Master password"),
+    element("div", { className: "password-field" }, input, element("span", { className: "field-actions" }, revealButton(input))),
+    ...(!state.exists ? [element("label", { for: "confirm-password" }, "Confirm master password"),
+      element("div", { className: "password-field" }, confirm, element("span", { className: "field-actions" }, revealButton(confirm)))] : []), button,
     element("p", { className: "notice" }, "Your master password cannot be recovered. Keep it somewhere safe."));
   form.addEventListener("submit", async event => {
     event.preventDefault();

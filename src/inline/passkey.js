@@ -24,7 +24,7 @@ function fail(error) {
 }
 function render() {
   $("#site").textContent = state.site;
-  $("#tile").replaceWith(Object.assign(siteTile(state.site), { id: "tile" }));
+  $("#tile").replaceWith(Object.assign(siteTile(state.site, "", state.origin), { id: "tile" }));
   if (state.kind === "create") {
     $("#heading").textContent = "Save a passkey?";
     $("#username").textContent = state.user.displayName || state.user.name;

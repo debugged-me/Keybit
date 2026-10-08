@@ -34,7 +34,7 @@ function render(state) {
   card = state;
   $("#site").textContent = state.site;
   $("#username").textContent = state.username || "No username";
-  $("#tile").replaceWith(Object.assign(siteTile(state.site), { id: "tile" }));
+  $("#tile").replaceWith(Object.assign(siteTile(state.site, "", state.origin), { id: "tile" }));
   $("#explain").hidden = true; $("#choices").hidden = true; alternate.hidden = true;
   const [first] = state.candidates;
   const set = (heading, primary, action, secondary, secondaryAction) => {
@@ -45,7 +45,7 @@ function render(state) {
   if (!state.update) set("Save this password?", "Save password", "new");
   else if (choosing || (!state.preferNew && state.candidates.length > 1)) {
     $("#choice-list").replaceChildren(...state.candidates.map((candidate, index) => element("label", { className: "choice" },
-      element("input", { type: "radio", name: "target", value: candidate.id, checked: index === 0 }), siteTile(candidate.scope),
+      element("input", { type: "radio", name: "target", value: candidate.id, checked: index === 0 }), siteTile(candidate.scope, "", candidate.url),
       element("span", { className: "details" }, element("span", { className: "primary" }, candidate.name),
         element("span", { className: "secondary" }, candidate.environment === "other" ? candidate.scope : `${candidate.scope} · ${candidate.environment}`)))));
     $("#choices").hidden = false;
