@@ -31,7 +31,6 @@ let disabledSites = {};
 let selectedId = null;
 let passkeyCount = 0;
 let detail = null;           // { item, revision }: the selected item, including its secrets, until lock or deselect
-let pendingSelects = 0;      // selects still fetching: a queued `close` event must not clear them
 let codeTicker = null;
 let listRequest = 0;
 let importToken = null;
@@ -119,7 +118,7 @@ function row(item, onClick) {
     card ? `${item.brand} ···· ${item.last4}` :
     identity ? [item.fullName, item.city, item.country].filter(Boolean).join(" · ") || "Identity" :
     `${item.username || "No username"} · ${item.scope}`;
-  const button = element("button", { type: "button", className: "item-row login-item", "data-id": item.id, "aria-current": String(item.id === selectedId) },
+  const button = element("div", { className: "item-row login-item", role: "button", tabindex: "0", "data-id": item.id, "aria-current": String(item.id === selectedId) },
     note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) :
     passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) :
     card ? element("span", { className: "tile tone-4", "aria-hidden": "true" }, icon("card")) :
@@ -127,7 +126,15 @@ function row(item, onClick) {
     element("span", { className: "details" }, element("span", { className: "primary" }, item.favorite ? "★ " : "", item.name), element("span", { className: "secondary" }, secondary)),
     element("span", { className: "row-badges" }, item.environment === "production" ? badge("Production", "production") : null,
       passkey ? badge("Passkey") : null, item.hasTotp ? badge("2FA", "totp") : null, flags.reused ? badge("Reused", "warn") : null, flags.weak ? badge("Weak", "weak") : null));
+  if (!item.deletedAt) {
+    const action = (iconName, title, run) => { const control = iconButton(iconName, title); control.addEventListener("click", event => { event.stopPropagation(); run(); }); return control; };
+    button.append(element("span", { className: "row-actions" },
+      item.type === "login" ? action("user", "Copy username", () => item.username ? void copy(item.username, "username") : announce("No username saved.", true)) : null,
+      item.type === "login" ? action("key", "Copy password", () => void copySecretFor(item.id, "password")) : null,
+      action("edit", `Edit this ${kindWord(item.type)}`, () => void openEdit(item.id))));
+  }
   button.addEventListener("click", onClick);
+  button.addEventListener("keydown", event => { if ((event.key === "Enter" || event.key === " ") && event.target === button) { event.preventDefault(); onClick(); } });
   return button;
 }
 function sorted(list) {
@@ -310,6 +317,15 @@ function renderProjects() {
   if (view.startsWith("project:") && !projects.includes(view.slice(8))) show("logins");
 }
 $("#search").addEventListener("input", () => { if (!isList(view)) show("logins"); void refreshList(); });
+// Up/Down walks the item rows once a row has focus; Enter still activates the row.
+$("#items").addEventListener("keydown", event => {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  const rows = [.../** @type {NodeListOf<HTMLElement>} */ ($("#items").querySelectorAll(".item-row"))];
+  const index = rows.indexOf(/** @type {HTMLElement} */ (/** @type {HTMLElement} */ (event.target).closest(".item-row")));
+  if (index < 0) return;
+  event.preventDefault();
+  rows[(index + (event.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length].focus();
+});
 $("#sidebar-health").addEventListener("click", () => show("health"));
 // A site-rule change from the popup or another window refreshes the rules view.
 chrome.runtime.onMessage.addListener(message => { if (message?.event === "site-rules") void refreshSites(); });
@@ -356,7 +372,7 @@ updateSort();
 
 // Details
 // The detail lives in a pane beside the list (master–detail), not a modal: Escape, the ✕, or
-// another navigation clears it. `pendingSelects` guards the async ITEM fetch.
+// another navigation clears it. The session check keeps a late ITEM response from repainting a stale pane.
 function clearDetail() {
   clearInterval(codeTicker); codeTicker = null;
   selectedId = null; detail = null;
@@ -366,7 +382,6 @@ function clearDetail() {
 }
 async function select(id) {
   const session = client.state.session;
-  pendingSelects++;
   selectedId = id;
   for (const node of all(".item-row")) node.setAttribute("aria-current", String(node.dataset.id === id));
   try {
@@ -375,14 +390,14 @@ async function select(id) {
     detail = { item: response.item, revision: response.state.revision };
     renderDetail();
   } catch (error) { announce(error.message, true); clearDetail(); await client.refresh(); }
-  finally { pendingSelects--; }
 }
-async function copy(value, what) {
+async function copy(value, what, node = null) {
   try {
     const secret = ["password", "2FA code", "card number", "CVV"].includes(what);
     const armed = secret ? await copySecret(value) : (await copyText(value), false);
     const label = `${what[0].toUpperCase()}${what.slice(1)} copied.`;
     announce(!secret ? label : armed ? `${label} Clears in 30 seconds.` : `${label} Clipboard is not cleared automatically.`);
+    if (node) { node.classList.add("copied"); setTimeout(() => node.classList.remove("copied"), 1400); }
   } catch (error) { announce(error.message, true); }
 }
 function secretValue(password, what = "password") {
@@ -395,12 +410,12 @@ function secretValue(password, what = "password") {
   });
   return [value, reveal];
 }
-const copyButton = (value, what) => { const button = iconButton("copy", `Copy ${what}`); button.addEventListener("click", () => void copy(value, what)); return button; };
+const copyButton = (value, what) => { const button = iconButton("copy", `Copy ${what}`); button.addEventListener("click", () => void copy(value, what, button)); return button; };
 const fieldBlock = (label, ...value) => element("div", { className: "field" }, element("div", { className: "field-label" }, label), element("div", { className: "field-value" }, ...value));
 // Plain values copy on click — no icon needed for things that aren't secret.
 function copyable(text, what) {
   const value = element("span", { className: "copyable", role: "button", tabindex: "0", title: `Copy ${what}`, "aria-label": `${text} — copy ${what}` }, text);
-  const doCopy = () => void copy(text, what);
+  const doCopy = () => void copy(text, what, value);
   value.addEventListener("click", doCopy);
   value.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); doCopy(); } });
   return value;
@@ -532,6 +547,77 @@ async function toggleFavorite() {
     client.update(state); await refreshList(); await select(item.id);
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
+// Quick actions on a row fetch the secrets they need on demand — the list never holds them.
+async function itemDetails(id) {
+  const session = client.state.session;
+  const response = await client.request("ITEM", { id });
+  if (!client.is(session)) return null;
+  return response;
+}
+async function copySecretFor(id, what) {
+  try { const response = await itemDetails(id); if (response) await copy(response.item[what] ?? "", what); }
+  catch (error) { announce(error.message, true); }
+}
+async function openEdit(id) {
+  try {
+    const response = await itemDetails(id);
+    if (response) openLoginDialog({ client, item: response.item, revision: response.state.revision, existing: items, projects, onSaved: afterSave, onDelete: afterDelete });
+  } catch (error) { announce(error.message, true); }
+}
+async function toggleFavoriteFor(id) {
+  try {
+    const response = await itemDetails(id);
+    if (!response) return;
+    const state = await client.request("SAVE", { item: { ...response.item, favorite: !response.item.favorite }, revision: response.state.revision });
+    client.update(state); await refreshList();
+    if (selectedId === id) await select(id);
+  } catch (error) { announce(error.message, true); await client.refresh(); }
+}
+// Right-click row menu: one floating .menu positioned at the pointer.
+let contextMenu = null;
+function closeContextMenu() { contextMenu?.remove(); contextMenu = null; }
+function openContextMenu(x, y, entries, returnFocus = null) {
+  closeContextMenu();
+  const menu = element("div", { className: "menu context-menu", role: "menu" });
+  for (const entry of entries) {
+    if (entry === "-") { menu.append(element("div", { className: "menu-sep", role: "separator" })); continue; }
+    const [label, run, danger] = entry;
+    const option = element("button", { type: "button", role: "menuitem", className: danger ? "danger" : "" }, label);
+    option.addEventListener("click", () => { closeContextMenu(); void run(); });
+    menu.append(option);
+  }
+  document.body.append(menu);
+  menu.style.left = `${Math.max(8, Math.min(x, innerWidth - menu.offsetWidth - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(y, innerHeight - menu.offsetHeight - 8))}px`;
+  menu.addEventListener("keydown", event => {
+    const options = [...menu.querySelectorAll("button")];
+    const index = options.indexOf(/** @type {HTMLElement} */ (event.target));
+    if (event.key === "Escape") { event.stopPropagation(); closeContextMenu(); returnFocus?.focus(); }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); options[(index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length].focus(); }
+  });
+  contextMenu = menu;
+  menu.querySelector("button")?.focus();
+}
+$("#items").addEventListener("contextmenu", event => {
+  const row = /** @type {HTMLElement} */ (/** @type {HTMLElement} */ (event.target).closest(".item-row"));
+  if (!row) return;
+  event.preventDefault();
+  const item = [...items, ...trash].find(entry => entry.id === row.dataset.id);
+  if (!item) return;
+  const entries = item.deletedAt
+    ? [["Restore", () => restoreItem(item.id, item.type)], ["Delete forever…", () => purgeItem(item.id, item.type), true]]
+    : [
+      ...(item.type === "login" ? [
+        ["Copy username", () => item.username ? void copy(item.username, "username") : announce("No username saved.", true)],
+        ["Copy password", () => copySecretFor(item.id, "password")], "-"] : []),
+      ["Edit…", () => openEdit(item.id)],
+      [item.favorite ? "Remove from favorites" : "Add to favorites", () => toggleFavoriteFor(item.id)],
+      "-",
+      ["Move to trash…", () => deleteItem(item.id, item.type), true]];
+  openContextMenu(event.clientX, event.clientY, entries, row);
+});
+document.addEventListener("pointerdown", event => { if (contextMenu && !contextMenu.contains(/** @type {HTMLElement} */ (event.target))) closeContextMenu(); });
+document.addEventListener("scroll", closeContextMenu, true);
 // A small styled confirm dialog replaces window.confirm — it matches the UI and survives theming.
 let confirmResolve = null;
 function confirmAction(title, text, okLabel = "Confirm", danger = true) {
@@ -555,8 +641,8 @@ async function restorePassword(password) {
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
 const kindWord = type => ({ note: "note", passkey: "passkey", card: "card", identity: "identity" }[type] ?? "login");
-async function deleteItem(id) {
-  if (!await confirmAction(`Delete this ${kindWord(detail?.item.type)}?`, "It is kept in Recently deleted for 30 days.", "Move to trash")) return;
+async function deleteItem(id, type = detail?.item.type) {
+  if (!await confirmAction(`Delete this ${kindWord(type)}?`, "It is kept in Recently deleted for 30 days.", "Move to trash")) return;
   try {
     const state = await client.request("DELETE", { id, revision: detail?.revision ?? client.state.revision });
     await afterDelete(state, {
@@ -568,8 +654,7 @@ async function deleteItem(id) {
     });
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
-async function restoreItem(id) {
-  const kind = detail?.item.type;
+async function restoreItem(id, kind = detail?.item.type) {
   try {
     const state = await client.request("RESTORE", { id, revision: detail?.revision ?? client.state.revision });
     clearDetail(); client.update(state); announce("Restored.");
@@ -577,8 +662,8 @@ async function restoreItem(id) {
     if (["note", "login", "passkey", "card", "identity"].includes(kind)) { show({ note: "notes", passkey: "passkeys", card: "cards", identity: "cards" }[kind] ?? "logins"); await select(id); }
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
-async function purgeItem(id) {
-  if (!await confirmAction(`Delete this ${kindWord(detail?.item.type)} forever?`, "This cannot be undone.", "Delete forever")) return;
+async function purgeItem(id, type = detail?.item.type) {
+  if (!await confirmAction(`Delete this ${kindWord(type)} forever?`, "This cannot be undone.", "Delete forever")) return;
   try {
     const state = await client.request("PURGE", { id, revision: detail?.revision ?? client.state.revision });
     await afterDelete(state);
