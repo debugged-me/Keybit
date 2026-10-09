@@ -1,34 +1,34 @@
 body { width: 380px; }
-.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px 11px 16px; border-bottom: 1px solid var(--border); }
-.popup .brand-icon { width: 24px; height: 24px; }
-.popup .brand h1 { font-size: 15px; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px 9px 16px; border-bottom: 1px solid var(--border); }
+.popup .brand-icon { width: 22px; height: 22px; }
+.popup .brand h1 { font-size: 14px; }
 .header-actions { display: flex; align-items: center; gap: 2px; }
 .status-pill { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; padding: 3px 10px; border-radius: 999px; background: var(--subtle); color: var(--muted); font-size: 11px; font-weight: 600; }
 .status-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); }
 .status-pill.unlocked { background: var(--accent-soft); color: var(--accent); }
 .status-pill.unlocked::before { background: #35a06b; box-shadow: 0 0 0 3px #35a06b2b; }
 #toggle-generator[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
-main { max-height: 520px; padding: 14px 16px 16px; overflow-y: auto; }
+main { max-height: 520px; padding: 10px 14px 14px; overflow-y: auto; }
 
-.generator-drawer { margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
+.generator-drawer { margin-bottom: 10px; padding: 12px; border-radius: var(--r-lg); background: var(--subtle); }
 .generator-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .generator-actions .primary-button, .generator-actions .secondary-button { min-height: 30px; padding: 4px 12px; }
 .generator-actions .length { margin-left: auto; font-size: 11.5px; }
 
-/* The current-tab card is the popup's hero: the site and its fill status at a glance. */
-.site-card { padding: 12px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
-.site-row { display: flex; align-items: center; gap: 12px; }
-.site-row .tile { width: 38px; height: 38px; font-size: 16px; border-radius: 10px; }
+/* The current-tab context is a flat strip with an edge-to-edge hairline, not a boxed card. */
+.site-card { margin: 0 -14px 10px; padding: 2px 14px 10px; border-bottom: 1px solid var(--border); }
+.site-row { display: flex; align-items: center; gap: 10px; }
+.site-row .tile { width: 32px; height: 32px; font-size: 14px; border-radius: 9px; }
 .site-text { flex: 1; min-width: 0; }
-.site-name { font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: -.1px; overflow-wrap: anywhere; }
+.site-name { font-family: var(--font-display); font-size: 13.5px; font-weight: 700; letter-spacing: -.1px; overflow-wrap: anywhere; }
 .site-text .muted { font-size: 12px; }
 
 
 .locked-panel { padding-top: 6px; }
 .locked-panel h2 { margin-top: 12px; font-family: var(--font-display); }
-#unlocked { padding-top: 14px; }
-.section-title { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 4px; }
-.section-title h2 { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+#unlocked { padding-top: 10px; }
+.section-title { display: flex; align-items: center; justify-content: space-between; margin: 16px 2px 2px; }
+.section-title h2 { color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: .15px; }
 .rows { display: flex; flex-direction: column; gap: 2px; }
 .login-item { display: flex; align-items: center; gap: 10px; padding: 7px 6px 7px 8px; border-radius: var(--r-md); transition: background .1s; }
 .login-item:hover, .login-item:focus-visible { background: var(--hover); }
@@ -39,12 +39,15 @@ main { max-height: 520px; padding: 14px 16px 16px; overflow-y: auto; }
 .login-item .primary { font-weight: 600; }
 .login-item .secondary { color: var(--muted); font-size: 12px; }
 .row-actions { display: flex; align-items: center; gap: 0; }
-.row-actions .icon-button { width: 30px; height: 30px; }
+.row-actions .icon-button { width: 28px; height: 28px; }
+/* Secondary actions stay quiet until the row is hovered or focused — fill keeps its color. */
+.row-actions .icon-button:not([data-action="fill"]) { opacity: .45; }
+.login-item:hover .row-actions .icon-button, .login-item:focus-within .row-actions .icon-button { opacity: 1; }
 .row-actions [data-action="fill"]:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
 .row-actions [data-action="fill"]:hover:not(:disabled) { background: var(--accent); color: var(--accent-text); }
 /* Environment switcher: small chips under a project login (pressed state is the base .chip style). */
 .login-block { display: flex; flex-direction: column; }
-.env-switch { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 6px 6px 46px; }
+.env-switch { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 6px 6px 50px; }
 .env-chip { min-height: 22px; padding: 2px 9px; font-size: 11px; }
 /* Production is always marked, pressed or not. */
 .env-chip.production { border-color: var(--danger); color: var(--danger); }

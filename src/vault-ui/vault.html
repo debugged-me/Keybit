@@ -7,27 +7,6 @@
   <script src="vault.js" type="module"></script>
 </head>
 <body class="app">
-  <header class="app-header">
-    <div class="brand"><img class="brand-icon" src="../../icons/keybit.svg" alt=""><h1>KeyBit</h1></div>
-    <label id="search-box" class="search" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" type="search" placeholder="Search logins and notes" aria-label="Search logins and notes" maxlength="200" autocomplete="off"><kbd id="search-kbd" aria-hidden="true"></kbd></label>
-    <div id="header-actions" class="header-actions" hidden>
-      <div class="menu-anchor">
-        <button id="autolock" class="icon-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="autolock-menu" title="Auto-lock: Never" aria-label="Auto-lock: Never"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg></button>
-        <div id="autolock-menu" class="menu" role="menu" aria-label="Lock after inactivity" hidden>
-          <p class="menu-title">Lock after inactivity</p>
-          <button type="button" role="menuitemradio" data-minutes="0">Never</button>
-          <button type="button" role="menuitemradio" data-minutes="1">1 minute</button>
-          <button type="button" role="menuitemradio" data-minutes="5">5 minutes</button>
-          <button type="button" role="menuitemradio" data-minutes="10">10 minutes</button>
-          <button type="button" role="menuitemradio" data-minutes="15">15 minutes</button>
-          <button type="button" role="menuitemradio" data-minutes="30">30 minutes</button>
-          <p class="menu-note">Quitting the browser always locks KeyBit.</p>
-        </div>
-      </div>
-      <button id="lock" class="icon-button" type="button" title="Lock now" aria-label="Lock now"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
-    </div>
-  </header>
-
   <div id="locked" class="locked">
     <div class="auth-card">
       <div class="auth-brand" aria-hidden="true"><img src="../../icons/keybit.svg" alt=""><span>KeyBit</span></div>
@@ -43,25 +22,53 @@
 
   <div id="app" class="app-layout" hidden>
     <nav id="sidebar" class="sidebar" aria-label="KeyBit sections">
-      <button class="nav-item" type="button" data-view="logins"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>All logins</span><span id="count-logins" class="count"></span></button>
+      <div class="rail-top">
+        <div class="brand"><img class="brand-icon" src="../../icons/keybit.svg" alt=""><h1>KeyBit</h1></div>
+        <label id="search-box" class="search" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" type="search" placeholder="Search" aria-label="Search logins and notes" maxlength="200" autocomplete="off"><kbd id="search-kbd" aria-hidden="true"></kbd></label>
+      </div>
+      <div class="nav-scroll">
+        <div class="nav-group">
+          <p class="nav-heading">Vault</p>
+          <button class="nav-item" type="button" data-view="logins"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>All logins</span><span id="count-logins" class="count"></span></button>
       <button class="nav-item" type="button" data-view="favorites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9z"/></svg><span>Favorites</span><span id="count-favorites" class="count"></span></button>
       <button class="nav-item" type="button" data-view="notes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg><span>Secure notes</span><span id="count-notes" class="count"></span></button>
       <button class="nav-item" type="button" data-view="cards"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg><span>Cards &amp; IDs</span><span id="count-cards" class="count"></span></button>
       <button id="nav-passkeys" class="nav-item" type="button" data-view="passkeys" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M14 9l2 2"/></svg><span>Passkeys</span><span id="count-passkeys" class="count"></span></button>
       <button class="nav-item" type="button" data-view="trash"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/><path d="M10 11v6M14 11v6"/></svg><span>Recently deleted</span><span id="count-trash" class="count"></span></button>
-      <div id="projects-nav" class="nav-group" hidden><p class="nav-heading">Projects</p><div id="project-items"></div></div>
-      <hr class="nav-divider">
-      <button class="nav-item" type="button" data-view="health"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg><span>Security Center</span><span id="count-health" class="count warn" hidden></span></button>
+        </div>
+        <div id="projects-nav" class="nav-group" hidden><p class="nav-heading">Projects</p><div id="project-items"></div></div>
+        <div class="nav-group">
+          <p class="nav-heading">Tools</p>
+          <button class="nav-item" type="button" data-view="health"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg><span>Security Center</span><span id="count-health" class="count warn" hidden></span></button>
       <button class="nav-item" type="button" data-view="generator"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M14 9l2 2"/></svg><span>Generator</span></button>
       <button class="nav-item" type="button" data-view="import"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg><span>Import</span></button>
       <button class="nav-item" type="button" data-view="backup"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg><span>Backup</span><span id="backup-dot" class="dot" title="No recent backup" hidden></span></button>
       <button class="nav-item" type="button" data-view="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
       <button id="nav-sites" class="nav-item" type="button" data-view="sites" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span>Site rules</span><span id="count-sites" class="count"></span></button>
+        </div>
+      </div>
       <button id="sidebar-health" class="sidebar-health" type="button" hidden>
         <span id="health-score" class="health-score"></span>
         <span class="health-lines"><span class="health-caption">Vault health</span><span id="health-detail"></span></span>
       </button>
     </nav>
+
+    <div id="header-actions" class="content-actions" hidden>
+      <div class="menu-anchor">
+        <button id="autolock" class="icon-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="autolock-menu" title="Auto-lock: Never" aria-label="Auto-lock: Never"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg></button>
+        <div id="autolock-menu" class="menu" role="menu" aria-label="Lock after inactivity" hidden>
+          <p class="menu-title">Lock after inactivity</p>
+          <button type="button" role="menuitemradio" data-minutes="0">Never</button>
+          <button type="button" role="menuitemradio" data-minutes="1">1 minute</button>
+          <button type="button" role="menuitemradio" data-minutes="5">5 minutes</button>
+          <button type="button" role="menuitemradio" data-minutes="10">10 minutes</button>
+          <button type="button" role="menuitemradio" data-minutes="15">15 minutes</button>
+          <button type="button" role="menuitemradio" data-minutes="30">30 minutes</button>
+          <p class="menu-note">Quitting the browser always locks KeyBit.</p>
+        </div>
+      </div>
+      <button id="lock" class="icon-button" type="button" title="Lock now" aria-label="Lock now"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
+    </div>
 
     <main class="content">
       <section id="view-logins" class="view logins-view">
@@ -69,7 +76,16 @@
           <div class="view-header"><h2 id="list-title">All logins</h2>
             <div class="view-tools">
               <button id="empty-trash" class="text-button danger" type="button" hidden>Empty trash</button>
-              <select id="sort" aria-label="Sort by"><option value="name">Name</option><option value="used">Recently used</option><option value="updated">Recently updated</option></select>
+              <button id="env-edit" class="secondary-button" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="18" r="2"/></svg><span>Environments</span></button>
+              <div id="sort-anchor" class="menu-anchor">
+                <button id="sort" class="secondary-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="sort-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v13M7 17l-2.5-2.5M7 17l2.5-2.5M17 20V7M17 7l-2.5 2.5M17 7l2.5 2.5"/></svg><span id="sort-label">Name</span></button>
+                <div id="sort-menu" class="menu" role="menu" aria-label="Sort by" hidden>
+                  <p class="menu-title">Sort by</p>
+                  <button type="button" role="menuitemradio" data-sort="name">Name</button>
+                  <button type="button" role="menuitemradio" data-sort="used">Recently used</button>
+                  <button type="button" role="menuitemradio" data-sort="updated">Recently updated</button>
+                </div>
+              </div>
               <button id="add-id" class="secondary-button" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add ID</span></button>
               <button id="add-login" class="primary-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span id="add-label">Add login</span></button>
             </div>
@@ -78,7 +94,6 @@
             <p><strong>Back up your vault.</strong> Your logins survive restarts, but removing KeyBit from the browser deletes them. An encrypted backup lets you restore them anywhere.</p>
             <div class="banner-actions"><button id="banner-export" class="primary-button" type="button">Export backup</button><button id="banner-later" class="text-button" type="button">Remind me later</button></div>
           </div>
-          <div id="env-editor" class="env-editor" hidden></div>
           <div id="items" class="item-list"></div>
         </div>
       </section>
@@ -174,7 +189,7 @@
 
       <section id="view-settings" class="view narrow" hidden>
         <div class="view-header"><h2>Settings</h2></div>
-        <div class="card settings-list">
+        <div class="settings-group">
           <h3>Security</h3>
           <label class="switch-row setting"><span><span class="switch-title">Lock when the computer locks or sleeps</span><span class="switch-hint muted">Recommended, especially with auto-lock set to Never.</span></span><input id="lock-on-sleep" type="checkbox" role="switch" checked></label>
           <label class="switch-row setting"><span><span class="switch-title">Confirm before opening Production</span><span class="switch-hint muted">The environment switcher asks first before moving a tab to a project's production address.</span></span><input id="confirm-production" type="checkbox" role="switch" checked></label>
@@ -182,12 +197,12 @@
           <div class="setting setting-action"><span><span class="switch-title">Master password</span><span class="switch-hint muted">Older backups still need the password they were made with.</span></span><button id="change-password" class="secondary-button" type="button">Change</button></div>
           <div class="setting setting-action"><span><span class="switch-title">Recovery kit</span><span class="switch-hint muted">Split vault recovery into shares — any few rebuild it, so people you trust can help you back in.</span></span><button id="create-kit" class="secondary-button" type="button">Create</button></div>
         </div>
-        <div class="card settings-list">
+        <div class="settings-group">
           <h3>Appearance</h3>
           <div class="setting setting-action"><span class="switch-title">Theme</span>
             <div class="segmented" role="radiogroup" aria-label="Theme"><button type="button" role="radio" data-theme-choice="system">System</button><button type="button" role="radio" data-theme-choice="light">Light</button><button type="button" role="radio" data-theme-choice="dark">Dark</button></div></div>
         </div>
-        <div class="card settings-list">
+        <div class="settings-group">
           <h3>Keyboard shortcuts</h3>
           <div id="shortcuts"></div>
           <div class="setting setting-action"><span class="switch-hint muted">In this window: ⌘K or Ctrl+K jumps to search, / does the same. In the popup: / searches, ↑ ↓ move, Enter fills.</span><button id="edit-shortcuts" class="secondary-button" type="button">Change shortcuts</button></div>
@@ -251,6 +266,14 @@
       <footer class="modal-footer"><span class="spacer"></span><button id="recover-cancel" class="secondary-button" type="button">Cancel</button><button id="recover-go" class="primary-button" type="submit">Recover vault</button></footer>
     </form>
   </dialog>
+  <dialog id="env-dialog" class="modal" aria-labelledby="env-title">
+    <header class="modal-header"><h2 id="env-title">Environments</h2><button id="env-close" class="icon-button" type="button" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></header>
+    <div class="modal-body">
+      <p class="hint">Addresses the popup environment switcher jumps between for this project.</p>
+      <div id="env-fields"></div>
+    </div>
+    <footer class="modal-footer"><span class="spacer"></span><button id="env-done" class="primary-button" type="button">Done</button></footer>
+  </dialog>
   <dialog id="password-dialog" class="modal small" aria-labelledby="password-dialog-title">
     <form id="password-form" autocomplete="off" novalidate>
       <header class="modal-header"><h2 id="password-dialog-title">Change master password</h2></header>
@@ -264,7 +287,7 @@
       <footer class="modal-footer"><span class="spacer"></span><button id="password-cancel" class="secondary-button" type="button">Cancel</button><button id="password-save" class="primary-button" type="submit">Change password</button></footer>
     </form>
   </dialog>
-  <p id="message" class="message" role="status" hidden></p>
+  <p id="message" class="message" role="status" popover="manual" hidden></p>
   <footer class="app-footer"><span>Stored only on this device · AES-256-GCM · No network</span><span id="version"></span></footer>
 </body>
 </html>

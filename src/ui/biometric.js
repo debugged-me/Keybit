@@ -24,7 +24,7 @@ export async function createBiometric() {
     credential = await navigator.credentials.create({ publicKey: {
       rp: { name: "KeyBit", id: location.hostname }, user: { id: crypto.getRandomValues(new Uint8Array(16)), name: "KeyBit vault", displayName: "KeyBit vault" },
       challenge: crypto.getRandomValues(new Uint8Array(32)), pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
-      authenticatorSelection: { authenticatorAttachment: "platform", residentKey: "preferred", userVerification: "required" }, timeout: 60000, extensions: { prf: {} } } });
+      authenticatorSelection: { authenticatorAttachment: "platform", residentKey: "discouraged", userVerification: "required" }, timeout: 60000, extensions: { prf: {} } } });
   } catch (error) { throw friendly(error); }
   const passkey = /** @type {any} */ (credential);
   if (passkey.getClientExtensionResults().prf?.enabled === false) throw new Error(`${biometricName()} on this device can't protect KeyBit's key. Keep using your master password.`);

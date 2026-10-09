@@ -31,8 +31,13 @@ export function announce(text, error = false) {
   const node = /** @type {HTMLElement} */ (document.querySelector("#message"));
   clearTimeout(toastTimer);
   node.textContent = text; node.classList.toggle("error", error); node.hidden = !text;
-  node.onclick = () => { node.hidden = true; };
-  if (text && !error) toastTimer = setTimeout(() => { node.hidden = true; }, 4000);
+  // The toast is a manual popover so it paints in the top layer — visible even above dialogs.
+  if (node.popover != null) {
+    if (node.matches(":popover-open")) node.hidePopover();
+    if (text) try { node.showPopover(); } catch { /* Element hidden or detached. */ }
+  }
+  node.onclick = () => { announce(""); };
+  if (text && !error) toastTimer = setTimeout(() => announce(""), 4000);
 }
 export async function openPage(path) { await chrome.tabs.create({ url: chrome.runtime.getURL(path) }); }
 export function clearFields(container) {
@@ -186,6 +191,17 @@ function armTip(target, delay) {
   tipTimer = setTimeout(() => { if (tipFor === target) showTip(target); }, delay);
 }
 if (typeof document !== "undefined") {
+  // Clicking the dimmed backdrop closes any .modal dialog — the dialog element is the event
+  // target for backdrop clicks, while clicks inside land on its children. Require the press
+  // to also start on the backdrop so selecting text that ends outside can't dismiss it.
+  let backdropDown = null;
+  document.addEventListener("pointerdown", event => {
+    backdropDown = event.target instanceof HTMLDialogElement && event.target.classList.contains("modal") ? event.target : null;
+  });
+  document.addEventListener("click", event => {
+    if (backdropDown && event.target === backdropDown) backdropDown.close();
+    backdropDown = null;
+  });
   document.addEventListener("pointerover", event => {
     const target = event.target instanceof Element ? event.target.closest("[title], [data-tip]") : null;
     if (target) armTip(target, 220); else hideTip();

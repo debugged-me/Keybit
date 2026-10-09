@@ -39,7 +39,7 @@ async function renderLists() {
     if (!client.is(session) || request !== listRequest) return;
     matches.replaceChildren(...here.map(item => {
       const row = loginRow(item, client, { action: fillAction, disabled: page.forms !== 1 });
-      const envs = item.project ? Object.keys(envMaps[item.project] ?? {}) : [];
+      const envs = item.project ? Object.keys(envMaps[item.project] ?? {}).filter(env => env !== "other") : [];
       if (envs.length < 2) return row;
       // Environment switcher: jump this project's login between its configured addresses. The
       // "current" environment is the one whose address this page sits under; falling back to the

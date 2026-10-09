@@ -43,7 +43,7 @@ let sort = (() => { try { return localStorage.getItem("keybit-sort") || "name"; 
 
 const client = new VaultClient((state, previous) => {
   renderAuth($("#auth"), client);
-  if (!state.unlocked) { closeLoginDialog(); closeDialog(); clearDetail(); items = []; trash = []; health = {}; $("#items").replaceChildren(); $("#health-list").replaceChildren(); }
+  if (!state.unlocked) { closeLoginDialog(); closeDialog(); clearDetail(); if ($("#env-dialog").open) $("#env-dialog").close(); items = []; trash = []; health = {}; $("#items").replaceChildren(); $("#health-list").replaceChildren(); }
   if (state.session !== previous.session) { $("#search").value = ""; selectedId = null; }
   if (state.unlocked) restoring = false;
   layout();
@@ -145,13 +145,13 @@ function inView(item) {
   return item.type === "login";
 }
 // Environment URL editor for a project view: the popup's switcher jumps between these addresses.
+// It lives in a dialog opened from the Environments button, so the list stays clean.
 // Entries marked "from login" resolve from a login's own environment + site; saving one writes an
 // explicit override into the project's environment map.
 function renderEnvEditor(project) {
-  const host = $("#env-editor");
+  const host = $("#env-fields");
   host.replaceChildren();
-  host.hidden = !project;
-  if (!project) return;
+  if (!project || !$("#env-dialog").open) return;
   const merged = envMaps.merged[project] ?? {};
   const configured = envMaps.configured[project] ?? {};
   const save = async environments => {
@@ -182,9 +182,6 @@ function renderEnvEditor(project) {
     void save({ ...configured, [env]: url });
   });
   host.append(
-    element("div", { className: "env-head" },
-      element("h3", {}, "Environments"),
-      element("span", { className: "muted" }, "Addresses the popup environment switcher jumps between.")),
     ...rows,
     element("div", { className: "env-row env-add" }, envName, envUrl, add),
     element("datalist", { id: "env-names" }, ENV_ORDER.map(env => element("option", { value: env }))));
@@ -193,7 +190,8 @@ function renderList() {
   if (!isList(view)) return;
   const query = $("#search").value;
   const project = view.startsWith("project:") ? view.slice(8) : null;
-  renderEnvEditor(project && !query ? project : null);
+  $("#env-edit").hidden = !(project && !query);
+  if ($("#env-dialog").open) renderEnvEditor(project);
   const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes", passkeys: "Passkeys", cards: "Cards & IDs", trash: "Recently deleted" };
   $("#list-title").textContent = query ? `Results for “${query}”` : project ?? titles[view];
   $("#add-label").textContent = view === "notes" ? "Add note" : view === "cards" ? "Add card" : "Add login";
@@ -202,7 +200,7 @@ function renderList() {
   $("#add-login").hidden = view === "passkeys";
   $("#add-id").hidden = view !== "cards";
   // Trash always lists the newest deletion first; the sort menu is not meaningful there.
-  $("#sort").hidden = view === "trash";
+  $("#sort-anchor").hidden = view === "trash";
   $("#empty-trash").hidden = view !== "trash" || !trash.length;
   // A search looks everywhere, not only in the current section.
   const shown = query ? sorted(items) : view === "trash" ? trash : sorted(items.filter(inView));
@@ -305,8 +303,30 @@ document.addEventListener("keydown", event => {
   const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable;
   if (event.key === "/" && !typing && !event.metaKey && !event.ctrlKey && !event.altKey) { event.preventDefault(); $("#search").focus(); }
 });
-$("#sort").value = sort;
-$("#sort").addEventListener("change", () => { sort = $("#sort").value; try { localStorage.setItem("keybit-sort", sort); } catch { /* Not saved. */ } renderList(); });
+// Sort picker: a button with a small menu, matching the auto-lock control.
+const SORT_LABELS = { name: "Name", used: "Recently used", updated: "Recently updated" };
+function updateSort() {
+  $("#sort-label").textContent = SORT_LABELS[sort] ?? "Name";
+  for (const option of all("#sort-menu [data-sort]")) option.setAttribute("aria-checked", String(option.dataset.sort === sort));
+}
+function toggleSort(open = $("#sort-menu").hidden) {
+  $("#sort-menu").hidden = !open; $("#sort").setAttribute("aria-expanded", String(open));
+  if (open) $("#sort-menu [aria-checked='true']")?.focus();
+}
+$("#sort").addEventListener("click", () => toggleSort());
+for (const option of all("#sort-menu [data-sort]")) {
+  option.addEventListener("click", () => {
+    sort = option.dataset.sort; try { localStorage.setItem("keybit-sort", sort); } catch { /* Not saved. */ }
+    toggleSort(false); $("#sort").focus(); updateSort(); renderList();
+  });
+}
+$("#sort-menu").addEventListener("keydown", event => {
+  const options = [...all("#sort-menu [data-sort]")];
+  const index = options.indexOf(document.activeElement);
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); options[(index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length].focus(); }
+  if (event.key === "Escape") { toggleSort(false); $("#sort").focus(); }
+});
+updateSort();
 
 // Details
 function clearDetail() {
@@ -680,7 +700,11 @@ $("#autolock-menu").addEventListener("keydown", event => {
   if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); options[(index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length].focus(); }
   if (event.key === "Escape") { toggleMenu(false); $("#autolock").focus(); }
 });
-document.addEventListener("pointerdown", event => { if (!(/** @type {Element} */ (event.target)).closest?.(".menu-anchor")) toggleMenu(false); });
+document.addEventListener("pointerdown", event => { if (!(/** @type {Element} */ (event.target)).closest?.(".menu-anchor")) { toggleMenu(false); toggleSort(false); } });
+// Project environment addresses live behind a button so they don't crowd the login list.
+$("#env-edit").addEventListener("click", () => { $("#env-dialog").showModal(); renderEnvEditor(view.startsWith("project:") ? view.slice(8) : null); });
+$("#env-done").addEventListener("click", () => $("#env-dialog").close());
+$("#env-close").addEventListener("click", () => $("#env-dialog").close());
 $("#lock").addEventListener("click", () => void client.lock());
 
 // Generator: Random or Memorable, remembered for every Generate button and sign-up field.
