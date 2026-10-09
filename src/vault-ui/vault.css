@@ -84,20 +84,22 @@ body.app { display: flex; flex-direction: column; height: 100vh; overflow: hidde
 .banner-actions { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
 
 /* The detail reads as a flat column pinned to the right of the list (master–detail). */
-.detail-pane { position: sticky; top: 56px; align-self: flex-start; width: min(430px, 42%); flex-shrink: 0; max-height: calc(100vh - 130px); overflow-y: auto; padding: 0 4px 10px 22px; border-left: 1px solid var(--border); animation: view-in .16s ease-out;
+.detail-pane { position: sticky; top: 56px; align-self: flex-start; width: min(440px, 42%); flex-shrink: 0; max-height: calc(100vh - 130px); overflow-y: auto; padding: 18px 20px 20px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-sm); animation: view-in .16s ease-out;
   scrollbar-width: thin; }
 .detail-body { max-width: 400px; }
-.detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
 .detail-header .tile { width: 44px; height: 44px; font-size: 19px; border-radius: 12px; }
 .detail-header h3 { flex: 1; min-width: 0; font-family: var(--font-display); font-size: 17px; font-weight: 700; letter-spacing: -.3px; overflow-wrap: break-word; }
 .detail-header .site { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--muted); font-size: 12.5px; font-weight: 400; overflow-wrap: anywhere; }
-.field { padding: 12px 0; }
+.field { padding: 13px 0; }
 .field + .field { border-top: 1px solid var(--border); }
 .field-label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .55px; text-transform: uppercase; }
-.field-value { display: flex; align-items: center; gap: 4px; min-height: 32px; }
+.field-value { display: flex; align-items: center; gap: 4px; min-height: 30px; margin-top: 2px; font-weight: 500; }
 .field-value > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .field-value .secret { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; letter-spacing: .3px; }
 .field-value .masked { letter-spacing: 2px; }
+.copyable { transition: color .12s; }
+.copyable:hover { color: var(--accent); }
 .notes { white-space: pre-wrap; }
 .warning { display: flex; gap: 9px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border-radius: var(--r-md); background: var(--warn-bg); color: var(--warn-text); font-size: 12.5px; }
 .warning svg { width: 15px; height: 15px; margin-top: 1px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -112,8 +114,8 @@ body.app { display: flex; flex-direction: column; height: 100vh; overflow: hidde
 .share-list li::marker { color: var(--muted); font-size: 11.5px; }
 .share-list code { display: inline-block; max-width: calc(100% - 34px); vertical-align: middle; font-size: 11.5px; word-break: break-all; }
 .share-list .icon-button { vertical-align: middle; margin-left: 4px; }
-.detail-actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
-.detail-actions .meta { margin-left: auto; color: var(--muted); font-size: 11.5px; }
+.detail-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.detail-actions .meta { flex-basis: 100%; margin-top: 2px; color: var(--muted); font-size: 11.5px; }
 
 .button-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
 
@@ -150,7 +152,7 @@ body.app { display: flex; flex-direction: column; height: 100vh; overflow: hidde
   .sidebar-health { display: none; }
   .view { padding: 18px 16px 32px; }
   .logins-view { flex-direction: column; }
-  .detail-pane { position: static; width: 100%; max-height: none; margin-top: 8px; padding: 14px 0 0; border-left: 0; border-top: 1px solid var(--border); }
+  .detail-pane { position: static; width: 100%; max-height: none; margin-top: 8px; }
   .detail-body { max-width: none; }
 }
 @media (max-width: 560px) {
@@ -215,14 +217,8 @@ kbd { padding: 2px 8px; border: 1px solid var(--border-strong); border-bottom-wi
 .empty-state .hint-line { font-size: 12.5px; max-width: 340px; }
 .empty-state .secondary-button { margin-top: 10px; }
 
-/* Recently used: a row of favicon chips above All logins. */
-.recent-strip { display: flex; align-items: center; gap: 8px; margin: -6px 0 12px; padding-bottom: 4px; overflow-x: auto; scrollbar-width: none; }
-.recent-strip > .recent-label { flex-shrink: 0; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
-.recent-chip { display: flex; align-items: center; gap: 8px; flex-shrink: 0; max-width: 200px; padding: 5px 13px 5px 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 12.5px; font-weight: 600; transition: border-color .12s, box-shadow .12s, transform .08s ease-out; }
-.recent-chip:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
-.recent-chip:active { transform: scale(.96); }
-.recent-chip .tile { width: 24px; height: 24px; font-size: 11px; border-radius: 50%; }
-.recent-chip span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Empty states sit vertically centered when they are the only thing in the list. */
+.item-list:has(> .empty-state) { min-height: min(58vh, 540px); justify-content: center; }
 
 /* Skeleton rows shimmer while the first list load is in flight. */
 .skel-row { display: flex; align-items: center; gap: 12px; padding: 9px 10px; }

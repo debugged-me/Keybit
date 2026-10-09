@@ -39,11 +39,11 @@ let importItems = null;
 let prefs = null;
 let envMaps = { merged: {}, configured: {} };
 let backupInfo = { lastBackupAt: 0, snoozedUntil: 0 };
-let sort = (() => { try { return localStorage.getItem("keybit-sort") || "name"; } catch { return "name"; } })();
+let sort = (() => { try { return localStorage.getItem("keybit-sort") || "site"; } catch { return "site"; } })();
 
 const client = new VaultClient((state, previous) => {
   renderAuth($("#auth"), client);
-  if (!state.unlocked) { closeLoginDialog(); closeDialog(); clearDetail(); if ($("#env-dialog").open) $("#env-dialog").close(); items = []; trash = []; health = {}; $("#items").replaceChildren(); $("#health-list").replaceChildren(); $("#recent-strip").replaceChildren(); $("#recent-strip").hidden = true; }
+  if (!state.unlocked) { closeLoginDialog(); closeDialog(); clearDetail(); if ($("#env-dialog").open) $("#env-dialog").close(); items = []; trash = []; health = {}; $("#items").replaceChildren(); $("#health-list").replaceChildren(); }
   if (state.session !== previous.session) { $("#search").value = ""; selectedId = null; }
   if (state.unlocked) restoring = false;
   layout();
@@ -131,7 +131,9 @@ function row(item, onClick) {
   return button;
 }
 function sorted(list) {
-  const by = { name: (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  const fallback = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) || a.id.localeCompare(b.id);
+  const by = { name: fallback,
+    site: (a, b) => (a.scope || "￿").localeCompare(b.scope || "￿", undefined, { sensitivity: "base" }) || fallback(a, b),
     used: (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name),
     updated: (a, b) => b.updatedAt.localeCompare(a.updatedAt) }[sort] ?? (() => 0);
   return [...list].sort(by);
@@ -186,22 +188,6 @@ function renderEnvEditor(project) {
     element("div", { className: "env-row env-add" }, envName, envUrl, add),
     element("datalist", { id: "env-names" }, ENV_ORDER.map(env => element("option", { value: env }))));
 }
-// Recently used: favicon chips above All logins for the items touched most recently.
-function renderRecent() {
-  const strip = $("#recent-strip");
-  const recent = view === "logins" && !$("#search").value
-    ? items.filter(item => item.type === "login" && item.lastUsedAt)
-        .sort((a, b) => b.lastUsedAt - a.lastUsedAt).slice(0, 5)
-    : [];
-  strip.hidden = !recent.length;
-  strip.replaceChildren(...(recent.length ? [element("span", { className: "recent-label" }, "Recent")] : []),
-    ...recent.map(item => {
-      const chip = element("button", { type: "button", className: "recent-chip" },
-        siteTile(item.scope, "", item.urls?.[0]), element("span", {}, item.name));
-      chip.addEventListener("click", () => void select(item.id));
-      return chip;
-    }));
-}
 function emptyState(iconName, title, hint, actionLabel = null, run = null) {
   const node = element("div", { className: "empty-state" }, icon(iconName), element("strong", {}, title), element("span", { className: "hint-line" }, hint));
   if (actionLabel && run) {
@@ -216,7 +202,6 @@ function renderList() {
   const query = $("#search").value;
   const project = view.startsWith("project:") ? view.slice(8) : null;
   $("#env-edit").hidden = !(project && !query);
-  renderRecent();
   if ($("#env-dialog").open) renderEnvEditor(project);
   const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes", passkeys: "Passkeys", cards: "Cards & IDs", trash: "Recently deleted" };
   $("#list-title").textContent = query ? `Results for “${query}”` : project ?? titles[view];
@@ -345,7 +330,7 @@ document.addEventListener("click", event => {
   if (close) close.closest("dialog")?.close();
 });
 // Sort picker: a button with a small menu, matching the auto-lock control.
-const SORT_LABELS = { name: "Name", used: "Recently used", updated: "Recently updated" };
+const SORT_LABELS = { name: "Name", site: "Website", used: "Recently used", updated: "Recently updated" };
 function updateSort() {
   $("#sort-label").textContent = SORT_LABELS[sort] ?? "Name";
   for (const option of all("#sort-menu [data-sort]")) option.setAttribute("aria-checked", String(option.dataset.sort === sort));

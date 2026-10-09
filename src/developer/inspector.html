@@ -7,22 +7,31 @@
   <script src="inspector.js" type="module"></script>
 </head>
 <body class="app">
-  <header class="app-header">
-    <div class="brand"><img class="brand-icon" src="../../icons/keybit.svg" alt=""><h1>KeyBit</h1><span class="page-title">Login form inspector</span></div>
-    <div class="header-actions">
-      <button id="inspect-again" class="icon-button" type="button" title="Inspect again" aria-label="Inspect again"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
-    </div>
-  </header>
   <main class="inspector">
-    <section class="site-card inspector-page" aria-labelledby="page-name">
-      <div class="site-row">
-        <span id="site-tile" class="tile tone-6" aria-hidden="true">?</span>
-        <div class="site-text"><p id="page-name" class="site-name">Inspecting…</p><p id="page-url" class="muted"></p></div>
+    <header class="page-head">
+      <img class="brand-icon" src="../../icons/keybit.svg" alt="">
+      <div class="page-head-text">
+        <h1>Login form inspector</h1>
+        <p class="page-sub">The fields KeyBit can see and fill on the inspected page.</p>
+      </div>
+      <button id="inspect-again" class="secondary-button" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+        Inspect again
+      </button>
+    </header>
+    <section class="site-card" aria-labelledby="page-name">
+      <span id="site-tile" class="tile tone-6" aria-hidden="true">?</span>
+      <div class="site-text">
+        <p id="page-name" class="site-name">Inspecting…</p>
+        <p id="page-url" class="muted"></p>
       </div>
     </section>
     <div id="frames"></div>
-    <p id="empty" class="muted empty" hidden>No frames could be inspected. Open a regular HTTP or HTTPS page and try again.</p>
+    <div id="empty" class="empty-state" hidden>
+      <p class="empty-title">No frames could be inspected</p>
+      <p class="empty-hint">Open a regular HTTP or HTTPS page and try again.</p>
+    </div>
   </main>
-  <p id="message" class="message" role="status" hidden></p>
+  <p id="message" class="message" role="status" popover="manual" hidden></p>
 </body>
 </html>

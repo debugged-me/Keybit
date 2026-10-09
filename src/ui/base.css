@@ -128,6 +128,7 @@ input[role="switch"]:checked::after { transform: translateX(16px); }
 
 /* Add/edit login dialog (ui/login-form.js), shared by the app window and the popup. */
 .modal { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; border: 1px solid var(--border); border-radius: var(--r-xl); background: var(--surface); color: var(--text); box-shadow: var(--shadow-lg); overflow: hidden; }
+#login-dialog { width: min(660px, calc(100vw - 32px)); }
 .modal[open] { display: flex; flex-direction: column; animation: modal-in .14s ease-out; }
 .modal::backdrop { background: #0a0f0c73; backdrop-filter: blur(3px); }
 @keyframes modal-in { from { opacity: 0; transform: translateY(6px) scale(.985); } }
