@@ -1,9 +1,3 @@
-# Test suite is kept local; also ignore its generated reports
-/tests/
-/test-results/
-/playwright-report/
-/coverage/
-
 # Dependencies and local logs
 node_modules/
 *.log

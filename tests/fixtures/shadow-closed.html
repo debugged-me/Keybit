@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>KeyBit local login fixture</title><link rel="stylesheet" href="fixture.css"></head><body><main><h1>Local login test</h1><p>Use dummy credentials only.</p><login-card></login-card></main>
+<script>
+customElements.define("login-card", class extends HTMLElement {
+  connectedCallback() {
+    const root = this.attachShadow({ mode: "closed" });
+    root.innerHTML =
+      `<style>:host{display:block}input{display:block;width:100%;height:64px}</style>
+       <form><input id="pass" type="password" aria-label="Password"><button type="submit">Sign in</button></form>`;
+    root.querySelector("form").addEventListener("submit", event => event.preventDefault());
+  }
+});
+</script></body></html>

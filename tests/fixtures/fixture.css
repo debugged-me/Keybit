@@ -1,0 +1,6 @@
+body { font: 15px/1.5 system-ui, sans-serif; color: #293b31; background: #f4f6f5; margin: 0; }
+main { max-width: 380px; margin: 100px auto; padding: 28px; background: white; border: 1px solid #e0e8e1; border-radius: 12px; }
+h1 { margin: 0; font-size: 24px; } p { color: #627267; } label { display: block; margin: 16px 0 6px; }
+input { display: block; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #becbc2; border-radius: 6px; font: inherit; }
+button { padding: 9px 16px; background: #285b46; color: white; border: 0; border-radius: 6px; margin-top: 20px; font: inherit; }
+iframe { width: 100%; height: 480px; border: 0; }

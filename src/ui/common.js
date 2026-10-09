@@ -27,17 +27,44 @@ export function element(tag, attributes = {}, ...children) {
   return node;
 }
 let toastTimer;
-export function announce(text, error = false) {
+const toastQueue = [];
+// The toast is a manual popover so it paints in the top layer — visible even above dialogs.
+// Messages queue so a fast second notice isn't lost; successes fade after 4s, errors stay
+// until dismissed. A toast may carry one action button ({ label, run }) — e.g. Undo.
+function showToast() {
   const node = /** @type {HTMLElement} */ (document.querySelector("#message"));
-  clearTimeout(toastTimer);
-  node.textContent = text; node.classList.toggle("error", error); node.hidden = !text;
-  // The toast is a manual popover so it paints in the top layer — visible even above dialogs.
+  const item = toastQueue[0];
+  if (!node || !item) return;
+  node.replaceChildren(item.text);
+  if (item.action) {
+    const button = element("button", { type: "button", className: "toast-action" }, item.action.label);
+    button.addEventListener("click", event => { event.stopPropagation(); dismissToast(); void item.action.run(); });
+    node.append(button);
+  }
+  node.classList.toggle("error", item.error);
+  node.hidden = false;
   if (node.popover != null) {
     if (node.matches(":popover-open")) node.hidePopover();
-    if (text) try { node.showPopover(); } catch { /* Element hidden or detached. */ }
+    try { node.showPopover(); } catch { /* Element hidden or detached. */ }
   }
-  node.onclick = () => { announce(""); };
-  if (text && !error) toastTimer = setTimeout(() => announce(""), 4000);
+  node.onclick = dismissToast;
+  if (!item.error) toastTimer = setTimeout(dismissToast, 4000);
+}
+function dismissToast() {
+  clearTimeout(toastTimer);
+  toastQueue.shift();
+  if (toastQueue.length) { showToast(); return; }
+  const node = /** @type {HTMLElement} */ (document.querySelector("#message"));
+  if (node) {
+    node.hidden = true; node.classList.remove("error");
+    if (node.popover != null && node.matches(":popover-open")) node.hidePopover();
+  }
+}
+export function announce(text, error = false, action = null) {
+  if (!document.querySelector("#message")) return;
+  if (!text) { toastQueue.length = 0; dismissToast(); return; }
+  toastQueue.push({ text, error, action });
+  if (toastQueue.length === 1) showToast();
 }
 export async function openPage(path) { await chrome.tabs.create({ url: chrome.runtime.getURL(path) }); }
 export function clearFields(container) {

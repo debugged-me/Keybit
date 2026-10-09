@@ -76,7 +76,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 17p
 input[type="range"]:focus-visible { outline-offset: 4px; }
 
 svg { flex-shrink: 0; }
-.primary-button, .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 7px 14px; border-radius: var(--r-md); font-weight: 600; white-space: nowrap; transition: background .12s, border-color .12s, box-shadow .12s; }
+.primary-button, .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 7px 14px; border-radius: var(--r-md); font-weight: 600; white-space: nowrap; transition: background .12s, border-color .12s, box-shadow .12s, transform .08s ease-out; }
 .primary-button { border: 1px solid transparent; background: var(--accent); color: var(--accent-text); box-shadow: inset 0 1px 0 #ffffff24, var(--shadow-sm); }
 .primary-button:hover:not(:disabled) { background: var(--accent-hover); }
 .secondary-button { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
@@ -86,7 +86,7 @@ svg { flex-shrink: 0; }
 .text-button:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
 .text-button:disabled { color: var(--muted); }
 .danger { color: var(--danger) !important; }
-.icon-button { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--muted); transition: background .12s, color .12s; }
+.icon-button { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--muted); transition: background .12s, color .12s, transform .08s ease-out; }
 .icon-button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 .icon-button:disabled { opacity: .4; }
 .icon-button svg, .primary-button svg, .secondary-button svg, .nav-item svg, .search svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -98,7 +98,7 @@ svg { flex-shrink: 0; }
 .notice { margin-top: 12px; color: var(--muted); font-size: 12px; }
 .callout { margin-top: 12px; padding: 10px 12px; border-radius: var(--r-md); background: var(--warn-bg); color: var(--warn-text); font-size: 12.5px; }
 .callout.info { background: var(--accent-soft); color: var(--text); }
-.chip { padding: 4px 10px; border: 1px solid var(--border-strong); border-radius: 999px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 500; transition: background .12s, color .12s, border-color .12s; }
+.chip { padding: 4px 10px; border: 1px solid var(--border-strong); border-radius: 999px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 500; transition: background .12s, color .12s, border-color .12s, transform .08s ease-out; }
 .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .generated { font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .3px; word-break: break-all; }
 
@@ -106,6 +106,11 @@ svg { flex-shrink: 0; }
 .search svg { position: absolute; left: 13px; color: var(--muted); pointer-events: none; }
 .search input { padding-left: 36px; min-height: 36px; border-color: var(--border); border-radius: 999px; background: var(--subtle); }
 .search input:focus { background: var(--surface); border-color: var(--accent); }
+
+/* Segmented control (generator mode, settings pickers, popup scope tabs). */
+.segmented { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--subtle); border: 1px solid var(--border); }
+.segmented button { padding: 5px 12px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--muted); font-weight: 600; font-size: 12.5px; transition: background .12s, color .12s; }
+.segmented button[aria-checked="true"], .segmented button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
 
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 0; font-weight: 400; cursor: pointer; }
 input[role="switch"] { position: relative; flex-shrink: 0; width: 38px; height: 22px; border: 0; border-radius: 999px; background: var(--border-strong); appearance: none; cursor: pointer; transition: background .15s; }
@@ -178,3 +183,57 @@ input[role="switch"]:checked::after { transform: translateX(16px); }
 /* Styled hover tooltip (common.js parks [title] into this popover, above any dialog). */
 .tip { position: fixed; inset: auto; z-index: 2147483647; max-width: 260px; padding: 4px 9px; border: none; border-radius: 7px; background: #23292f; color: #fff; font: 500 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; box-shadow: 0 4px 14px #0003; pointer-events: none; margin: 0; }
 .tip::backdrop { display: none; }
+
+/* Accent presets (Settings → Appearance → Accent; theme.js sets data-accent). */
+:root[data-accent="neutral"] {
+  --accent: #3d4a44; --accent-hover: #2e3a34; --accent-text: #ffffff; --accent-soft: #e6ebe8; --focus: #5b6f66;
+}
+@media (prefers-color-scheme: dark) { :root[data-accent="neutral"]:not([data-theme="light"]) {
+  --accent: #b9c4bd; --accent-hover: #d3ddd7; --accent-text: #121a16; --accent-soft: #242e29; --focus: #b9c4bd; } }
+:root[data-theme="dark"][data-accent="neutral"] {
+  --accent: #b9c4bd; --accent-hover: #d3ddd7; --accent-text: #121a16; --accent-soft: #242e29; --focus: #b9c4bd; }
+:root[data-accent="blue"] {
+  --accent: #2b5278; --accent-hover: #224464; --accent-text: #ffffff; --accent-soft: #e1ecf5; --focus: #4a7fab;
+}
+@media (prefers-color-scheme: dark) { :root[data-accent="blue"]:not([data-theme="light"]) {
+  --accent: #8fbde0; --accent-hover: #aad2ee; --accent-text: #0e1a24; --accent-soft: #1d2a37; --focus: #8fbde0; } }
+:root[data-theme="dark"][data-accent="blue"] {
+  --accent: #8fbde0; --accent-hover: #aad2ee; --accent-text: #0e1a24; --accent-soft: #1d2a37; --focus: #8fbde0; }
+
+/* Text size (Settings → Appearance → Text size; theme.js sets data-text-size). Zoom scales the
+   whole layout proportionally, so fixed px components stay in tune. */
+:root[data-text-size="large"] body.app { zoom: 1.12; }
+:root[data-text-size="compact"] body.app { zoom: .94; }
+
+/* Press feedback: a small dip makes taps feel responsive. */
+.primary-button:active:not(:disabled), .secondary-button:active:not(:disabled),
+.icon-button:active:not(:disabled), .text-button:active:not(:disabled),
+.nav-item:active:not(:disabled), .chip:active:not(:disabled),
+.item-row:active:not(:disabled), .login-item:active:not(:disabled) { transform: scale(.975); }
+
+/* List rows rise in with a light stagger on each render. */
+@keyframes row-in { from { opacity: 0; transform: translateY(5px); } }
+.item-list .item-row, .item-list .group-heading { animation: row-in .18s ease-out backwards; }
+.item-list :nth-child(1) { animation-delay: 0ms; } .item-list :nth-child(2) { animation-delay: 18ms; }
+.item-list :nth-child(3) { animation-delay: 36ms; } .item-list :nth-child(4) { animation-delay: 54ms; }
+.item-list :nth-child(5) { animation-delay: 72ms; } .item-list :nth-child(6) { animation-delay: 90ms; }
+.item-list :nth-child(7) { animation-delay: 108ms; } .item-list :nth-child(8) { animation-delay: 126ms; }
+.item-list :nth-child(n+9) { animation-delay: 140ms; }
+
+/* Clickable values in detail views copy themselves. */
+.copyable { cursor: pointer; border-bottom: 1px dashed transparent; transition: border-color .12s; }
+.copyable:hover { border-bottom-color: var(--muted); }
+
+/* Toast action button (e.g. Undo after a delete). */
+.toast-action { margin-left: 10px; padding: 2px 9px; border: 0; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: inherit; font-weight: 700; }
+.message.error .toast-action { background: #ffffff33; color: #fff; }
+
+kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--surface); color: var(--muted); font: 600 10.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* A circle gauge for the vault-health score in the rail. */
+.health-ring { position: relative; width: 40px; height: 40px; flex-shrink: 0; }
+.health-ring svg { width: 40px; height: 40px; transform: rotate(-90deg); }
+.health-ring .ring-track { fill: none; stroke: var(--border); stroke-width: 3; }
+.health-ring .ring-arc { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset .4s ease, stroke .2s; }
+.health-ring .health-score { position: absolute; inset: 0; display: grid; place-items: center; font-size: 9.5px; font-weight: 700; letter-spacing: -.2px; }
+.sidebar-health.warn .health-ring .ring-arc { stroke: #d18a1d; }

@@ -48,7 +48,7 @@
         </div>
       </div>
       <button id="sidebar-health" class="sidebar-health" type="button" hidden>
-        <span id="health-score" class="health-score"></span>
+        <span class="health-ring" aria-hidden="true"><svg viewBox="0 0 40 40"><circle class="ring-track" cx="20" cy="20" r="15.5"/><circle id="health-arc" class="ring-arc" cx="20" cy="20" r="15.5"/></svg><span id="health-score" class="health-score"></span></span>
         <span class="health-lines"><span class="health-caption">Vault health</span><span id="health-detail"></span></span>
       </button>
     </nav>
@@ -94,8 +94,10 @@
             <p><strong>Back up your vault.</strong> Your logins survive restarts, but removing KeyBit from the browser deletes them. An encrypted backup lets you restore them anywhere.</p>
             <div class="banner-actions"><button id="banner-export" class="primary-button" type="button">Export backup</button><button id="banner-later" class="text-button" type="button">Remind me later</button></div>
           </div>
+          <div id="recent-strip" class="recent-strip" hidden></div>
           <div id="items" class="item-list"></div>
         </div>
+        <aside id="detail" class="detail-pane" hidden aria-label="Item details"><div id="detail-view" class="detail-body"></div></aside>
       </section>
 
       <section id="view-health" class="view" hidden>
@@ -201,6 +203,12 @@
           <h3>Appearance</h3>
           <div class="setting setting-action"><span class="switch-title">Theme</span>
             <div class="segmented" role="radiogroup" aria-label="Theme"><button type="button" role="radio" data-theme-choice="system">System</button><button type="button" role="radio" data-theme-choice="light">Light</button><button type="button" role="radio" data-theme-choice="dark">Dark</button></div></div>
+          <div class="setting setting-action"><span class="switch-title">Accent</span>
+            <div class="segmented" role="radiogroup" aria-label="Accent color"><button type="button" role="radio" data-accent-choice="green">Green</button><button type="button" role="radio" data-accent-choice="neutral">Neutral</button><button type="button" role="radio" data-accent-choice="blue">Blue</button></div></div>
+          <div class="setting setting-action"><span class="switch-title">Text size</span>
+            <div class="segmented" role="radiogroup" aria-label="Text size"><button type="button" role="radio" data-text-size="compact">Compact</button><button type="button" role="radio" data-text-size="default">Default</button><button type="button" role="radio" data-text-size="large">Large</button></div></div>
+          <div class="setting setting-action"><span><span class="switch-title">Density</span><span class="switch-hint muted">Compact fits more rows on screen.</span></span>
+            <div class="segmented" role="radiogroup" aria-label="List density"><button type="button" role="radio" data-density="comfortable">Comfortable</button><button type="button" role="radio" data-density="compact">Compact</button></div></div>
         </div>
         <div class="settings-group">
           <h3>Keyboard shortcuts</h3>
@@ -216,10 +224,8 @@
     </main>
   </div>
 
-  <dialog id="detail" class="modal detail-modal" aria-label="Details">
-    <div id="detail-view" class="modal-body"></div>
-  </dialog>
   <dialog id="share-dialog" class="modal small" aria-labelledby="share-title">
+    <button class="icon-button modal-close" type="button" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <form id="share-form" autocomplete="off" novalidate>
       <header class="modal-header"><h2 id="share-title">Share this item</h2></header>
       <div class="modal-body">
@@ -231,6 +237,7 @@
     </form>
   </dialog>
   <dialog id="kit-dialog" class="modal" aria-labelledby="kit-title">
+    <button class="icon-button modal-close" type="button" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <form id="kit-form" autocomplete="off" novalidate>
       <header class="modal-header"><h2 id="kit-title">Create a recovery kit</h2></header>
       <div class="modal-body">
@@ -253,6 +260,7 @@
     </form>
   </dialog>
   <dialog id="recover-dialog" class="modal" aria-labelledby="recover-title">
+    <button class="icon-button modal-close" type="button" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <form id="recover-form" autocomplete="off" novalidate>
       <header class="modal-header"><h2 id="recover-title">Recover with shares</h2></header>
       <div class="modal-body">
@@ -275,6 +283,7 @@
     <footer class="modal-footer"><span class="spacer"></span><button id="env-done" class="primary-button" type="button">Done</button></footer>
   </dialog>
   <dialog id="password-dialog" class="modal small" aria-labelledby="password-dialog-title">
+    <button class="icon-button modal-close" type="button" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <form id="password-form" autocomplete="off" novalidate>
       <header class="modal-header"><h2 id="password-dialog-title">Change master password</h2></header>
       <div class="modal-body">
@@ -287,7 +296,12 @@
       <footer class="modal-footer"><span class="spacer"></span><button id="password-cancel" class="secondary-button" type="button">Cancel</button><button id="password-save" class="primary-button" type="submit">Change password</button></footer>
     </form>
   </dialog>
+  <dialog id="confirm-dialog" class="modal small" aria-labelledby="confirm-title">
+    <header class="modal-header"><h2 id="confirm-title">Are you sure?</h2></header>
+    <div class="modal-body"><p id="confirm-text" class="hint"></p></div>
+    <footer class="modal-footer"><span class="spacer"></span><button id="confirm-cancel" class="secondary-button" type="button">Cancel</button><button id="confirm-ok" class="primary-button danger-fill" type="button">Confirm</button></footer>
+  </dialog>
   <p id="message" class="message" role="status" popover="manual" hidden></p>
-  <footer class="app-footer"><span>Stored only on this device · AES-256-GCM · No network</span><span id="version"></span></footer>
+  <footer class="app-footer"><span>Stored only on this device · AES-256-GCM · No network</span><span class="foot-hints"><kbd id="foot-kbd-search">⌘K</kbd> search · <kbd>/</kbd> search · <kbd>Esc</kbd> close item</span><span id="version"></span></footer>
 </body>
 </html>

@@ -1,7 +1,7 @@
 import { VaultClient } from "../ui/client.js";
 import { renderAuth } from "../ui/auth.js";
 import { loginRow } from "../ui/items.js";
-import { element, announce, openPage, siteTile, copySecret, showReloadBanner } from "../ui/common.js";
+import { element, all, announce, openPage, siteTile, copySecret, showReloadBanner } from "../ui/common.js";
 import { parseWebsite, scopeLabel, scopeUrl, isLocalHost, currentEnvironment } from "../matching/url-matcher.js";
 import { openLoginDialog, closeLoginDialog } from "../ui/login-form.js";
 import { loadPrefs, savePrefs, generate as generateWith } from "../generator/prefs.js";
@@ -12,6 +12,9 @@ let page = null;
 let listRequest = 0;
 let generated = "";
 let prefs = null;
+let scope = "site";
+const totpTimers = new Set();
+function clearTotpTimers() { for (const timer of totpTimers) clearInterval(timer); totpTimers.clear(); }
 const matches = $("#matches");
 const client = new VaultClient(state => {
   $("#vault-state").textContent = state.unlocked ? "Unlocked" : "Locked";
@@ -20,9 +23,39 @@ const client = new VaultClient(state => {
   $("#lock").hidden = !state.unlocked;
   renderAuth($("#auth"), client);
   if (!state.unlocked) closeLoginDialog();
+  clearTotpTimers();
   matches.replaceChildren(); $("#results").replaceChildren(); $("#others").hidden = true;
   if (state.unlocked) void renderLists();
 });
+// A live 2FA code under a matching login — counts down and refreshes itself, click copies.
+function attachTotp(row, item) {
+  let current = null;
+  const code = element("button", { type: "button", className: "totp-inline", title: "Copy 2FA code" }, "··· ···");
+  code.addEventListener("click", async event => {
+    event.stopPropagation();
+    if (!current) return;
+    try {
+      const armed = await copySecret(current.code);
+      announce(armed ? "2FA code copied. Clears in 30 seconds." : "2FA code copied.");
+    } catch (error) { announce(error.message, true); }
+  });
+  row.querySelector(".details")?.append(code);
+  let timer = 0;
+  const render = () => {
+    const half = Math.ceil(current.code.length / 2);
+    code.textContent = `${current.code.slice(0, half)} ${current.code.slice(half)} · ${current.remaining}s`;
+  };
+  const tick = async () => {
+    try { current = await client.request("TOTP", { id: item.id }); } catch { code.remove(); return; }
+    render();
+    clearInterval(timer);
+    timer = setInterval(() => {
+      if (--current.remaining <= 0) void tick(); else render();
+    }, 1000);
+    totpTimers.add(timer);
+  };
+  void tick();
+}
 const fillAction = async id => {
   await client.request("FILL", { id, tabId: page.tabId, url: page.url });
   announce("Login filled. Review the page before signing in.");
@@ -34,11 +67,13 @@ async function renderLists() {
   const query = $("#search").value.trim();
   try {
     const here = page ? await client.request("LIST", { url: page.url, query }) : [];
-    const everywhere = query ? await client.request("LIST", { query }) : [];
+    const everywhere = scope === "all" || query ? await client.request("LIST", { query }) : [];
     const envMaps = here.some(item => item.project) ? (await client.request("ENVIRONMENTS").catch(() => null))?.merged ?? {} : {};
     if (!client.is(session) || request !== listRequest) return;
+    clearTotpTimers();
     matches.replaceChildren(...here.map(item => {
       const row = loginRow(item, client, { action: fillAction, disabled: page.forms !== 1 });
+      if (item.hasTotp) attachTotp(row, item);
       const envs = item.project ? Object.keys(envMaps[item.project] ?? {}).filter(env => env !== "other") : [];
       if (envs.length < 2) return row;
       // Environment switcher: jump this project's login between its configured addresses. The
@@ -69,10 +104,14 @@ async function renderLists() {
     }));
     if (!here.length) matches.append(element("p", { className: "empty" }, !page ? "Open a website to see its saved logins." : query ? "No logins for this site match your search." : "No saved login for this site yet."));
     // Secure notes have nothing to fill or copy here; they open in the KeyBit window.
-    const others = everywhere.filter(item => item.type === "login" && !here.some(match => match.id === item.id)).slice(0, 30);
+    // "All logins" shows the whole vault (filtered by the search); "This site" shows matches plus,
+    // while searching, logins from other sites below.
+    $("#matches-wrap").hidden = scope !== "site";
+    const others = everywhere.filter(item => item.type === "login" && (scope === "all" || !here.some(match => match.id === item.id))).slice(0, 60);
+    $("#others-title").textContent = scope === "all" ? "All logins" : "Other logins";
     $("#results").replaceChildren(...others.map(item => loginRow(item, client)));
-    $("#others").hidden = !query;
-    if (query && !others.length) $("#results").append(element("p", { className: "empty" }, "No other logins match."));
+    $("#others").hidden = scope === "all" ? false : !query;
+    if (!others.length && (query || scope === "all")) $("#results").append(element("p", { className: "empty" }, scope === "all" && !query ? "The vault is empty." : "No other logins match."));
   } catch (error) { announce(error.message, true); }
 }
 async function checkPage() {
@@ -129,6 +168,15 @@ $("#copy-generated").addEventListener("click", async () => {
   } catch (error) { announce(error.message, true); }
 });
 $("#search").addEventListener("input", () => void renderLists());
+// This site / All logins: the segmented scope switch beside the search box.
+for (const tab of all("[data-scope]")) {
+  tab.addEventListener("click", () => {
+    if (scope === tab.dataset.scope) return;
+    scope = tab.dataset.scope;
+    for (const other of all("[data-scope]")) other.setAttribute("aria-selected", String(other === tab));
+    void renderLists();
+  });
+}
 $("#check-page").addEventListener("click", () => void checkPage());
 // Developer Tools → Inspect Login Form: a structural report for the current tab.
 $("#inspect-page").addEventListener("click", () => { if (page?.tabId != null) void openPage(`src/developer/inspector.html?tab=${page.tabId}`); });

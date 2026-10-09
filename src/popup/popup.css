@@ -27,10 +27,16 @@ main { max-height: 520px; padding: 10px 14px 14px; overflow-y: auto; }
 .locked-panel { padding-top: 6px; }
 .locked-panel h2 { margin-top: 12px; font-family: var(--font-display); }
 #unlocked { padding-top: 10px; }
-.section-title { display: flex; align-items: center; justify-content: space-between; margin: 16px 2px 2px; }
+/* This site / All logins scope tabs sit right under the search box. */
+.scope-tabs { display: flex; width: 100%; margin-top: 10px; }
+.scope-tabs button { flex: 1; text-align: center; padding-block: 4px; }
+.section-title { display: flex; align-items: center; justify-content: space-between; margin: 12px 2px 2px; }
 .section-title h2 { color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: .15px; }
 .rows { display: flex; flex-direction: column; gap: 2px; }
-.login-item { display: flex; align-items: center; gap: 10px; padding: 7px 6px 7px 8px; border-radius: var(--r-md); transition: background .1s; }
+.login-item { display: flex; align-items: center; gap: 10px; padding: 7px 6px 7px 8px; border-radius: var(--r-md); transition: background .1s, transform .08s ease-out; }
+/* The login's live 2FA code sits under the name — click copies it. */
+.totp-inline { display: inline-block; margin-top: 1px; padding: 0; border: 0; background: transparent; color: var(--accent); font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .6px; }
+.totp-inline:hover { text-decoration: underline; text-underline-offset: 3px; }
 .login-item:hover, .login-item:focus-visible { background: var(--hover); }
 .login-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .login-item[data-fill] { cursor: pointer; }
@@ -53,9 +59,15 @@ main { max-height: 520px; padding: 10px 14px 14px; overflow-y: auto; }
 .env-chip.production { border-color: var(--danger); color: var(--danger); }
 .env-chip.production[aria-pressed="true"] { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
 .env-chip.confirming { background: var(--danger); color: var(--accent-text); border-color: var(--danger); font-weight: 600; }
-/* The top match gets the solid fill button. */
-#matches > .login-item:first-child [data-action="fill"]:not(:disabled) { background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow-sm); }
-#matches > .login-item:first-child [data-action="fill"]:hover:not(:disabled) { background: var(--accent-hover); }
+/* The top match gets the solid, labeled fill button. */
+#matches > .login-item:first-child [data-action="fill"]:not(:disabled),
+#matches > .login-block:first-child > .login-item [data-action="fill"]:not(:disabled) {
+  display: inline-flex; align-items: center; gap: 5px; width: auto; height: 28px; padding: 0 11px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow-sm); opacity: 1; }
+#matches > .login-item:first-child [data-action="fill"]:not(:disabled)::after,
+#matches > .login-block:first-child > .login-item [data-action="fill"]:not(:disabled)::after { content: "Fill"; font-size: 12px; font-weight: 700; }
+#matches > .login-item:first-child [data-action="fill"]:hover:not(:disabled),
+#matches > .login-block:first-child > .login-item [data-action="fill"]:hover:not(:disabled) { background: var(--accent-hover); }
 .rows .empty { padding: 14px 8px; text-align: left; font-size: 12.5px; }
 
 /* The popup grows to fit the add-login dialog (Chromium allows up to 600px). */

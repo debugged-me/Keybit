@@ -34,6 +34,21 @@ function icon(name) {
   glyph.innerHTML = ICONS[name] ?? ICONS.key;
   return glyph;
 }
+// Item commands show the site's letter tile with the cached favicon over it, like the vault list.
+function tile(command) {
+  const el = document.createElement("span");
+  el.className = "pal-tile";
+  el.setAttribute("aria-hidden", "true");
+  el.textContent = (command.site || command.label)[0]?.toUpperCase() || "•";
+  if (command.url) {
+    const img = document.createElement("img");
+    img.alt = "";
+    img.src = `chrome-extension://${chrome.runtime.id}/_favicon/?pageUrl=${encodeURIComponent(command.url)}&size=32`;
+    img.addEventListener("error", () => img.remove());
+    el.append(img);
+  }
+  return el;
+}
 
 function close() {
   parent.postMessage({ type: "KEYBIT_PALETTE_CLOSE", token }, "*");
@@ -66,7 +81,7 @@ function render() {
     row.id = `cmd-${index}`;
     row.setAttribute("role", "option");
     row.setAttribute("aria-selected", index === active ? "true" : "false");
-    row.append(icon(command.icon));
+    row.append(command.site ? tile(command) : icon(command.icon));
     const main = document.createElement("span");
     main.className = "main";
     const label = document.createElement("span");

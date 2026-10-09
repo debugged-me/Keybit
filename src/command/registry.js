@@ -32,7 +32,7 @@ export function buildCommands({ vault, session, ctx, query = "", rule = {} }) {
   if (unlocked && fillsAllowed) {
     // Page-matching logins become Fill commands, most relevant first.
     for (const item of vault.list(session, "", ctx.url).filter(item => item.type === "login").slice(0, 5))
-      push({ id: "fill", item: item.id, icon: "fill", label: `Fill ${item.name}`, hint: item.username || item.scope, keywords: item.name });
+      push({ id: "fill", item: item.id, icon: "fill", label: `Fill ${item.name}`, hint: item.username || item.scope, keywords: item.name, site: item.scope, url: item.urls?.[0] });
     // Project environment switches: every environment except the one the page is already on.
     const environments = vault.environments(session).merged;
     for (const [project, map] of Object.entries(environments)) {
@@ -54,10 +54,10 @@ export function buildCommands({ vault, session, ctx, query = "", rule = {} }) {
     const fits = matcherFor(ctx.url);
     for (const item of vault.list(session, query).slice(0, 8)) {
       if (item.type === "login" && fits(item) && fillsAllowed)
-        push({ id: "fill", item: item.id, icon: "fill", label: `Fill ${item.name}`, hint: item.username || item.scope, keywords: item.name });
+        push({ id: "fill", item: item.id, icon: "fill", label: `Fill ${item.name}`, hint: item.username || item.scope, keywords: item.name, site: item.scope, url: item.urls?.[0] });
       else
         push({ id: "open-item", item: item.id, icon: item.type === "note" ? "note" : item.type === "card" ? "card" : item.type === "identity" ? "id" : "key",
-          label: `Show ${item.name} in KeyBit`, hint: item.scope || item.username || item.type, keywords: item.name });
+          label: `Show ${item.name} in KeyBit`, hint: item.scope || item.username || item.type, keywords: item.name, site: item.scope, url: item.urls?.[0] });
     }
   }
   const ranked = fuzzyFilter(query, commands, command => `${command.label} ${command.hint ?? ""} ${command.keywords ?? ""}`);

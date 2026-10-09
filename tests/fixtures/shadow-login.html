@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>KeyBit local login fixture</title><link rel="stylesheet" href="fixture.css"><script src="fixture.js" defer></script></head><body><main><h1>Local login test</h1><p>Use dummy credentials only.</p><login-card></login-card></main>
+<script>
+customElements.define("login-card", class extends HTMLElement {
+  connectedCallback() {
+    this.attachShadow({ mode: "open" }).innerHTML =
+      `<style>:host{display:block}form{display:grid;gap:8px;max-width:320px}</style>
+       <form><label for="user">Username</label><input id="user" autocomplete="username"><label for="pass">Password</label><input id="pass" type="password" autocomplete="current-password"><button type="submit">Sign in</button></form>`;
+    this.shadowRoot.querySelector("form").addEventListener("submit", event => event.preventDefault());
+  }
+});
+</script></body></html>

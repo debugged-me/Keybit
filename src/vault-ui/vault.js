@@ -4,7 +4,7 @@ import { element, all, announce, clearFields, siteTile, icon, iconButton, copyTe
 import { combineShares, recoveryPassphrase } from "../vault/shamir.js";
 import { portableHtml } from "../vault/portable.js";
 import { scopeLabel } from "../matching/url-matcher.js";
-import { passwordAge } from "../vault/health.js";
+import { isWeak, passwordAge } from "../vault/health.js";
 import { MAX_BACKUP_BYTES } from "../crypto/encoding.js";
 import { totpCode } from "../vault/totp.js";
 import { openLoginDialog, closeLoginDialog } from "../ui/login-form.js";
@@ -43,7 +43,7 @@ let sort = (() => { try { return localStorage.getItem("keybit-sort") || "name"; 
 
 const client = new VaultClient((state, previous) => {
   renderAuth($("#auth"), client);
-  if (!state.unlocked) { closeLoginDialog(); closeDialog(); clearDetail(); if ($("#env-dialog").open) $("#env-dialog").close(); items = []; trash = []; health = {}; $("#items").replaceChildren(); $("#health-list").replaceChildren(); }
+  if (!state.unlocked) { closeLoginDialog(); closeDialog(); clearDetail(); if ($("#env-dialog").open) $("#env-dialog").close(); items = []; trash = []; health = {}; $("#items").replaceChildren(); $("#health-list").replaceChildren(); $("#recent-strip").replaceChildren(); $("#recent-strip").hidden = true; }
   if (state.session !== previous.session) { $("#search").value = ""; selectedId = null; }
   if (state.unlocked) restoring = false;
   layout();
@@ -186,11 +186,37 @@ function renderEnvEditor(project) {
     element("div", { className: "env-row env-add" }, envName, envUrl, add),
     element("datalist", { id: "env-names" }, ENV_ORDER.map(env => element("option", { value: env }))));
 }
+// Recently used: favicon chips above All logins for the items touched most recently.
+function renderRecent() {
+  const strip = $("#recent-strip");
+  const recent = view === "logins" && !$("#search").value
+    ? items.filter(item => item.type === "login" && item.lastUsedAt)
+        .sort((a, b) => b.lastUsedAt - a.lastUsedAt).slice(0, 5)
+    : [];
+  strip.hidden = !recent.length;
+  strip.replaceChildren(...(recent.length ? [element("span", { className: "recent-label" }, "Recent")] : []),
+    ...recent.map(item => {
+      const chip = element("button", { type: "button", className: "recent-chip" },
+        siteTile(item.scope, "", item.urls?.[0]), element("span", {}, item.name));
+      chip.addEventListener("click", () => void select(item.id));
+      return chip;
+    }));
+}
+function emptyState(iconName, title, hint, actionLabel = null, run = null) {
+  const node = element("div", { className: "empty-state" }, icon(iconName), element("strong", {}, title), element("span", { className: "hint-line" }, hint));
+  if (actionLabel && run) {
+    const action = element("button", { type: "button", className: "secondary-button" }, actionLabel);
+    action.addEventListener("click", run);
+    node.append(action);
+  }
+  return node;
+}
 function renderList() {
   if (!isList(view)) return;
   const query = $("#search").value;
   const project = view.startsWith("project:") ? view.slice(8) : null;
   $("#env-edit").hidden = !(project && !query);
+  renderRecent();
   if ($("#env-dialog").open) renderEnvEditor(project);
   const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes", passkeys: "Passkeys", cards: "Cards & IDs", trash: "Recently deleted" };
   $("#list-title").textContent = query ? `Results for “${query}”` : project ?? titles[view];
@@ -213,13 +239,14 @@ function renderList() {
     }));
   } else $("#items").replaceChildren(...shown.map(item => row(item, open(item))));
   if (shown.length) return;
-  if (query) $("#items").append(element("p", { className: "empty" }, "Nothing matches your search."));
+  if (query) $("#items").append(emptyState("search", "Nothing matches", `No item matches “${query}” — try another name or address.`));
   else if (view === "logins") $("#items").append(gettingStarted());
-  else $("#items").append(element("p", { className: "empty" }, view === "favorites" ? "Star a login or note to keep it here."
-    : view === "notes" ? "Keep licence keys, server details, or Wi-Fi passwords here, encrypted."
-    : view === "passkeys" ? "No passkeys yet. When a site offers to create one, KeyBit asks to keep it here."
-    : view === "cards" ? "Save a payment card or an ID (name, address, phone) and KeyBit fills checkout and sign-up forms."
-    : view === "trash" ? "Nothing deleted. Items you delete are kept here for 30 days." : "Nothing in this project yet."));
+  else if (view === "favorites") $("#items").append(emptyState("star", "No favorites", "Star a login or note to keep it here."));
+  else if (view === "notes") $("#items").append(emptyState("note", "No secure notes", "Keep licence keys, server details, or Wi-Fi passwords here, encrypted.", "Add note", () => openAdd("note")));
+  else if (view === "passkeys") $("#items").append(emptyState("key", "No passkeys yet", "When a site offers to create one, KeyBit asks to keep it here."));
+  else if (view === "cards") $("#items").append(emptyState("card", "No cards or IDs", "Save a payment card or an ID (name, address, phone) and KeyBit fills checkout and sign-up forms.", "Add card", () => openAdd("card")));
+  else if (view === "trash") $("#items").append(emptyState("trash", "Recently deleted is empty", "Items you delete are kept here for 30 days."));
+  else $("#items").append(emptyState("folder", "Nothing in this project", "Logins assigned to this project show up here.", "Add login", () => openAdd()));
 }
 function gettingStarted() {
   const action = (label, text, onClick) => {
@@ -235,6 +262,10 @@ function gettingStarted() {
 async function refreshList() {
   const request = ++listRequest;
   const session = client.state.session;
+  // First load after unlock: shimmer placeholders so the list doesn't pop in bare.
+  if (isList(view) && !$("#items").children.length)
+    $("#items").replaceChildren(...Array.from({ length: 5 }, () =>
+      element("div", { className: "skel-row", "aria-hidden": "true" }, element("i"), element("div", { className: "skel-lines" }, element("b"), element("b")))));
   try {
     // Health is extra information: if it is unavailable, the list must still show.
     const [list, flags, names, deleted, envs] = await Promise.all([client.request("LIST", { query: $("#search").value }),
@@ -280,6 +311,9 @@ async function refreshList() {
     $("#sidebar-health").hidden = !(report?.metrics.logins ?? 0);
     $("#sidebar-health").classList.toggle("warn", flagged.length > 0);
     $("#health-score").textContent = report ? `${report.score}%` : "";
+    const ring = 2 * Math.PI * 15.5;
+    $("#health-arc").style.strokeDasharray = `${ring}`;
+    $("#health-arc").style.strokeDashoffset = `${ring * (1 - (report?.score ?? 0) / 100)}`;
     $("#health-detail").textContent = flagged.length ? `${weak} weak · ${reused} reused` : "All strong";
     await loadBackupInfo(all.length);
   } catch (error) { announce(error.message, true); }
@@ -296,12 +330,19 @@ $("#sidebar-health").addEventListener("click", () => show("health"));
 chrome.runtime.onMessage.addListener(message => { if (message?.event === "site-rules") void refreshSites(); });
 // ⌘K / Ctrl+K jumps to search from anywhere; "/" works when not typing, like the popup.
 $("#search-kbd").textContent = /^Mac|iP/.test(navigator.platform) ? "⌘K" : "Ctrl K";
+$("#foot-kbd-search").textContent = /^Mac|iP/.test(navigator.platform) ? "⌘K" : "Ctrl K";
 document.addEventListener("keydown", event => {
-  if (!client.state.unlocked || $("#login-dialog")?.open || $("#password-dialog")?.open || $("#share-dialog")?.open || $("#detail")?.open) return;
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); $("#search").focus(); $("#search").select(); return; }
+  if (!client.state.unlocked || $("#login-dialog")?.open || $("#password-dialog")?.open || $("#share-dialog")?.open) return;
   const target = /** @type {HTMLElement} */ (event.target);
   const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable;
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); $("#search").focus(); $("#search").select(); return; }
+  if (event.key === "Escape" && detail && !typing && $("#sort-menu").hidden && $("#autolock-menu").hidden) { clearDetail(); return; }
   if (event.key === "/" && !typing && !event.metaKey && !event.ctrlKey && !event.altKey) { event.preventDefault(); $("#search").focus(); }
+});
+// Every dialog's ✕ button shares one delegated close.
+document.addEventListener("click", event => {
+  const close = /** @type {HTMLElement} */ (event.target).closest?.(".modal-close");
+  if (close) close.closest("dialog")?.close();
 });
 // Sort picker: a button with a small menu, matching the auto-lock control.
 const SORT_LABELS = { name: "Name", used: "Recently used", updated: "Recently updated" };
@@ -329,22 +370,15 @@ $("#sort-menu").addEventListener("keydown", event => {
 updateSort();
 
 // Details
+// The detail lives in a pane beside the list (master–detail), not a modal: Escape, the ✕, or
+// another navigation clears it. `pendingSelects` guards the async ITEM fetch.
 function clearDetail() {
   clearInterval(codeTicker); codeTicker = null;
   selectedId = null; detail = null;
   $("#detail-view").replaceChildren();
-  if ($("#detail").open) $("#detail").close();
+  $("#detail").hidden = true;
   for (const node of all(".item-row[aria-current='true']")) node.setAttribute("aria-current", "false");
 }
-// Escape and clicking the dimmed page behind the dialog both close it. The `close` event is
-// dispatched as a queued task, so it can arrive late — while a newer select() is still in flight,
-// or after it already re-opened the dialog for another item. Only a close event that finds the
-// dialog still closed and matches the current selection may clear it.
-$("#detail").addEventListener("close", () => {
-  if (pendingSelects || $("#detail").open || !detail || detail.item.id !== selectedId) return;
-  clearDetail();
-});
-$("#detail").addEventListener("click", event => { if (event.target === $("#detail")) clearDetail(); });
 async function select(id) {
   const session = client.state.session;
   pendingSelects++;
@@ -378,6 +412,20 @@ function secretValue(password, what = "password") {
 }
 const copyButton = (value, what) => { const button = iconButton("copy", `Copy ${what}`); button.addEventListener("click", () => void copy(value, what)); return button; };
 const fieldBlock = (label, ...value) => element("div", { className: "field" }, element("div", { className: "field-label" }, label), element("div", { className: "field-value" }, ...value));
+// Plain values copy on click — no icon needed for things that aren't secret.
+function copyable(text, what) {
+  const value = element("span", { className: "copyable", role: "button", tabindex: "0", title: `Copy ${what}`, "aria-label": `${text} — copy ${what}` }, text);
+  const doCopy = () => void copy(text, what);
+  value.addEventListener("click", doCopy);
+  value.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); doCopy(); } });
+  return value;
+}
+function strengthMeter(password) {
+  const level = !password || isWeak(password) ? 1 : password.length >= 14 ? 3 : 2;
+  const label = ["", "Weak", "Okay", "Strong"][level];
+  return element("span", { className: "strength", "data-level": String(level), title: `${label} password` },
+    element("span", { className: "strength-bar" }, element("i"), element("i"), element("i")), element("span", {}, label));
+}
 function renderDetail() {
   clearInterval(codeTicker); codeTicker = null;
   const { item } = detail;
@@ -395,13 +443,13 @@ function renderDetail() {
   if (note) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Note"), element("p", { className: "notes" }, item.notes || "—"), item.notes ? element("div", { className: "field-value" }, copyButton(item.notes, "note")) : null));
   else if (passkey) {
     fields.push(fieldBlock("Signs in to", element("span", {}, item.rpId)));
-    fields.push(fieldBlock("Account", element("span", {}, item.userName), copyButton(item.userName, "username")));
+    fields.push(fieldBlock("Account", copyable(item.userName, "username")));
     fields.push(fieldBlock("Last used", element("span", {}, item.lastUsedAt ? `${relativeTime(Date.parse(item.lastUsedAt))} · ${item.signCount} sign-in${item.signCount === 1 ? "" : "s"}` : "Not used yet")));
     fields.push(fieldBlock("Created", element("span", {}, new Date(item.createdAt).toLocaleString())));
     if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes)));
   }
   else if (card) {
-    if (item.cardholder) fields.push(fieldBlock("Name on card", element("span", {}, item.cardholder), copyButton(item.cardholder, "name")));
+    if (item.cardholder) fields.push(fieldBlock("Name on card", copyable(item.cardholder, "name")));
     fields.push(fieldBlock("Number", ...secretValue(item.number, "card number"), copyButton(item.number, "card number")));
     fields.push(fieldBlock("Expiry", element("span", {}, `${String(item.expiryMonth).padStart(2, "0")}/${item.expiryYear}`)));
     if (item.cvv) fields.push(fieldBlock("Security code", ...secretValue(item.cvv, "CVV"), copyButton(item.cvv, "CVV")));
@@ -410,12 +458,12 @@ function renderDetail() {
   }
   else if (identity) {
     const pairs = [["Name", [item.firstName, item.lastName].filter(Boolean).join(" ")], ["Email", item.email], ["Phone", item.phone], ["Address", [item.address, [item.city, item.region, item.postal].filter(Boolean).join(", "), item.country].filter(Boolean).join("\n")], ["Company", item.company]];
-    for (const [label, value] of pairs) if (value) fields.push(fieldBlock(label, element("span", { className: "notes" }, value), copyButton(value, label.toLowerCase())));
+    for (const [label, value] of pairs) if (value) fields.push(fieldBlock(label, copyable(value, label.toLowerCase())));
     if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes)));
   }
   else {
-    fields.push(fieldBlock("Username", element("span", {}, item.username || "—"), item.username ? copyButton(item.username, "username") : null));
-    fields.push(fieldBlock("Password", ...secretValue(item.password), copyButton(item.password, "password")));
+    fields.push(fieldBlock("Username", item.username ? copyable(item.username, "username") : element("span", {}, "—")));
+    fields.push(fieldBlock("Password", ...secretValue(item.password), strengthMeter(item.password), copyButton(item.password, "password")));
     if (item.totp) {
       const code = element("span", { className: "totp-code" }, "······");
       const remaining = element("span", { className: "totp-remaining muted" });
@@ -436,7 +484,7 @@ function renderDetail() {
     for (const [index, url] of item.urls.entries()) {
       const open = iconButton("external", "Open website");
       open.addEventListener("click", () => void chrome.tabs.create({ url }));
-      fields.push(fieldBlock(index ? "Also fills on" : "Website", element("span", {}, url), open));
+      fields.push(fieldBlock(index ? "Also fills on" : "Website", copyable(url, "address"), open));
     }
     if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes)));
   }
@@ -489,7 +537,7 @@ function renderDetail() {
     ...warnings, ...fields, history,
     element("div", { className: "detail-actions" }, ...actions, element("span", { className: "meta" }, meta))
   ].filter(Boolean));
-  if (!$("#detail").open) $("#detail").showModal();
+  $("#detail").hidden = false;
 }
 async function toggleFavorite() {
   if (!detail) return;
@@ -499,8 +547,22 @@ async function toggleFavorite() {
     client.update(state); await refreshList(); await select(item.id);
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
+// A small styled confirm dialog replaces window.confirm — it matches the UI and survives theming.
+let confirmResolve = null;
+function confirmAction(title, text, okLabel = "Confirm", danger = true) {
+  $("#confirm-title").textContent = title;
+  $("#confirm-text").textContent = text;
+  const ok = $("#confirm-ok");
+  ok.textContent = okLabel;
+  ok.classList.toggle("danger-fill", danger);
+  $("#confirm-dialog").showModal();
+  return new Promise(resolve => { confirmResolve = resolve; });
+}
+$("#confirm-ok").addEventListener("click", () => { $("#confirm-dialog").close(); confirmResolve?.(true); confirmResolve = null; });
+$("#confirm-cancel").addEventListener("click", () => { $("#confirm-dialog").close(); confirmResolve?.(false); confirmResolve = null; });
+$("#confirm-dialog").addEventListener("close", () => { confirmResolve?.(false); confirmResolve = null; });
 async function restorePassword(password) {
-  if (!detail || !confirm("Restore this password? The current one moves to the password history.")) return;
+  if (!detail || !await confirmAction("Restore this password?", "The current one moves to the password history.", "Restore", false)) return;
   try {
     const state = await client.request("SAVE", { item: { ...detail.item, password }, revision: detail.revision });
     client.update(state); announce("Password restored. The previous one is in the history.");
@@ -509,10 +571,16 @@ async function restorePassword(password) {
 }
 const kindWord = type => ({ note: "note", passkey: "passkey", card: "card", identity: "identity" }[type] ?? "login");
 async function deleteItem(id) {
-  if (!confirm(`Delete this ${kindWord(detail?.item.type)}? It is kept in Recently deleted for 30 days.`)) return;
+  if (!await confirmAction(`Delete this ${kindWord(detail?.item.type)}?`, "It is kept in Recently deleted for 30 days.", "Move to trash")) return;
   try {
     const state = await client.request("DELETE", { id, revision: detail?.revision ?? client.state.revision });
-    await afterDelete(state);
+    await afterDelete(state, {
+      label: "Undo",
+      run: async () => {
+        try { client.update(await client.request("RESTORE", { id, revision: client.state.revision })); announce("Restored."); await refreshList(); }
+        catch (error) { announce(error.message, true); }
+      }
+    });
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
 async function restoreItem(id) {
@@ -525,14 +593,14 @@ async function restoreItem(id) {
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
 async function purgeItem(id) {
-  if (!confirm(`Delete this ${kindWord(detail?.item.type)} forever? This cannot be undone.`)) return;
+  if (!await confirmAction(`Delete this ${kindWord(detail?.item.type)} forever?`, "This cannot be undone.", "Delete forever")) return;
   try {
     const state = await client.request("PURGE", { id, revision: detail?.revision ?? client.state.revision });
     await afterDelete(state);
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
 $("#empty-trash").addEventListener("click", async () => {
-  if (!trash.length || !confirm(`Delete ${trash.length} item${trash.length === 1 ? "" : "s"} forever? This cannot be undone.`)) return;
+  if (!trash.length || !await confirmAction("Empty recently deleted?", `${trash.length} item${trash.length === 1 ? "" : "s"} will be deleted forever. This cannot be undone.`, "Delete forever")) return;
   try {
     client.update(await client.request("EMPTY_TRASH", { revision: client.state.revision }));
     announce("Recently deleted emptied.");
@@ -554,7 +622,10 @@ async function afterSave(state, id) {
   const shown = id ?? [...all].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]?.id;
   if (shown) await select(shown);
 }
-async function afterDelete(state) { clearDetail(); client.update(state); announce("Deleted."); }
+async function afterDelete(state, undo = null) {
+  clearDetail(); client.update(state);
+  announce(undo ? "Moved to Recently deleted." : "Deleted.", false, undo);
+}
 $("#add-login").addEventListener("click", () => openAdd());
 $("#add-id").addEventListener("click", () => openAdd("identity"));
 
@@ -798,7 +869,7 @@ async function exportBackup() {
 }
 $("#export").addEventListener("click", () => void exportBackup());
 $("#export-csv").addEventListener("click", async () => {
-  if (!confirm("Export a readable CSV? Anyone who opens it can see your passwords. Keep the file offline and delete it when the move is done.")) return;
+  if (!await confirmAction("Export a readable CSV?", "Anyone who opens it can see your passwords. Keep the file offline and delete it when the move is done.", "Export CSV", false)) return;
   try {
     const csv = await client.request("EXPORT_CSV");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -810,7 +881,7 @@ $("#export-csv").addEventListener("click", async () => {
   } catch (error) { announce(error.message, true); }
 });
 $("#export-portable").addEventListener("click", async () => {
-  if (!confirm("Export a portable vault? The HTML file opens your vault in any browser with the master password — keep it like a backup.")) return;
+  if (!await confirmAction("Export a portable vault?", "The HTML file opens your vault in any browser with the master password — keep it like a backup.", "Export vault", false)) return;
   try {
     const data = await client.request("EXPORT");
     downloadText(`keybit-vault-${new Date().toLocaleDateString("en-CA")}.html`, portableHtml(data));
@@ -920,7 +991,7 @@ function askPassword(mode) {
 }
 $("#password-cancel").addEventListener("click", () => { closeDialog(); passwordDialog?.(null); passwordDialog = null; });
 $("#password-dialog").addEventListener("cancel", () => { passwordDialog?.(null); passwordDialog = null; });
-$("#password-dialog").addEventListener("close", () => clearFields($("#password-dialog")));
+$("#password-dialog").addEventListener("close", () => { clearFields($("#password-dialog")); passwordDialog?.(null); passwordDialog = null; });
 $("#password-form").addEventListener("submit", event => {
   event.preventDefault();
   const error = text => { $("#password-error").textContent = text; $("#password-error").hidden = false; };
@@ -978,8 +1049,20 @@ function renderTheme() {
   const theme = globalThis.keybitTheme?.get() ?? "system";
   for (const button of all("[data-theme-choice]")) button.setAttribute("aria-checked", String(button.dataset.themeChoice === theme));
 }
+// Accent, text size and density live in extension storage (ui/theme.js applies them before paint).
+for (const [attr, key] of [["accent-choice", "accent"], ["text-size", "textSize"], ["density", "density"]]) {
+  for (const button of all(`[data-${attr}]`)) {
+    button.addEventListener("click", async () => { await globalThis.keybitUi?.set(key, button.dataset[attr.replace(/-./g, s => s[1].toUpperCase())]); renderUiPrefs(); });
+  }
+}
+function renderUiPrefs() {
+  const prefs = globalThis.keybitUi?.get() ?? {};
+  for (const [attr, key] of [["accent-choice", "accent"], ["text-size", "textSize"], ["density", "density"]])
+    for (const button of all(`[data-${attr}]`)) button.setAttribute("aria-checked", String(button.dataset[attr.replace(/-./g, s => s[1].toUpperCase())] === (prefs[key] ?? { accent: "green", textSize: "default", density: "comfortable" }[key])));
+}
 async function renderSettings() {
   renderTheme();
+  renderUiPrefs();
   const available = await biometricAvailable();
   $("#biometric-row").hidden = !available && !client.state.biometric;
   $("#biometric-title").textContent = `Unlock with ${biometricName()}`;

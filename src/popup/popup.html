@@ -51,9 +51,15 @@
     <section id="auth" class="locked-panel"></section>
     <section id="unlocked" hidden>
       <label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" type="search" placeholder="Search all logins" aria-label="Search all logins" maxlength="200" autocomplete="off"></label>
-      <div class="section-title"><h2 id="matches-title">This site</h2><button id="add-login" class="text-button" type="button">+ Add login</button></div>
-      <div id="matches" class="rows"></div>
-      <div id="others" hidden><div class="section-title"><h2>Other logins</h2></div><div id="results" class="rows"></div></div>
+      <div class="segmented scope-tabs" role="tablist" aria-label="List scope">
+        <button id="scope-site" type="button" role="tab" data-scope="site" aria-selected="true">This site</button>
+        <button id="scope-all" type="button" role="tab" data-scope="all" aria-selected="false">All logins</button>
+      </div>
+      <div id="matches-wrap">
+        <div class="section-title"><h2 id="matches-title">This site</h2><button id="add-login" class="text-button" type="button">+ Add login</button></div>
+        <div id="matches" class="rows"></div>
+      </div>
+      <div id="others" hidden><div class="section-title"><h2 id="others-title">Other logins</h2></div><div id="results" class="rows"></div></div>
     </section>
   </main>
   <p id="message" class="message" role="status" popover="manual" hidden></p>
