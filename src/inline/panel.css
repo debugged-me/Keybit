@@ -83,3 +83,19 @@ footer { display: flex; flex-shrink: 0; align-items: center; justify-content: sp
 /* Styled hover tooltip (common.js parks [title] into this popover, above any dialog). */
 .tip { position: fixed; inset: auto; z-index: 2147483647; max-width: 260px; padding: 4px 9px; border: none; border-radius: 7px; background: #23292f; color: #fff; font: 500 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; box-shadow: 0 4px 14px #0003; pointer-events: none; margin: 0; }
 .tip::backdrop { display: none; }
+
+/* Accent presets (mirrors ui/base.css; theme.js sets data-accent). */
+:root[data-accent="neutral"] {
+  --accent: #3d4a44; --accent-hover: #2e3a34; --accent-text: #ffffff; --accent-soft: #e6ebe8; --focus: #5b6f66;
+}
+@media (prefers-color-scheme: dark) { :root[data-accent="neutral"]:not([data-theme="light"]) {
+  --accent: #b9c4bd; --accent-hover: #d3ddd7; --accent-text: #121a16; --accent-soft: #242e29; --focus: #b9c4bd; } }
+:root[data-theme="dark"][data-accent="neutral"] {
+  --accent: #b9c4bd; --accent-hover: #d3ddd7; --accent-text: #121a16; --accent-soft: #242e29; --focus: #b9c4bd; }
+:root[data-accent="blue"] {
+  --accent: #2b5278; --accent-hover: #224464; --accent-text: #ffffff; --accent-soft: #e1ecf5; --focus: #4a7fab;
+}
+@media (prefers-color-scheme: dark) { :root[data-accent="blue"]:not([data-theme="light"]) {
+  --accent: #8fbde0; --accent-hover: #aad2ee; --accent-text: #0e1a24; --accent-soft: #1d2a37; --focus: #8fbde0; } }
+:root[data-theme="dark"][data-accent="blue"] {
+  --accent: #8fbde0; --accent-hover: #aad2ee; --accent-text: #0e1a24; --accent-soft: #1d2a37; --focus: #8fbde0; }
