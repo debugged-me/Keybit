@@ -67,7 +67,7 @@ try {
   await waitFor(app.session, 'document.querySelector("#login-dialog").open && document.querySelector("#editor-title").textContent === "Add secure note"');
   await set(app.session, '#name', 'Server keys'); await set(app.session, '#notes', 'ssh root@srms'); await set(app.session, '#project', 'SRMS');
   await evaluate(app.session, 'document.querySelector("#login-form").requestSubmit()');
-  await waitFor(app.session, 'document.querySelector("#count-notes").textContent === "2" && document.querySelector("#detail").open');
+  await waitFor(app.session, 'document.querySelector("#count-notes").textContent === "2" && !document.querySelector("#detail").hidden');
   await click(app.session, '.detail-header .star');
   await waitFor(app.session, 'document.querySelector("#count-favorites").textContent === "1" && document.querySelector(".detail-header .star").classList.contains("on")');
   let s = await state(app.session);
@@ -75,19 +75,19 @@ try {
   const item = (await rpc(app.session, 'ITEM', { session: s.session, id: main.id })).data.item;
   await rpc(app.session, 'SAVE', { session: s.session, revision: s.revision, item: { ...item, project: 'SRMS', environment: 'production' } });
   await waitFor(app.session, '!document.querySelector("#projects-nav").hidden && !!document.querySelector(\'[data-view="project:SRMS"]\')');
-  await evaluate(app.session, 'document.querySelector("#detail").close()');
+  await evaluate(app.session, 'document.querySelector("#detail .back-button")?.click()');
   await click(app.session, '[data-view="project:SRMS"]');
   await waitFor(app.session, 'document.querySelector("#list-title").textContent === "SRMS" && [...document.querySelectorAll(".group-heading")].map(h => h.textContent).join() === "Production,Other"');
   await click(app.session, '#items .login-item');
   try {
     await waitFor(app.session, '/^\\d{3} \\d{3}$/.test(document.querySelector(".totp-code")?.textContent ?? "")');
   } catch (error) {
-    console.log('DIAG:', await evaluate(app.session, 'JSON.stringify({open: document.querySelector("#detail").open, fields: document.querySelector("#detail-view").children.length, msg: document.querySelector("#message").textContent, selected: document.querySelector(".item-row[aria-current=\'true\']")?.textContent})').catch(String));
+    console.log('DIAG:', await evaluate(app.session, 'JSON.stringify({open: !document.querySelector("#detail").hidden, fields: document.querySelector("#detail-view").children.length, msg: document.querySelector("#message").textContent, selected: document.querySelector(".item-row[aria-current=\'true\']")?.textContent})').catch(String));
     throw error;
   }
   await shot(app.session, 'project-view');
-  // The detail dialog makes the page inert; close it before driving the sidebar again.
-  await evaluate(app.session, 'document.querySelector("#detail").close()');
+  // Close the detail pane before driving the sidebar again.
+  await evaluate(app.session, 'document.querySelector("#detail .back-button")?.click()');
   console.log('PASS: secure notes, favorites, and a project view grouped by environment; the detail shows a live 2FA code.');
 
   // Generator: Memorable, remembered for every generator.
@@ -107,12 +107,18 @@ try {
   await shot(app.session, 'settings-dark');
   await click(app.session, '[data-theme-choice="system"]');
   await waitFor(app.session, '!document.documentElement.dataset.theme');
-  await click(app.session, '#lock-on-sleep');
-  await waitFor(app.session, 'document.querySelector("#message").textContent.includes("stays unlocked")');
-  assert.equal((await state(app.session)).settings.lockOnScreenLock, false);
+  // The screen-lock switch defaults off now — the first click turns it on, the second back off.
+  // Clear any toast still queued so the setting's own notice shows inside the wait window.
+  for (let i = 0; i < 10 && !(await evaluate(app.session, 'document.querySelector("#message").hidden')); i++) {
+    await evaluate(app.session, 'document.querySelector("#message")?.click()');
+    await delay(200);
+  }
   await click(app.session, '#lock-on-sleep');
   await waitFor(app.session, 'document.querySelector("#message").textContent.includes("locks when your computer")');
   assert.equal((await state(app.session)).settings.lockOnScreenLock, true);
+  await click(app.session, '#lock-on-sleep');
+  await waitFor(app.session, 'document.querySelector("#message").textContent.includes("stays unlocked")');
+  assert.equal((await state(app.session)).settings.lockOnScreenLock, false);
   await send('WebAuthn.enable', { enableUI: false }, app.session);
   await send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', ctap2Version: 'ctap2_1', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true, hasPrf: true } }, app.session);
   await click(app.session, '[data-view="logins"]'); await click(app.session, '[data-view="settings"]');
@@ -173,13 +179,14 @@ try {
   // Recently deleted: deleting keeps the item for 30 days; Restore brings it back, Delete forever removes it.
   s = await state(app.session);
   await rpc(app.session, 'SAVE', { session: s.session, revision: s.revision, item: { name: 'Trash test', urls: ['https://trash.example.test'], username: 'trash-user', password: 'trash-secret', notes: '', environment: 'other' } });
-  await evaluate(app.session, 'window.confirm = () => true');
   await click(app.session, '[data-view="logins"]');
   await set(app.session, '#search', 'Trash test');
   await waitFor(app.session, 'document.querySelectorAll("#items .login-item").length === 1');
   await click(app.session, '#items .login-item');
   await waitFor(app.session, '!!document.querySelector(".detail-actions .danger")');
   await click(app.session, '.detail-actions .danger');
+  await waitFor(app.session, 'document.querySelector("#confirm-dialog").open');
+  await click(app.session, '#confirm-ok');
   await waitFor(app.session, 'document.querySelector("#count-trash").textContent === "1"');
   await set(app.session, '#search', '');
   await click(app.session, '[data-view="trash"]');
@@ -188,22 +195,36 @@ try {
   await click(app.session, '#items .login-item');
   await waitFor(app.session, '!!document.querySelector("#restore-item")');
   await shot(app.session, 'recently-deleted');
+  // Toasts queue and background throttling can stretch the 4s fade — clear any showing first.
+  for (let i = 0; i < 10 && !(await evaluate(app.session, 'document.querySelector("#message").hidden')); i++) {
+    await evaluate(app.session, 'document.querySelector("#message")?.click()');
+    await delay(200);
+  }
   await click(app.session, '#restore-item');
-  await waitFor(app.session, 'document.querySelector("#message").textContent.includes("Restored")');
+  try {
+    await waitFor(app.session, 'document.querySelector("#message").textContent.includes("Restored")');
+  } catch (error) {
+    console.log('DIAG:', await evaluate(app.session, 'JSON.stringify({msg: document.querySelector("#message")?.textContent, hidden: document.querySelector("#message")?.hidden})').catch(String));
+    throw error;
+  }
   // It returns to its normal section; deleting it again then removing it forever is final.
   await waitFor(app.session, 'document.querySelector("#list-title").textContent === "All logins"');
-  await evaluate(app.session, 'document.querySelector("#detail").close()');
+  await evaluate(app.session, 'document.querySelector("#detail .back-button")?.click()');
   await set(app.session, '#search', 'Trash test');
   await waitFor(app.session, 'document.querySelectorAll("#items .login-item").length === 1');
   await click(app.session, '#items .login-item');
   await waitFor(app.session, '!!document.querySelector(".detail-actions .danger")');
   await click(app.session, '.detail-actions .danger');
+  await waitFor(app.session, 'document.querySelector("#confirm-dialog").open');
+  await click(app.session, '#confirm-ok');
   await waitFor(app.session, 'document.querySelector("#count-trash").textContent === "1"');
   await set(app.session, '#search', '');
   await click(app.session, '[data-view="trash"]');
   await click(app.session, '#items .login-item');
   await waitFor(app.session, '!!document.querySelector("#restore-item")');
   await click(app.session, '.detail-actions .danger');
+  await waitFor(app.session, 'document.querySelector("#confirm-dialog").open');
+  await click(app.session, '#confirm-ok');
   await waitFor(app.session, 'document.querySelector("#count-trash").textContent === ""');
   s = await state(app.session);
   assert.equal((await rpc(app.session, 'TRASH_LIST', { session: s.session })).data.length, 0);
@@ -248,10 +269,9 @@ try {
   await evaluate(site.session, 'document.querySelector("#identifier").focus()');
   let panel = await frameTarget(PANEL);
   await waitFor(panel, 'document.querySelectorAll(".account").length === 3');
+  // Choosing the account fills and submits the username step on its own — the site advances itself.
   await evaluate(panel, '[...document.querySelectorAll(".account")].find(b => b.textContent.includes("second@")).click()');
-  await waitFor(site.session, 'document.querySelector("#identifier").value === "second@example.test"');
   await absent(PANEL);
-  await click(site.session, 'button');
   await waitFor(site.session, 'location.pathname.endsWith("twostep-password.html") && document.readyState === "complete"');
   await evaluate(site.session, 'document.querySelector("#pass").focus()');
   panel = await frameTarget(PANEL);
@@ -351,7 +371,7 @@ try {
   await click(app.session, '#nav-passkeys');
   await waitFor(app.session, 'document.querySelectorAll("#items .item-row").length === 1');
   await click(app.session, '#items .item-row');
-  await waitFor(app.session, 'document.querySelector("#detail").open');
+  await waitFor(app.session, '!document.querySelector("#detail").hidden');
   assert.match(await evaluate(app.session, 'document.querySelector("#detail-view").textContent'), /alice@fixture\.test/);
   await shot(app.session, 'passkey-detail');
   await click(app.session, '#detail .back-button');
@@ -367,7 +387,7 @@ try {
   assert.match(await evaluate(app.session, 'document.querySelector("#items").textContent'), /Visa ···· 4242/, 'Card rows show brand + last4, never the full number');
   assert.doesNotMatch(await evaluate(app.session, 'document.querySelector("#items").textContent'), /4242424242424242/);
   await evaluate(app.session, '[...document.querySelectorAll("#items .item-row")].find(r => r.textContent.includes("Test Visa")).click()');
-  await waitFor(app.session, 'document.querySelector("#detail").open && document.querySelector("#detail-view").textContent.includes("04/2029")');
+  await waitFor(app.session, '!document.querySelector("#detail").hidden && document.querySelector("#detail-view").textContent.includes("04/2029")');
   await shot(app.session, 'card-detail');
   await click(app.session, '#detail .back-button');
 
@@ -455,6 +475,10 @@ try {
   // The old master password is dead; too few shares are rejected before any change.
   await rpc(app.session, 'LOCK', {});
   await waitFor(app.session, '!document.querySelector("#locked").hidden');
+  for (let i = 0; i < 10 && !(await evaluate(app.session, 'document.querySelector("#message").hidden')); i++) {
+    await evaluate(app.session, 'document.querySelector("#message")?.click()');
+    await delay(200);
+  }
   await set(app.session, '#master-password', password);
   await evaluate(app.session, 'document.querySelector("#auth form").requestSubmit()');
   await waitFor(app.session, 'document.querySelector("#message").textContent.includes("Incorrect master password")');

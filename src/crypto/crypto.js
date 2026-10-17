@@ -1,5 +1,5 @@
 import { fromBase64, toBase64, MAX_BACKUP_BYTES, MAX_VAULT_BYTES } from "./encoding.js";
-import { deriveKey, newKdf, ITERATIONS } from "./kdf.js";
+import { deriveKeyAndRaw, newKdf, ITERATIONS } from "./kdf.js";
 export { newKdf };
 import { validatePayload } from "../vault/schema.js";
 
@@ -31,16 +31,29 @@ export async function encryptVault(payload, key, kdf) {
   } finally { bytes.fill(0); }
 }
 
-export async function createEncryptedVault(payload, password) {
+// Same as createEncryptedVault, but also returns the raw key bytes (caller zeroes them).
+export async function createEncryptedVaultWithRaw(payload, password) {
   if (typeof password !== "string" || [...password].length < 12) throw new Error("Use a master password of at least 12 characters.");
   const kdf = newKdf();
-  const key = await deriveKey(password, kdf);
-  return { key, envelope: await encryptVault(payload, key, kdf) };
+  const { key, raw } = await deriveKeyAndRaw(password, kdf);
+  try { return { key, raw, envelope: await encryptVault(payload, key, kdf) }; }
+  catch (error) { raw.fill(0); throw error; }
+}
+export async function createEncryptedVault(payload, password) {
+  const { key, raw, envelope } = await createEncryptedVaultWithRaw(payload, password);
+  try { return { key, envelope }; } finally { raw.fill(0); }
 }
 
-export async function decryptVault(value, password) {
+// Same as decryptVault, but also returns the raw key bytes (caller zeroes them).
+export async function decryptVaultWithRaw(value, password) {
   const envelope = validateEnvelope(value);
-  return decryptWithKey(envelope, await deriveKey(password, envelope.kdf));
+  const { key, raw } = await deriveKeyAndRaw(password, envelope.kdf);
+  try { return { ...(await decryptWithKey(envelope, key)), raw }; }
+  catch (error) { raw.fill(0); throw error; }
+}
+export async function decryptVault(value, password) {
+  const { key, raw, payload, envelope } = await decryptVaultWithRaw(value, password);
+  try { return { key, payload, envelope }; } finally { raw.fill(0); }
 }
 export async function decryptWithKey(value, key) {
   const envelope = validateEnvelope(value);

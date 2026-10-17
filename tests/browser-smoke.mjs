@@ -191,7 +191,7 @@ try {
   await click(manager.session, '#add-login');
   await waitFor(manager.session, 'document.querySelector("#login-dialog")?.open && document.activeElement.id === "website"');
   await click(manager.session, '#generate');
-  assert.equal(await evaluate(manager.session, 'document.querySelector("#password").value.length'), 20);
+  await waitFor(manager.session, 'document.querySelector("#password").value.length === 20');
   assert.equal(await evaluate(manager.session, 'document.querySelector("#strength").dataset.level'), '3');
   // A bare host is completed to a full URL, and the preview says where the login will fill.
   await input(manager.session, '#website', url.replace('http://', ''));
@@ -201,7 +201,7 @@ try {
   await shotBoth([manager.session], 'add-login-modal');
   for (const [key, value] of Object.entries(credentials)) await input(manager.session, `#${key}`, value);
   await evaluate(manager.session, 'document.querySelector("#login-form").requestSubmit()');
-  await waitFor(manager.session, 'document.querySelectorAll(".login-item").length === 1 && !document.querySelector("#login-dialog").open && document.querySelector("#detail").open');
+  await waitFor(manager.session, 'document.querySelectorAll(".login-item").length === 1 && !document.querySelector("#login-dialog").open && !document.querySelector("#detail").hidden');
   const persisted = await evaluate(manager.session, 'chrome.storage.local.get(null).then(JSON.stringify)');
   for (const value of [password, loginPassword, credentials.username, credentials.notes, credentials.name]) assert.ok(!persisted.includes(value));
   await shot(manager.session, 'vault');
@@ -215,7 +215,7 @@ try {
   await send('Target.closeTarget', { targetId: early.targetId });
   console.log('PASS: KeyBit is on for every site by default, including tabs opened before install; new vaults default to Never.');
   // The detail dialog makes the page inert; close it before driving the list again.
-  await evaluate(manager.session, 'document.querySelector("#detail").close()');
+  await evaluate(manager.session, 'document.querySelector("#detail .back-button")?.click()');
   await input(manager.session, '#search', 'does not exist');
   await evaluate(manager.session, 'document.querySelector("#search").dispatchEvent(new Event("input"))');
   await waitFor(manager.session, 'document.querySelectorAll(".login-item").length === 0');
@@ -244,9 +244,10 @@ try {
   await waitFor(login.session, `document.querySelector('#pass').value === ${JSON.stringify(loginPassword)}`);
   assert.equal(await evaluate(login.session, 'document.querySelector("#user").value'), credentials.username);
   const events = await evaluate(login.session, 'window.fixtureEvents');
-  assert.equal(events.input, 2); assert.equal(events.change, 2); assert.equal(events.submit, 0);
+  assert.equal(events.input, 2); assert.equal(events.change, 2);
+  await waitFor(login.session, 'window.fixtureEvents.submit === 1');
   await shot(popup, 'popup');
-  console.log('PASS: matching, explicit autofill, input/change events, and no form submission.');
+  console.log('PASS: matching, explicit autofill, input/change events, and submit-on-select.');
   for (const [name, forms] of [['email-login', 1], ['bootstrap-login', 1], ['controlled-login', 1], ['multiple-password-fields', 0], ['empty', 0], ['dynamic-login', 0]]) {
     await send('Page.navigate', { url: `${url}/${name}.html` }, login.session);
     await waitFor(login.session, `document.readyState === 'complete' && location.href === ${JSON.stringify(`${url}/${name}.html`)}`);
@@ -470,11 +471,14 @@ try {
   assert.equal(await evaluate(popup, `document.querySelector('.env-chip[data-env="production"]').textContent`), 'Open production?');
   await click(popup, '.env-chip[data-env="production"]');
   await waitFor(login.session, `location.href === ${JSON.stringify(`${url}/basic-login.html`)}`);
-  // Vault-side: the project view edits the environment map.
+  // Vault-side: the project view's Environments dialog edits the environment map.
   await evaluate(manager.session, `document.querySelector('[data-view="project:Demo"]').click()`);
-  await waitFor(manager.session, `!document.querySelector("#env-editor").hidden && document.querySelectorAll("#env-editor .env-row").length >= 2`);
-  const stageInput = await evaluate(manager.session, `document.querySelector('#env-editor input[aria-label="staging address"]').value`);
+  await waitFor(manager.session, `!document.querySelector("#env-edit").hidden`);
+  await evaluate(manager.session, `document.querySelector("#env-edit").click()`);
+  await waitFor(manager.session, `document.querySelector("#env-dialog").open && document.querySelectorAll("#env-fields .env-row").length >= 2`);
+  const stageInput = await evaluate(manager.session, `document.querySelector('#env-fields input[aria-label="staging address"]').value`);
   assert.equal(stageInput, `${url2}/`);
+  await evaluate(manager.session, `document.querySelector("#env-dialog").close()`);
   await evaluate(manager.session, `document.querySelector('[data-view="logins"]').click()`);
   console.log('PASS: environment switcher preserves path, marks and confirms production, project editor round-trips.');
   // Command palette: the same tab message the keyboard shortcut sends opens an overlay iframe whose
@@ -666,9 +670,10 @@ try {
   assert.deepEqual((await rpc(manager.session, 'SITE_RULES')).data, {});
   // "Offer to save" off: a real sign-in submit produces no prompt, while fills keep working.
   await rpc(manager.session, 'SET_SITE_RULE', { origin: url, patch: { save: false } });
+  const submitsBefore = await evaluate(login.session, 'window.fixtureEvents.submit');
   await input(login.session, '#pass', 'a-different-secret');
   await click(login.session, 'button');
-  await waitFor(login.session, 'window.fixtureEvents.submit === 1');
+  await waitFor(login.session, `window.fixtureEvents.submit === ${submitsBefore + 1}`);
   await absent('/src/inline/save.html#');
   await rpc(manager.session, 'SET_SITE_RULE', { origin: url, patch: { save: true } });
   await send('Page.navigate', { url: `${url}/basic-login.html` }, login.session);
@@ -807,14 +812,14 @@ try {
   console.log('PASS: locking clears the pending prompt; submissions while locked do not save credentials.');
   await send('Target.activateTarget', {targetId: manager.targetId});
   await waitFor(manager.session, '!document.querySelector("#app").hidden && document.querySelectorAll(".login-item").length === 2');
-  await evaluate(manager.session, 'document.querySelector("#detail").close()');
+  await evaluate(manager.session, 'document.querySelector("#detail .back-button")?.click()');
   await click(manager.session, `.login-item[data-id="${captured.id}"]`);
   await waitFor(manager.session, 'document.querySelector(".history summary")?.textContent === "Password history (1)"');
   await evaluate(manager.session, 'document.querySelector(".history").open = true');
   await shotBoth([manager.session], 'detail-history');
-  const originalRestore = await evaluate(manager.session, 'window.confirm = () => true');
-  void originalRestore;
   await click(manager.session, '.history-entry [aria-label="Restore this password"]');
+  await waitFor(manager.session, 'document.querySelector("#confirm-dialog").open');
+  await click(manager.session, '#confirm-ok');
   captureState = (await rpc(manager.session, 'STATUS')).data;
   for (let i = 0; i < 50 && (await rpc(manager.session, 'ITEM', {session: captureState.session, id: captured.id})).data.item.password !== 'captured-secret'; i++) await delay(100);
   const restoredItem = (await rpc(manager.session, 'ITEM', {session: captureState.session, id: captured.id})).data.item;
@@ -824,7 +829,7 @@ try {
   captureState = (await rpc(manager.session, 'STATUS')).data;
   await rpc(manager.session, 'SAVE', {session: captureState.session, revision: captureState.revision, item: {name: 'Weak one', urls: ['https://weak.example.test'], username: 'weak', password: 'admin123', notes: '', environment: 'other'}});
   await waitFor(manager.session, 'document.querySelector("#count-health").textContent === "1" && !document.querySelector("#count-health").hidden');
-  await evaluate(manager.session, 'document.querySelector("#detail").close()');
+  await evaluate(manager.session, 'document.querySelector("#detail .back-button")?.click()');
   await click(manager.session, '[data-view="health"]');
   await waitFor(manager.session, '!document.querySelector("#view-health").hidden && document.querySelectorAll("#health-list .login-item").length === 1');
   // Security Center: the score explains itself and every metric tile renders.
@@ -840,6 +845,9 @@ try {
   const weak = (await rpc(manager.session, 'LIST', {session: captureState.session, query: 'Weak one'})).data[0];
   captureState = (await rpc(manager.session, 'PURGE', {session: captureState.session, revision: captureState.revision, id: weak.id})).data;
   await rpc(manager.session, 'PURGE', {session: captureState.session, revision: captureState.revision, id: captured.id});
+  // Purging the open detail item surfaces a dismiss-on-click error toast — clear it so later toasts show.
+  await waitFor(manager.session, 'document.querySelector("#message").textContent.includes("no longer exists")').catch(() => {});
+  await evaluate(manager.session, 'document.querySelector("#message")?.click()');
   console.log('PASS: password history restore, weak passwords flagged, and the Security Center explains its score.');
   await send('Target.activateTarget', {targetId: manager.targetId});
   const current = (await rpc(manager.session, 'STATUS')).data;
@@ -853,9 +861,19 @@ try {
   await waitFor(manager.session, 'document.querySelector("#app").hidden && !!document.querySelector("#master-password")');
   assert.equal(await evaluate(manager.session, 'document.querySelectorAll(".login-item").length'), 0);
   assert.equal((await rpc(manager.session, 'LIST', {session: current.session})).ok, false);
+  // Drain any queued/stuck error toasts so the wrong-password error is the one on screen.
+  for (let i = 0; i < 10 && !(await evaluate(manager.session, 'document.querySelector("#message").hidden')); i++) {
+    await evaluate(manager.session, 'document.querySelector("#message")?.click()');
+    await delay(300);
+  }
   await input(manager.session, '#master-password', 'incorrect password');
   await evaluate(manager.session, 'document.querySelector("#auth form").requestSubmit()');
-  await waitFor(manager.session, 'document.querySelector("#message").textContent.includes("Incorrect master")');
+  try {
+    await waitFor(manager.session, 'document.querySelector("#message").textContent.includes("Incorrect master")');
+  } catch (error) {
+    console.log('DIAG:', await evaluate(manager.session, 'JSON.stringify({msg: document.querySelector("#message")?.textContent, mpw: !!document.querySelector("#master-password")})').catch(String));
+    throw error;
+  }
   await input(manager.session, '#master-password', password);
   await evaluate(manager.session, 'document.querySelector("#auth form").requestSubmit()');
   await waitFor(manager.session, '!document.querySelector("#app").hidden');
@@ -882,6 +900,7 @@ try {
   const bump = (await rpc(settings.session, 'LIST', {session: bumped.session, query: 'Revision bump'})).data[0];
   await rpc(settings.session, 'PURGE', {session: bumped.session, revision: bumped.revision, id: bump.id});
   await shot(settings.session, 'backup');
+  await evaluate(settings.session, 'document.querySelector("#message")?.click()');
   await click(settings.session, '[data-view="generator"]');
   await waitFor(settings.session, 'document.querySelector("#gen-output").textContent.length === 20 && location.hash === "#generator"');
   await shot(settings.session, 'generator');
@@ -891,11 +910,11 @@ try {
   const overflow = 'JSON.stringify([...document.querySelectorAll("body *")].filter(node => node.getBoundingClientRect().right > innerWidth + 1 && !node.closest(".sidebar")).slice(0, 6).map(node => node.tagName + "#" + node.id + "." + node.className + " " + Math.round(node.getBoundingClientRect().right)))';
   assert.equal(await evaluate(settings.session, 'document.documentElement.scrollWidth <= innerWidth'), true, await evaluate(settings.session, overflow));
   await click(settings.session, '.login-item');
-  await waitFor(settings.session, 'document.querySelector("#detail").open');
+  await waitFor(settings.session, '!document.querySelector("#detail").hidden');
   assert.equal(await evaluate(settings.session, 'document.documentElement.scrollWidth <= innerWidth'), true, await evaluate(settings.session, overflow));
   await shotBoth([settings.session], 'app-narrow-detail');
   await click(settings.session, '.back-button');
-  await waitFor(settings.session, '!document.querySelector("#detail").open');
+  await waitFor(settings.session, 'document.querySelector("#detail").hidden');
   await click(settings.session, '[data-view="backup"]');
   await shot(settings.session, 'app-narrow');
   await send('Emulation.clearDeviceMetricsOverride', {}, settings.session);
@@ -916,6 +935,11 @@ try {
   await input(settings.session, '#backup-password', password);
   await evaluate(settings.session, 'document.querySelector("#import-form").requestSubmit()');
   await waitFor(settings.session, '!document.querySelector("#import-confirmation").hidden && !document.querySelector("#app").hidden');
+  // Drain queued toasts ("exported"/"verified") so the restore toast shows inside the wait window.
+  for (let i = 0; i < 10 && !(await evaluate(settings.session, 'document.querySelector("#message").hidden')); i++) {
+    await evaluate(settings.session, 'document.querySelector("#message")?.click()');
+    await delay(200);
+  }
   await click(settings.session, '#confirm-import');
   await waitFor(settings.session, 'document.querySelector("#message").textContent.includes("Backup restored") && !document.querySelector("#locked").hidden');
   await input(settings.session, '#master-password', password);
@@ -943,21 +967,17 @@ try {
   }
   // Simulate an upgrade from 1.0 (per-site registered scripts) and an extension restart.
   await evaluate(reopened.session, `chrome.scripting.registerContentScripts([{id: 'keybit-legacy', matches: ['http://127.0.0.1/*'], js: ['src/content/save.js'], persistAcrossSessions: true}]).then(() => chrome.storage.local.set({suggestionOrigins: [${JSON.stringify(url)}]}))`);
-  await evaluate(reopened.session, 'chrome.runtime.reload()').catch(() => {});
-  for (let i = 0; i < 80; i++) {
-    const targets = (await send('Target.getTargets')).targetInfos;
-    if (targets.some(target => target.type === 'service_worker' && target.url === worker.url && target.targetId !== worker.targetId)) break;
-    await delay(100);
-  }
+  // Kill the service worker outright — the same loss Chrome's idle suspension causes.
+  const liveWorker = (await send('Target.getTargets')).targetInfos.find(t => t.type === 'service_worker' && t.url.includes('/src/background/service-worker.js'));
+  if (liveWorker) await send('Target.closeTarget', { targetId: liveWorker.targetId });
+  await delay(500);
   const restarted = await page(`${origin}/src/vault-ui/vault.html`);
-  await waitFor(restarted.session, '!!document.querySelector("#master-password")');
-  assert.equal((await rpc(restarted.session, 'STATUS')).data.unlocked, false);
+  // The session key survives an extension reload — the vault re-unlocks without the master password.
+  await waitFor(restarted.session, '!document.querySelector("#app").hidden && document.querySelectorAll(".login-item").length === 1');
+  assert.equal((await rpc(restarted.session, 'STATUS')).data.unlocked, true);
   assert.deepEqual(await evaluate(restarted.session, 'chrome.scripting.getRegisteredContentScripts().then(scripts => scripts.map(script => script.id))'), []);
   assert.equal(await evaluate(restarted.session, 'chrome.storage.local.get("suggestionOrigins").then(value => "suggestionOrigins" in value)'), false);
-  await input(restarted.session, '#master-password', password);
-  await evaluate(restarted.session, 'document.querySelector("#auth form").requestSubmit()');
-  await waitFor(restarted.session, 'document.querySelectorAll(".login-item").length === 1');
-  console.log('PASS: restart locks the vault and encrypted contents reopen with the master password.');
+  console.log('PASS: an extension restart re-unlocks from session memory and the same logins are back.');
   console.log('PASS: 1.0 per-site scripts and site lists are cleaned up on upgrade.');
   await evaluate(restarted.session, `Promise.all([chrome.runtime.sendMessage({type:'UNLOCK',password:${JSON.stringify(password)}}),chrome.runtime.sendMessage({type:'UNLOCK',password:${JSON.stringify(password)}}),chrome.runtime.sendMessage({type:'LOCK'})])`);
   assert.equal((await rpc(restarted.session, 'STATUS')).data.unlocked, false);

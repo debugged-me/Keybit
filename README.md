@@ -11,8 +11,8 @@ The original brief is in [CLARK_VAULT_CODEX.md](CLARK_VAULT_CODEX.md). Later ins
    - **If KeyBit is already loaded,** click **Reload** on its card instead. Open tabs pick up the new version automatically.
    - **If you update the folder but forget to reload,** KeyBit's pages show **Finish updating KeyBit** with a **Reload KeyBit** button.
 3. Pin KeyBit (puzzle icon → pin), then create or unlock your vault. A fresh install opens a welcome page with these steps.
-4. Visit a website and click its username or password field. Choose an account from the **KeyBit** dropdown, or press ↓ then Enter.
-5. Sign in normally. KeyBit offers to save the login, and you confirm.
+4. Visit a website and click its username or password field. Choose an account from the **KeyBit** dropdown, or press ↓ then Enter — KeyBit fills it and submits the sign-in for you.
+5. Sign in normally on a site the first time. KeyBit offers to save the login, and you confirm.
 
 **Keyboard shortcuts:** ⇧⌘K (Ctrl+Shift+K on Windows) opens the popup. ⌥⇧L (Alt+Shift+L) opens the dropdown on the page's login field. ⇧⌘J (Ctrl+Shift+J) opens the command palette on the page. Change them at `helium://extensions/shortcuts`; ⌘⇧L is reserved by the browser.
 
@@ -27,7 +27,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 **Filling**
 - The dropdown appears when you click a login field on any site, including a field that already has focus. It follows the field when the page scrolls.
 - **Typing narrows the list**, and the account you used last comes first.
-- **Two-step sign-ins:** on a username-only page, KeyBit fills the username. On the password page that follows, the same account is listed first ("Continue").
+- **Two-step sign-ins:** on a username-only page, choosing the account fills it and continues to the password page, where the same account is listed first ("Continue").
 - **2FA codes:** add a login's authenticator setup key — type it, paste the `otpauth://` link, or **Scan a QR image** (a screenshot of the site's setup QR, decoded entirely on-device). KeyBit then shows the 6-digit code in the login's details and in the dropdown on code fields, including six one-digit boxes.
 - **Cards and IDs:** save a payment card or an ID (name, address, phone) in **Cards & IDs**. Focusing a card field or an address form shows the same dropdown — one click fills the number, expiry, CVV, or the whole address. Cards and IDs aren't site-bound; a masked number and cardholder name are all that ever leave the vault until you fill.
 - **Lookalike-site warnings:** if a page's address only *resembles* a saved site — swapped letters, Cyrillic lookalikes, punycode, a one-letter typo — the dropdown leads with a warning instead of filling. Saved credentials never autofill on a different site; this adds the "wait, this isn't right" moment for the near-misses.
@@ -75,9 +75,9 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
   - generate and show/hide sit inside the password field, with a strength meter;
   - you're warned about a duplicate username on the same site;
   - you're asked before unsaved typing is discarded.
-- **Auto-lock** is the timer icon in the header (hover shows "Auto-lock: Never").
+- **Auto-lock** is the timer icon in the header (hover shows "Auto-lock: Never"). The vault stays unlocked while the browser runs — even across extension reloads — and only locking it yourself, quitting the browser, or an auto-lock timer you set will lock it.
 - **Settings:**
-  - lock when the computer locks or sleeps (on by default);
+  - lock when the computer locks or sleeps (off by default);
   - Touch ID or Windows Hello unlock;
   - change master password;
   - theme: System, Light, or Dark;

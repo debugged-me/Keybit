@@ -43,10 +43,10 @@ try {
   await delay(800);
   await waitFor(app.session, '!document.querySelector("#app").hidden && document.querySelectorAll("#items .login-item").length === 2');
   await evaluate(app.session, 'document.querySelector("#items .login-item").click()');
-  await waitFor(app.session, 'document.querySelector("#detail").open');
+  await waitFor(app.session, '!document.querySelector("#detail").hidden');
   await audit(app.session, 'All logins + details');
-  // The detail dialog makes the page inert; close it so the sidebar clicks below reach.
-  await evaluate(app.session, 'document.querySelector("#detail").close()');
+  // Close the detail pane so the sidebar clicks below reach.
+  await evaluate(app.session, 'document.querySelector("#detail .back-button")?.click()');
   // A customized site rule makes the Sites view render its management card.
   await evaluate(app.session, `chrome.runtime.sendMessage(${JSON.stringify({ type: 'SET_SITE_RULE', origin: new URL(url).origin, patch: { enabled: true, logins: true, save: true } })})`);
   await delay(300);
@@ -56,16 +56,16 @@ try {
     await audit(app.session, `View: ${view}`);
   }
   await evaluate(app.session, 'document.querySelector("#items .login-item").click()');
-  await waitFor(app.session, 'document.querySelector("#detail").open');
+  await waitFor(app.session, '!document.querySelector("#detail").hidden');
   await audit(app.session, 'Passkey details');
-  await evaluate(app.session, 'document.querySelector("#detail").close()');
+  await evaluate(app.session, 'document.querySelector("#detail .back-button")?.click()');
   // Card detail, and the card + ID editor dialogs.
   await evaluate(app.session, `document.querySelector('[data-view="cards"]').click()`);
   await waitFor(app.session, 'document.querySelectorAll("#items .item-row").length === 2');
   await evaluate(app.session, '[...document.querySelectorAll("#items .item-row")].find(r => r.textContent.includes("Test Visa")).click()');
-  await waitFor(app.session, 'document.querySelector("#detail").open');
+  await waitFor(app.session, '!document.querySelector("#detail").hidden');
   await audit(app.session, 'Card details');
-  await evaluate(app.session, 'document.querySelector("#detail").close(); document.querySelector("#add-login").click()');
+  await evaluate(app.session, 'document.querySelector("#detail .back-button")?.click(); document.querySelector("#add-login").click()');
   await waitFor(app.session, 'document.querySelector("#login-dialog").open');
   await audit(app.session, 'Add card dialog');
   await evaluate(app.session, 'document.querySelector("#login-dialog").close(); document.querySelector("#add-id").click()');
@@ -75,11 +75,11 @@ try {
   await evaluate(app.session, `document.querySelector('[data-view="logins"]').click()`);
   await waitFor(app.session, 'document.querySelectorAll("#items .login-item").length === 2');
   await evaluate(app.session, 'document.querySelector("#items .login-item").click()');
-  await waitFor(app.session, 'document.querySelector("#detail").open && !!document.querySelector("#share-item")');
+  await waitFor(app.session, '!document.querySelector("#detail").hidden && !!document.querySelector("#share-item")');
   await evaluate(app.session, 'document.querySelector("#share-item").click()');
   await waitFor(app.session, 'document.querySelector("#share-dialog").open');
   await audit(app.session, 'Share dialog');
-  await evaluate(app.session, 'document.querySelector("#share-dialog").close(); document.querySelector("#detail").close()');
+  await evaluate(app.session, 'document.querySelector("#share-dialog").close(); document.querySelector("#detail .back-button")?.click()');
   await evaluate(app.session, `document.querySelector('[data-view="logins"]').click(); document.querySelector("#add-login").click()`);
   await waitFor(app.session, 'document.querySelector("#login-dialog").open');
   await audit(app.session, 'Add login dialog');

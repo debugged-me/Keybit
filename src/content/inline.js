@@ -46,7 +46,7 @@
   const supported = input => modeFor(input) !== null;
   function close({ restoreFocus = false } = {}) {
     generation++; opening = null;
-    // After a choice or Escape inside the panel, return focus to the field so Enter submits as usual.
+    // After a choice or Escape inside the panel, return focus to the field — a chosen login already submitted itself; Escape leaves the page as it was.
     const restore = restoreFocus && host && document.activeElement === host ? activeInput : null;
     panelEvents?.abort(); panelEvents = null;
     host?.remove(); host = null; frame = null; activeInput = null; activeMode = null; visible = false;

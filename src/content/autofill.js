@@ -16,6 +16,21 @@
     input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
     input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
   }
+  // A chosen entry signs in the way typing it and pressing Enter would. requestSubmit() runs the
+  // site's own validation and submit handler; where the fields sit outside a <form> (script
+  // sign-ins), a synthetic Enter on the field is the same signal those pages watch for.
+  function submit(anchor) {
+    try {
+      let form = anchor.form ?? null;
+      for (let node = form ? null : detector.parentOf(anchor); node && !form; node = detector.parentOf(node))
+        if (node instanceof HTMLFormElement) form = node;
+      if (form) { form.requestSubmit(); return; }
+      for (const type of ["keydown", "keypress", "keyup"])
+        anchor.dispatchEvent(new KeyboardEvent(type, { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, composed: true, cancelable: true }));
+    } catch { /* The fill stands; submitting is best effort. */ }
+  }
+  // A short defer lets the page's input handlers (and a just-enabled sign-in button) settle first.
+  const submitLater = anchor => setTimeout(() => submit(anchor), 120);
   // The context-menu "Generate password" writes straight into the field that was right-clicked
   // (plus its sign-up siblings), so it cannot reuse the form-wide finders above.
   detector.fillInput = (input, value) => {
@@ -38,6 +53,7 @@
     // Framework handlers can replace a field after the username input event.
     if (location.origin !== origin || !detector.usable(fields.password)) return { ok: false, error: "The form changed. Check the page and click Fill again." };
     setValue(fields.password, password);
+    submitLater(fields.password);
     return { ok: true };
   };
   detector.fillUsername = (origin, username) => {
@@ -45,6 +61,7 @@
     const steps = detector.findUsernameOnly();
     if (steps.length !== 1) return { ok: false, error: "There must be one visible username field to fill." };
     setValue(steps[0].username, username);
+    submitLater(steps[0].username);
     return { ok: true };
   };
   detector.fillOtp = (origin, code) => {
@@ -54,6 +71,7 @@
     const { fields } = forms[0];
     if (fields.length === 1) setValue(fields[0], code);
     else fields.forEach((field, index) => setValue(field, code[index] ?? ""));
+    submitLater(fields[fields.length - 1]);
     return { ok: true };
   };
   detector.fillNew = (origin, password) => {

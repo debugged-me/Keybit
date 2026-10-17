@@ -17,6 +17,12 @@ export async function deriveRawKey(password, kdf) {
 export async function importRawKey(raw) {
   return crypto.subtle.importKey("raw", raw, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
+// The derived key plus its raw bytes — the caller owns raw and must zero it when done.
+export async function deriveKeyAndRaw(password, kdf) {
+  const raw = await deriveRawKey(password, kdf);
+  try { return { key: await importRawKey(raw), raw }; }
+  catch (error) { raw.fill(0); throw error; }
+}
 export async function deriveKey(password, kdf) {
   const raw = await deriveRawKey(password, kdf);
   try { return await importRawKey(raw); } finally { raw.fill(0); }

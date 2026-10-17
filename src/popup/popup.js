@@ -58,7 +58,7 @@ function attachTotp(row, item) {
 }
 const fillAction = async id => {
   await client.request("FILL", { id, tabId: page.tabId, url: page.url });
-  announce("Login filled. Review the page before signing in.");
+  announce("Login filled — submitting for you.");
 };
 // This site's logins first; a search also lists matching logins from other sites (copy only).
 async function renderLists() {

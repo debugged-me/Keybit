@@ -2,7 +2,7 @@ import { Vault } from "../vault/vault.js";
 import { chromeVaultStorage } from "../vault/storage.js";
 import { matchesCredential, parseWebsite } from "../matching/url-matcher.js";
 import { totpCode } from "../vault/totp.js";
-import { fromBase64 } from "../crypto/encoding.js";
+import { fromBase64, toBase64 } from "../crypto/encoding.js";
 import { sealRawKey, openRawKey } from "../crypto/biometric.js";
 import { Suggestions, FRAME_SCRIPTS } from "./suggestions.js";
 import { SavePrompts } from "./save-prompts.js";
@@ -16,12 +16,14 @@ let savePrompts;
 let passkeyPrompts;
 const steps = new Steps();
 const usage = new Usage();
-const vault = new Vault(chromeVaultStorage(), Date.now, () => { savePrompts?.clear(); passkeyPrompts?.clear(); steps.clear(); keepAlive(); });
+const vault = new Vault(chromeVaultStorage(), Date.now, () => { savePrompts?.clear(); passkeyPrompts?.clear(); steps.clear(); keepAlive(); void chrome.storage.session.remove([SESSION_KEY, DEADLINE_KEY]).catch(() => {}); });
 const trustedPages = ["src/popup/popup.html", "src/vault-ui/vault.html", "src/developer/inspector.html", "src/command/palette.html"].map(path => chrome.runtime.getURL(path));
 const suggestions = new Suggestions(vault, fill, { usage, steps });
 savePrompts = new SavePrompts(vault, suggestions, Date.now, steps);
 passkeyPrompts = new PasskeyPrompts(vault, suggestions);
-const ready = chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }).then(() => Promise.all([suggestions.refresh(), usage.load()]));
+const ready = Promise.all([chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }),
+  chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }).catch(() => {})])
+  .then(() => Promise.all([suggestions.refresh(), usage.load()])).then(restoreUnlock);
 let queue = Promise.resolve();
 let lockTimer;
 let keepAliveTimer;
@@ -43,6 +45,8 @@ async function publish() {
 function scheduleLock() {
   clearTimeout(lockTimer);
   if (vault.deadline) lockTimer = setTimeout(() => { vault.expire(); keepAlive(); void publish(); }, Math.max(0, vault.deadline - Date.now()));
+  // The deadline rides with the session key so a restarted worker still honors the auto-lock timer.
+  void chrome.storage.session.set({ [DEADLINE_KEY]: vault.deadline ?? null }).catch(() => {});
   keepAlive();
 }
 // Extension API calls reset Chromium's 30-second worker idle timer. While unlocked, this keeps the
@@ -56,6 +60,53 @@ async function autoBackup() {
     const result = await writeBackup(await vault.export());
     if (result.status !== "off") await chrome.storage.local.set({ autoBackup: result });
   } catch { await chrome.storage.local.set({ autoBackup: { status: "error" } }).catch(() => {}); }
+}
+const SESSION_KEY = "vaultKey";
+const DEADLINE_KEY = "vaultDeadline";
+// The unlocked vault key is mirrored into chrome.storage.session — held in the browser's memory and
+// cleared when the browser quits — so a worker restart or extension reload re-unlocks without asking
+// for the master password again. Every real lock (manual, auto-lock, screen lock) clears it.
+async function rememberKey(raw) {
+  await chrome.storage.session.set({ [SESSION_KEY]: toBase64(raw) }).catch(() => {});
+}
+// Stores the key the vault already holds — no second password derivation, and nothing to store when locked.
+async function rememberSessionKey(session) {
+  if (!session) return;
+  let raw;
+  try { raw = vault.rawSessionKey(session); } catch { return; }
+  if (raw) try { await rememberKey(raw); } finally { raw.fill(0); }
+}
+async function restoreUnlock() {
+  let saved;
+  try { saved = await chrome.storage.session.get([SESSION_KEY, DEADLINE_KEY]); } catch { return; }
+  const key = saved?.[SESSION_KEY], deadline = saved?.[DEADLINE_KEY];
+  if (typeof key !== "string") return;
+  if (typeof deadline === "number" && deadline <= Date.now()) {
+    await chrome.storage.session.remove([SESSION_KEY, DEADLINE_KEY]).catch(() => {});
+    return;
+  }
+  const raw = fromBase64(key, 32);
+  try {
+    await vault.unlockWithRawKey(raw);
+    // unlockWithRawKey locks first, which cleared the stored key — put it back for the next restart.
+    await rememberKey(raw);
+    scheduleLock();
+    void migrateScreenLock();
+    void publish();
+  } catch { await chrome.storage.session.remove([SESSION_KEY, DEADLINE_KEY]).catch(() => {}); }
+  finally { raw.fill(0); }
+}
+// Vaults created on 1.3 stored "lock when the computer locks" on — it was the default, not a choice.
+// That stored flag is retired once here; the Settings switch can still turn the feature back on.
+async function migrateScreenLock() {
+  if (vault.currentSettings?.lockOnScreenLock !== true) return null;
+  try {
+    if ((await chrome.storage.local.get("screenLockMigrated")).screenLockMigrated) return null;
+    const { session } = await vault.status();
+    const migrated = session ? await vault.settings(session, { lockOnScreenLock: false }) : null;
+    if (migrated) await chrome.storage.local.set({ screenLockMigrated: true });
+    return migrated;
+  } catch { return null; }
 }
 // Clipboard clearing lives in an offscreen document: unlike a page's timer, it fires even if the
 // popup or window that copied is already closed, and it does not keep this worker awake.
@@ -246,7 +297,11 @@ async function biometricUnlock(prf) {
   const { biometric } = /** @type {any} */ (await chrome.storage.local.get("biometric"));
   if (!biometric) throw new Error("Touch ID unlock is off. Unlock with your master password.");
   const raw = await openRawKey(biometric.sealed, fromBase64(prf, 32), biometric.credentialId);
-  try { return await vault.unlockWithRawKey(raw); } finally { raw.fill(0); }
+  try {
+    const state = await vault.unlockWithRawKey(raw);
+    await rememberKey(raw);
+    return state;
+  } finally { raw.fill(0); }
 }
 async function biometricEnable(message) {
   const raw = await vault.rawKeyFor(message.session, message.password);
@@ -283,8 +338,16 @@ async function handle(message, sender) {
   if (message.type.startsWith("PANEL_")) return suggestions.panel(message, sender);
   switch (message.type) {
     case "STATUS": return status();
-    case "CREATE": return vault.create(message.password);
-    case "UNLOCK": return vault.unlock(message.password);
+    case "CREATE": {
+      const state = await vault.create(message.password);
+      await rememberSessionKey(state.session);
+      return state;
+    }
+    case "UNLOCK": {
+      const state = await vault.unlock(message.password);
+      await rememberSessionKey(state.session);
+      return (await migrateScreenLock()) ?? state;
+    }
     case "TOUCH": vault.touch(message.session); return status();
     case "LIST": return usage.annotate(vault.list(message.session, message.query, message.url));
     case "PROJECTS": return vault.projects(message.session);
@@ -322,7 +385,8 @@ async function handle(message, sender) {
     case "SETTINGS": return vault.settings(message.session, message.settings);
     case "CHANGE_PASSWORD": {
       const state = await vault.changePassword(message.session, message.current, message.next);
-      // Touch ID sealed the old key; it must be set up again with the new password.
+      // The session copy must hold the new key; Touch ID sealed the old one and is set up again.
+      await rememberSessionKey(state.session);
       await chrome.storage.local.remove("biometric");
       return state;
     }
@@ -332,7 +396,10 @@ async function handle(message, sender) {
     }
     case "BIOMETRIC_ENABLE": return biometricEnable(message);
     case "BIOMETRIC_DISABLE": await chrome.storage.local.remove("biometric"); return status();
-    case "BIOMETRIC_UNLOCK": return biometricUnlock(message.prf);
+    case "BIOMETRIC_UNLOCK": {
+      const state = await biometricUnlock(message.prf);
+      return (await migrateScreenLock()) ?? state;
+    }
     case "IMPORT_PREVIEW": return vault.previewImport(message.session, message.items);
     case "IMPORT_COMMIT": return vault.importItems(message.session, message.revision, message.items);
     case "MERGE_BACKUP": return vault.mergeBackup(message.session, message.revision, message.text, message.password);
@@ -415,7 +482,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   });
   return true;
 });
-// Lock when the computer's screen locks or it goes to sleep (on by default; Settings can turn it off).
+// Lock when the computer's screen locks or it goes to sleep (off by default; Settings can turn it on).
 chrome.idle.onStateChanged.addListener(state => {
   if (state !== "locked" || !vault.unlocked || vault.currentSettings?.lockOnScreenLock === false) return;
   commandEpoch++; vault.lock(); scheduleLock();

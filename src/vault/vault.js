@@ -1,6 +1,6 @@
-import { createEncryptedVault, decryptVault, decryptWithKey, encryptVault, parseBackup, validateEnvelope, newKdf } from "../crypto/crypto.js";
+import { createEncryptedVaultWithRaw, decryptVault, decryptVaultWithRaw, decryptWithKey, encryptVault, parseBackup, validateEnvelope, newKdf } from "../crypto/crypto.js";
 import { splitSecret, encodeShare, recoveryPassphrase } from "./shamir.js";
-import { deriveKey, deriveRawKey, importRawKey } from "../crypto/kdf.js";
+import { deriveKey, deriveKeyAndRaw, deriveRawKey, importRawKey } from "../crypto/kdf.js";
 import { emptyVault, createItem, validateSettings, validateProjects, duplicateKey, HISTORY_LIMIT, ENVIRONMENTS } from "./schema.js";
 import { matcherFor, scopeLabel, specificity, parseWebsite } from "../matching/url-matcher.js";
 import { securityReport, vaultHealth } from "./health.js";
@@ -9,10 +9,10 @@ import { toCsv } from "./csv.js";
 const MAX_IMPORT = 100000;
 export const TRASH_DAYS = 30;
 export class Vault {
-  #key = null; #data = null; #envelope = null; #epoch = 0; #session = null; #lastActivity = 0; #pendingImport = null; #exists;
+  #key = null; #data = null; #envelope = null; #epoch = 0; #session = null; #lastActivity = 0; #pendingImport = null; #exists; #sessionKey = null;
   constructor(storage, now = Date.now, onLock = () => {}) { this.storage = storage; this.now = now; this.onLock = onLock; }
 
-  lock() { this.#epoch++; this.#key = null; this.#data = null; this.#envelope = null; this.#session = null; this.#lastActivity = 0; this.#pendingImport = null; this.onLock(); }
+  lock() { this.#epoch++; this.#key = null; this.#data = null; this.#envelope = null; this.#session = null; this.#lastActivity = 0; this.#pendingImport = null; this.#sessionKey?.fill(0); this.#sessionKey = null; this.onLock(); }
   get unlocked() { return !!this.#key; }
   get currentSettings() { return this.#data ? { ...this.#data.settings } : null; }
   get kdfSalt() { return this.#envelope?.kdf.salt ?? null; }
@@ -32,8 +32,9 @@ export class Vault {
   }
   touch(session) { this.require(session); this.#lastActivity = this.now(); }
   #checkEpoch(epoch) { if (epoch !== this.#epoch) throw new Error("Operation cancelled because the vault was locked."); }
-  #activate(key, payload, envelope) {
+  #activate(key, payload, envelope, raw = null) {
     this.#key = key; this.#data = payload; this.#envelope = envelope;
+    this.#sessionKey?.fill(0); this.#sessionKey = raw;
     this.#session = crypto.randomUUID(); this.#lastActivity = this.now();
   }
   async create(password) {
@@ -41,11 +42,13 @@ export class Vault {
     if (await this.storage.read()) throw new Error("A vault already exists. Unlock it or import a backup.");
     this.#checkEpoch(epoch);
     const payload = emptyVault();
-    const { key, envelope } = await createEncryptedVault(payload, password);
-    this.#checkEpoch(epoch);
-    await this.#write(envelope);
-    this.#checkEpoch(epoch);
-    this.#activate(key, payload, envelope);
+    const { key, envelope, raw } = await createEncryptedVaultWithRaw(payload, password);
+    try {
+      this.#checkEpoch(epoch);
+      await this.#write(envelope);
+      this.#checkEpoch(epoch);
+      this.#activate(key, payload, envelope, raw);
+    } catch (error) { raw.fill(0); throw error; }
     return this.status();
   }
   async unlock(password) {
@@ -53,11 +56,19 @@ export class Vault {
     const epoch = this.#epoch;
     const stored = await this.storage.read();
     if (!stored) throw new Error("Create a vault or import an encrypted backup first.");
-    const { key, payload, envelope } = await decryptVault(stored, password);
-    this.#checkEpoch(epoch);
-    this.#activate(key, payload, envelope);
+    const { key, payload, envelope, raw } = await decryptVaultWithRaw(stored, password);
+    try {
+      this.#checkEpoch(epoch);
+      this.#activate(key, payload, envelope, raw);
+    } catch (error) { raw.fill(0); throw error; }
     await this.#purgeExpiredTrash();
     return this.status();
+  }
+  // The open vault's raw key bytes — lets the worker keep the session across restarts. Returns a
+  // copy the caller must zero; null when there is nothing to keep.
+  rawSessionKey(session) {
+    this.require(session);
+    return this.#sessionKey ? this.#sessionKey.slice() : null;
   }
   // Touch ID: unlock with key bytes released by the device authenticator.
   async unlockWithRawKey(raw) {
@@ -69,7 +80,7 @@ export class Vault {
     try { opened = await decryptWithKey(stored, await importRawKey(raw)); }
     catch { throw new Error("Touch ID unlock is out of date. Unlock with your master password, then turn Touch ID on again."); }
     this.#checkEpoch(epoch);
-    this.#activate(opened.key, opened.payload, opened.envelope);
+    this.#activate(opened.key, opened.payload, opened.envelope, raw.slice());
     await this.#purgeExpiredTrash();
     return this.status();
   }
@@ -281,13 +292,18 @@ export class Vault {
     try { await decryptVault(this.#envelope, current); } catch { throw new Error("The current master password is incorrect."); }
     this.#checkEpoch(epoch); this.require(session);
     const kdf = newKdf();
-    const key = await deriveKey(next, kdf);
-    const payload = { ...this.#data, revision: this.#data.revision + 1 };
-    const encrypted = await encryptVault(payload, key, kdf);
-    this.#checkEpoch(epoch); this.require(session);
-    await this.#write(encrypted);
-    this.#checkEpoch(epoch);
-    this.#key = key; this.#data = payload; this.#envelope = encrypted; this.touch(session);
+    const { key, raw } = await deriveKeyAndRaw(next, kdf);
+    let owned = false;
+    try {
+      const payload = { ...this.#data, revision: this.#data.revision + 1 };
+      const encrypted = await encryptVault(payload, key, kdf);
+      this.#checkEpoch(epoch); this.require(session);
+      await this.#write(encrypted);
+      this.#checkEpoch(epoch);
+      this.#key = key; this.#data = payload; this.#envelope = encrypted;
+      this.#sessionKey?.fill(0); this.#sessionKey = raw; owned = true;
+      this.touch(session);
+    } finally { if (!owned) raw.fill(0); }
     return this.status();
   }
   // Import from another password manager: new items only; exact duplicates and invalid rows are skipped.
@@ -376,7 +392,7 @@ export class Vault {
     if (item.type === "passkey") throw new Error("Passkeys are bound to this device and can't be shared.");
     if (typeof passphrase !== "string" || [...passphrase].length < 8) throw new Error("Choose a share passphrase of at least 8 characters.");
     const copy = { ...item, id: crypto.randomUUID(), deletedAt: null, history: [], favorite: false };
-    const payload = { version: 1, revision: 0, items: [copy], settings: { autoLockMinutes: 0, lockOnScreenLock: true } };
+    const payload = { version: 1, revision: 0, items: [copy], settings: { autoLockMinutes: 0, lockOnScreenLock: false } };
     const kdf = newKdf();
     const key = await deriveKey(passphrase, kdf);
     return encryptVault(payload, key, kdf);
