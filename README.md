@@ -75,7 +75,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
   - generate and show/hide sit inside the password field, with a strength meter;
   - you're warned about a duplicate username on the same site;
   - you're asked before unsaved typing is discarded.
-- **Auto-lock** is the timer icon in the header (hover shows "Auto-lock: Never"). The vault stays unlocked while the browser runs — even across extension reloads — and only locking it yourself, quitting the browser, or an auto-lock timer you set will lock it.
+- **Auto-lock** is the timer icon in the header (hover shows "Auto-lock: Never"). The vault stays unlocked while the browser runs — and by default across browser restarts too (Settings → **Stay unlocked across restarts**); only locking it yourself or an auto-lock timer you set will lock it.
 - **Settings:**
   - lock when the computer locks or sleeps (off by default);
   - Touch ID or Windows Hello unlock;
@@ -116,7 +116,7 @@ Without a backup or recovery kit, forgotten master passwords cannot be recovered
 
 - **Restarting the browser or the computer keeps everything.**
   - The vault is saved on disk in your browser profile, encrypted.
-  - After a restart, KeyBit is locked until you unlock it.
+  - With **Stay unlocked across restarts** on (the default), KeyBit keeps the unlocked key in extension storage and the vault reopens by itself — no master-password prompt. Turn it off in Settings on a shared machine: the key then lives in memory only and quitting locks the vault.
   - `tests/restart-persistence.mjs` checks this by quitting and relaunching the browser.
 - **Removing KeyBit from the browser deletes its vault.** This is how Chromium handles extension storage. Keep a backup; automatic folder backup does this for you.
 - **A copy of KeyBit installed another way starts empty**, for example a moved folder or the Web Store version. Restore or merge your backup there.
@@ -144,7 +144,8 @@ What changed:
 
 - **Encryption:** Web Crypto derives a non-extractable AES-256 key using PBKDF2-HMAC-SHA-256 with 600,000 iterations and a fresh 16-byte salt. Every encryption uses a fresh 12-byte IV. The envelope header is authenticated. Decoding runs in linear time on large vaults. See [OWASP's PBKDF2 guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).
 - **What is encrypted:** everything inside the vault, including notes, 2FA secrets, password history, projects, and favourites.
-- **What `chrome.storage.local` also holds** (none of it secret):
+- **What `chrome.storage.local` also holds:**
+  - the unlocked vault key while **Stay unlocked across restarts** is on — the one sensitive entry, since anything that can read this browser profile's storage can then open the vault;
   - per-site rules (origins and on/off switches — no credentials);
   - last-used times keyed by random login IDs;
   - generator and theme choices;
@@ -152,12 +153,12 @@ What changed:
   - the Touch ID record.
 
   The automatic-backup folder handle lives in IndexedDB.
-- **The master password** is never stored. The key exists only in the background worker's memory while unlocked.
+- **The master password** is never stored. While unlocked, the key lives in the background worker's memory and — with **Stay unlocked across restarts** on — in extension storage.
 - **Locking happens:**
   - when the auto-lock time passes;
   - when you click Lock;
-  - **when the computer's screen locks or it sleeps** (on by default);
-  - when the browser quits or KeyBit reloads.
+  - **when the computer's screen locks or it sleeps** (off by default; Settings can turn it on);
+  - when the browser quits, but only while Stay unlocked is off.
 
   While unlocked, a tiny keep-alive stops Chromium suspending the worker early.
 - **Touch ID / Windows Hello:**

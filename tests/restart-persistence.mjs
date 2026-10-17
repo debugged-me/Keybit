@@ -84,9 +84,11 @@ try {
   await session.quit();
 
   // Quit and relaunch the browser on the same profile. The unpacked folder path, and so the extension ID, is unchanged.
+  // "Stay unlocked" persists the vault key in extension storage, so the vault reopens by itself.
   session = launch();
   assert.equal(await session.load(root), id, 'Same folder, same extension ID');
-  assert.deepEqual((({ exists, unlocked }) => ({ exists, unlocked }))((await session.rpc(id, 'STATUS')).data), { exists: true, unlocked: false });
+  for (let i = 0; i < 50 && !(await session.rpc(id, 'STATUS')).data.unlocked; i++) await new Promise(resolve => setTimeout(resolve, 100));
+  assert.deepEqual((({ exists, unlocked }) => ({ exists, unlocked }))((await session.rpc(id, 'STATUS')).data), { exists: true, unlocked: true });
   assert.equal((await session.rpc(id, 'UNLOCK', { password: 'wrong passphrase here' })).ok, false);
   state = (await session.rpc(id, 'UNLOCK', { password })).data;
   assert.equal(state.settings.autoLockMinutes, 15);
@@ -94,7 +96,7 @@ try {
   assert.equal(reopened.password, 'second-secret');
   assert.deepEqual(reopened.history.map(entry => entry.password), ['first-secret']);
   assert.equal(reopened.notes, 'kept');
-  console.log('PASS: after quitting and relaunching the browser, the vault, logins, password history, and settings are intact (and locked until unlocked).');
+  console.log('PASS: after quitting and relaunching the browser, the vault re-unlocks by itself and logins, password history, and settings are intact.');
 
   // A copy of the extension from another folder is a different extension with its own, empty storage.
   const moved = join(scratch, 'moved-keybit');

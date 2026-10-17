@@ -18,14 +18,17 @@ const date = value => {
   return value;
 };
 
-// Settings saved before 1.3 have no lockOnScreenLock; before 1.4, no confirmProduction.
+// Settings saved before 1.3 have no lockOnScreenLock; before 1.4, no confirmProduction; older still, no stayUnlocked.
 // Screen-lock defaults off: staying unlocked is the expected behavior unless turned on in Settings.
+// stayUnlocked defaults on: the vault key is kept in extension storage so restarts never re-ask the
+// master password. Turning it off restores the boundary for shared machines.
 export function validateSettings(settings) {
   if (!settings || !AUTO_LOCK_OPTIONS.includes(settings.autoLockMinutes)) invalid();
   const lockOnScreenLock = settings.lockOnScreenLock ?? false;
   const confirmProduction = settings.confirmProduction ?? true;
-  if (typeof lockOnScreenLock !== "boolean" || typeof confirmProduction !== "boolean") invalid();
-  return { autoLockMinutes: settings.autoLockMinutes, lockOnScreenLock, confirmProduction };
+  const stayUnlocked = settings.stayUnlocked ?? true;
+  if (typeof lockOnScreenLock !== "boolean" || typeof confirmProduction !== "boolean" || typeof stayUnlocked !== "boolean") invalid();
+  return { autoLockMinutes: settings.autoLockMinutes, lockOnScreenLock, confirmProduction, stayUnlocked };
 }
 
 export function validateItem(item) {
@@ -125,7 +128,7 @@ export function cardBrand(number) {
 }
 export const expiryDisplay = item => `${String(item.expiryMonth).padStart(2, "0")}/${String(item.expiryYear).padStart(item.expiryYear > 99 ? 4 : 2, "0")}`;
 
-export function emptyVault() { return { version: 1, revision: 0, items: [], settings: { autoLockMinutes: 0, lockOnScreenLock: false, confirmProduction: true }, projects: {} }; }
+export function emptyVault() { return { version: 1, revision: 0, items: [], settings: { autoLockMinutes: 0, lockOnScreenLock: false, confirmProduction: true, stayUnlocked: true }, projects: {} }; }
 
 export function createItem(input, previous) {
   const now = new Date().toISOString();

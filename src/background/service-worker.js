@@ -16,7 +16,7 @@ let savePrompts;
 let passkeyPrompts;
 const steps = new Steps();
 const usage = new Usage();
-const vault = new Vault(chromeVaultStorage(), Date.now, () => { savePrompts?.clear(); passkeyPrompts?.clear(); steps.clear(); keepAlive(); void chrome.storage.session.remove([SESSION_KEY, DEADLINE_KEY]).catch(() => {}); });
+const vault = new Vault(chromeVaultStorage(), Date.now, () => { savePrompts?.clear(); passkeyPrompts?.clear(); steps.clear(); keepAlive(); void clearStoredKey(); });
 const trustedPages = ["src/popup/popup.html", "src/vault-ui/vault.html", "src/developer/inspector.html", "src/command/palette.html"].map(path => chrome.runtime.getURL(path));
 const suggestions = new Suggestions(vault, fill, { usage, steps });
 savePrompts = new SavePrompts(vault, suggestions, Date.now, steps);
@@ -45,8 +45,8 @@ async function publish() {
 function scheduleLock() {
   clearTimeout(lockTimer);
   if (vault.deadline) lockTimer = setTimeout(() => { vault.expire(); keepAlive(); void publish(); }, Math.max(0, vault.deadline - Date.now()));
-  // The deadline rides with the session key so a restarted worker still honors the auto-lock timer.
-  void chrome.storage.session.set({ [DEADLINE_KEY]: vault.deadline ?? null }).catch(() => {});
+  // The deadline rides with the stored key so a restarted worker still honors the auto-lock timer.
+  void chrome.storage.local.set({ [DEADLINE_KEY]: vault.deadline ?? null }).catch(() => {});
   keepAlive();
 }
 // Extension API calls reset Chromium's 30-second worker idle timer. While unlocked, this keeps the
@@ -63,37 +63,45 @@ async function autoBackup() {
 }
 const SESSION_KEY = "vaultKey";
 const DEADLINE_KEY = "vaultDeadline";
-// The unlocked vault key is mirrored into chrome.storage.session — held in the browser's memory and
-// cleared when the browser quits — so a worker restart or extension reload re-unlocks without asking
-// for the master password again. Every real lock (manual, auto-lock, screen lock) clears it.
-async function rememberKey(raw) {
-  await chrome.storage.session.set({ [SESSION_KEY]: toBase64(raw) }).catch(() => {});
+// The unlocked vault key is mirrored into extension storage so a worker restart — or, while the
+// "stay unlocked" setting is on, a full browser restart — re-unlocks without asking for the master
+// password again. Every real lock (manual, auto-lock, screen lock, vault replacement) clears it.
+// The master password itself is never stored; turning the setting off removes the stored key.
+async function clearStoredKey() {
+  await Promise.all([chrome.storage.local.remove([SESSION_KEY, DEADLINE_KEY]),
+    chrome.storage.session.remove([SESSION_KEY, DEADLINE_KEY]).catch(() => {})]).catch(() => {});
 }
-// Stores the key the vault already holds — no second password derivation, and nothing to store when locked.
+async function rememberKey(raw) {
+  await chrome.storage.local.set({ [SESSION_KEY]: toBase64(raw) }).catch(() => {});
+}
+// Stores the key the vault already holds — no second password derivation, and nothing to store when
+// locked or when the owner turned stay-unlocked off.
 async function rememberSessionKey(session) {
-  if (!session) return;
+  if (!session || vault.currentSettings?.stayUnlocked === false) { await clearStoredKey(); return; }
   let raw;
   try { raw = vault.rawSessionKey(session); } catch { return; }
   if (raw) try { await rememberKey(raw); } finally { raw.fill(0); }
 }
 async function restoreUnlock() {
   let saved;
-  try { saved = await chrome.storage.session.get([SESSION_KEY, DEADLINE_KEY]); } catch { return; }
+  try { saved = await chrome.storage.local.get([SESSION_KEY, DEADLINE_KEY]); } catch { return; }
+  // Vaults unlocked before this build still hold the key in session storage — adopt it once.
+  if (typeof saved?.[SESSION_KEY] !== "string") {
+    try { saved = await chrome.storage.session.get([SESSION_KEY, DEADLINE_KEY]); } catch { return; }
+  }
   const key = saved?.[SESSION_KEY], deadline = saved?.[DEADLINE_KEY];
   if (typeof key !== "string") return;
-  if (typeof deadline === "number" && deadline <= Date.now()) {
-    await chrome.storage.session.remove([SESSION_KEY, DEADLINE_KEY]).catch(() => {});
-    return;
-  }
+  if (typeof deadline === "number" && deadline <= Date.now()) { await clearStoredKey(); return; }
   const raw = fromBase64(key, 32);
   try {
     await vault.unlockWithRawKey(raw);
-    // unlockWithRawKey locks first, which cleared the stored key — put it back for the next restart.
-    await rememberKey(raw);
+    // unlockWithRawKey locks first, which cleared the stored key — put it back unless the setting is off.
+    if (vault.currentSettings?.stayUnlocked === false) await clearStoredKey();
+    else await rememberKey(raw);
     scheduleLock();
     void migrateScreenLock();
     void publish();
-  } catch { await chrome.storage.session.remove([SESSION_KEY, DEADLINE_KEY]).catch(() => {}); }
+  } catch { await clearStoredKey(); }
   finally { raw.fill(0); }
 }
 // Vaults created on 1.3 stored "lock when the computer locks" on — it was the default, not a choice.
@@ -382,7 +390,12 @@ async function handle(message, sender) {
       usage.prune(vault.list(state.session).map(item => item.id));
       return state;
     }
-    case "SETTINGS": return vault.settings(message.session, message.settings);
+    case "SETTINGS": {
+      const state = await vault.settings(message.session, message.settings);
+      // Toggling stay-unlocked stores or clears the persisted key right away.
+      await rememberSessionKey(message.session);
+      return state;
+    }
     case "CHANGE_PASSWORD": {
       const state = await vault.changePassword(message.session, message.current, message.next);
       // The session copy must hold the new key; Touch ID sealed the old one and is set up again.

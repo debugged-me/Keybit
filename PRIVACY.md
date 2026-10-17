@@ -25,6 +25,8 @@ If you turn on Touch ID or Windows Hello, your device creates a passkey for KeyB
 
 Your master password is never stored. Without it, KeyBit cannot decrypt your data, and it cannot recover a forgotten master password.
 
+With **Stay unlocked across restarts** on (the default), KeyBit also keeps the unlocked vault key — never the password — in this browser's extension storage so a browser restart doesn't ask for the password again. Anything able to read this browser profile's files can then open the vault; turn the setting off in Settings on shared machines.
+
 ## What KeyBit reads on websites
 
 To suggest and save logins, KeyBit looks for sign-in, sign-up, password-change, and 2FA code fields on the pages you visit. When you submit one of these forms, it reads the username and password you entered so it can ask whether to save them. Nothing is saved unless you confirm. Unconfirmed values are discarded within two minutes.

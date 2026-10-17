@@ -392,7 +392,7 @@ export class Vault {
     if (item.type === "passkey") throw new Error("Passkeys are bound to this device and can't be shared.");
     if (typeof passphrase !== "string" || [...passphrase].length < 8) throw new Error("Choose a share passphrase of at least 8 characters.");
     const copy = { ...item, id: crypto.randomUUID(), deletedAt: null, history: [], favorite: false };
-    const payload = { version: 1, revision: 0, items: [copy], settings: { autoLockMinutes: 0, lockOnScreenLock: false } };
+    const payload = { version: 1, revision: 0, items: [copy], settings: { autoLockMinutes: 0, lockOnScreenLock: false, stayUnlocked: false } };
     const kdf = newKdf();
     const key = await deriveKey(passphrase, kdf);
     return encryptVault(payload, key, kdf);

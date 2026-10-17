@@ -49,6 +49,7 @@ const client = new VaultClient((state, previous) => {
   $("#export").disabled = !state.exists;
   if (!state.unlocked) { if (previous.unlocked) clearFields($("#import-form")); return; }
   updateAutoLock(state.settings.autoLockMinutes);
+  $("#stay-unlocked").checked = state.settings.stayUnlocked !== false;
   $("#lock-on-sleep").checked = state.settings.lockOnScreenLock !== false;
   $("#confirm-production").checked = state.settings.confirmProduction !== false;
   $("#biometric").checked = !!state.biometric;
@@ -1085,6 +1086,10 @@ $("#change-password").addEventListener("click", async () => {
     await renderSettings();
   } catch (error) { announce(error.message, true); }
   finally { answer = null; }
+});
+$("#stay-unlocked").addEventListener("change", async event => {
+  try { client.update(await client.request("SETTINGS", { settings: { stayUnlocked: event.target.checked } })); announce(event.target.checked ? "KeyBit stays unlocked when the browser restarts." : "Quitting the browser locks KeyBit."); }
+  catch (error) { event.target.checked = !event.target.checked; announce(error.message, true); }
 });
 $("#lock-on-sleep").addEventListener("change", async event => {
   try { client.update(await client.request("SETTINGS", { settings: { lockOnScreenLock: event.target.checked } })); announce(event.target.checked ? "KeyBit locks when your computer locks or sleeps." : "KeyBit stays unlocked when your computer locks."); }
