@@ -16,7 +16,7 @@ const server = createServer((req, res) => {
   res.end(req.url.startsWith("/welcome") ? "<!doctype html><title>Northwind Console</title><body style='font:16px system-ui;padding:40px;background:#f5f7fb'><h1>Dashboard</h1>" : demo);
 });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
-const { launch, delay } = await import("../tests/cdp.mjs");
+const { launch, delay } = await import("./cdp.mjs");
 const site = "http://console.northwind.example";
 // The demo site appears as "console.northwind.example", without a port, in every label.
 const browser = await launch(undefined, [`--host-resolver-rules=MAP console.northwind.example 127.0.0.1:${server.address().port}`]);

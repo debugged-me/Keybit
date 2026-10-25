@@ -2,7 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 
 export default [
-  { ignores: ["node_modules/**", "tests/frameworks/**", "keybit.zip"] },
+  { ignores: ["node_modules/**", "keybit.zip"] },
   js.configs.recommended,
   {
     files: ["src/**/*.js"],
@@ -16,7 +16,7 @@ export default [
     languageOptions: { sourceType: "script" }
   },
   {
-    files: ["tests/**/*.{js,mjs}", "eslint.config.js", "scripts/**/*.mjs"],
+    files: ["eslint.config.js", "scripts/**/*.mjs"],
     languageOptions: { ecmaVersion: 2024, sourceType: "module", globals: { ...globals.node, ...globals.browser, chrome: "readonly" } },
     rules: { "no-unused-vars": ["error", { args: "none", caughtErrors: "none" }] }
   }

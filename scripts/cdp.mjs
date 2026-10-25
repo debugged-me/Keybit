@@ -1,29 +1,13 @@
-// A small Chrome DevTools Protocol harness for KeyBit's browser tests. Uses isolated temporary profiles only.
+// A small Chrome DevTools Protocol harness for KeyBit's browser scripts. Uses isolated temporary profiles only.
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, basename } from 'node:path';
-import { createServer } from 'node:http';
+import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 export { delay };
 export const root = process.cwd();
 export const browserPath = process.env.KEYBIT_BROWSER || '/Applications/Helium.app/Contents/MacOS/Helium';
-
-// Serves tests/fixtures; /save-redirect answers a login POST with a 303, like real sites.
-export async function fixtureServer() {
-  const server = createServer(async (req, res) => {
-    const name = basename(new URL(req.url, 'http://localhost').pathname) || 'basic-login.html';
-    if (name === 'save-redirect') { req.resume(); res.writeHead(303, { Location: '/empty.html' }); res.end(); return; }
-    try {
-      const body = await readFile(join(root, 'tests/fixtures', name));
-      res.setHeader('Content-Type', name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : 'text/html');
-      res.end(body);
-    } catch { res.statusCode = 404; res.end('Not found'); }
-  });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  return { server, url: `http://127.0.0.1:${server.address().port}` };
-}
 
 export async function launch(profile, extraArgs = []) {
   const scratch = profile ? null : await mkdtemp(join(tmpdir(), 'keybit-cdp-'));
