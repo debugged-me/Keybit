@@ -1,10 +1,53 @@
-# KeyBit
+<p align="center"><img src="icons/icon128.png" alt="KeyBit" width="104" height="104"></p>
 
-A private, local-only Manifest V3 password manager for Helium and Chromium browsers (Chrome, Edge). No backend, account, build step, runtime dependencies, or telemetry.
+<h1 align="center">KeyBit</h1>
+
+<p align="center"><strong>Passwords that stay on your device.</strong></p>
+
+<p align="center">
+  A private, local-only password manager for Helium and Chromium browsers.<br>
+  Click a sign-in field, pick an account — nothing ever leaves your machine.
+</p>
+
+<p align="center">
+  <img alt="Chromium 127 and later" src="https://img.shields.io/badge/Chromium-127%2B-000000?style=flat-square">
+  <img alt="Manifest V3" src="https://img.shields.io/badge/Manifest-V3-555555?style=flat-square">
+  <img alt="Version 1.4" src="https://img.shields.io/badge/version-1.4-2E6B4F?style=flat-square">
+  <img alt="AES-256-GCM" src="https://img.shields.io/badge/encryption-AES--256--GCM-1F4D3A?style=flat-square">
+  <img alt="Zero dependencies" src="https://img.shields.io/badge/dependencies-zero-74B087?style=flat-square">
+</p>
+
+<p align="center">
+  <a href="#install"><strong>Install unpacked</strong></a>
+  · <a href="#what-you-get">Tour the features</a>
+  · <a href="https://github.com/debugged-me/Keybit/issues">Report a bug</a>
+</p>
+
+> **Chromium 127+ · Helium, Chrome & Edge · Manifest V3.** KeyBit runs as a
+> developer-mode **unpacked extension** — [load the folder](#install), no store
+> account needed. The vault is an encrypted file in the browser profile, and
+> removing the extension deletes it — set up
+> [automatic backup](#keeping-your-logins) early.
+
+[Install](#install) | [What you get](#what-you-get) | [Security](#security-and-lifecycle) | [Speed](#speed-and-lightness) | [Verification](#verification)
+
+<p align="center">
+  <img src="store/assets/promo-marquee.png" alt="KeyBit — passwords that stay on your device" width="680">
+</p>
+
+## Why
+
+Browser password managers sync your logins to an account you don't control.
+KeyBit is a complete vault — AES-256-GCM encrypted, opened by a master
+password or Touch ID — that lives entirely inside the extension. No backend,
+account, build step, runtime dependencies, or telemetry; its content security
+policy blocks network connections outright. It still fills on every site,
+saves new logins, generates passwords, holds 2FA codes and passkeys, and
+backs itself up to a folder you choose.
 
 The original brief is in [CLARK_VAULT_CODEX.md](CLARK_VAULT_CODEX.md). Later instructions renamed the product **KeyBit**, made it work on every site by default with Never as the default auto-lock (1.1), kept same-username logins on different sites apart with a friendlier design (1.2), and added everything in the 1.3 plan: import, Touch ID, 2FA codes, two-step and script sign-ins, projects, secure notes, folder backups, and store readiness (1.3). The 1.4 release added developer tools — open Shadow DOM and cross-origin iframe filling, a form inspector, project environment switching, a command palette, per-site rules, and a local Security Center. The icon source is [icons/keybit.svg](icons/keybit.svg).
 
-## Load or update in Helium
+## Install
 
 1. Open `helium://extensions` and enable **Developer mode**.
 2. Click **Load unpacked** and select `/Applications/XAMPP/xamppfiles/htdocs/Keybit/Keybit` (the folder containing `manifest.json`).
@@ -24,7 +67,16 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 
 ## What you get
 
-**Filling**
+<p align="center">
+  <img src="store/assets/1-dropdown.png" alt="Account dropdown on a sign-in field" width="400">
+  <img src="store/assets/5-popup.png" alt="Popup: this site's logins, search and one-click fill" width="400">
+</p>
+<p align="center">
+  <img src="store/assets/3-app.png" alt="The KeyBit app window" width="400">
+  <img src="store/assets/4-projects.png" alt="Projects grouped by environment" width="400">
+</p>
+
+🔑 **Filling**
 - The dropdown appears when you click a login field on any site, including a field that already has focus. It follows the field when the page scrolls.
 - **Typing narrows the list**, and the account you used last comes first.
 - **Two-step sign-ins:** on a username-only page, choosing the account fills it and continues to the password page, where the same account is listed first ("Continue").
@@ -36,7 +88,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **Cross-origin iframes:** a login form inside an iframe matches and fills against *the iframe's own origin*, never the parent page's. Each frame only ever receives credentials bound to its exact origin, and a frame that has navigated or been removed since you asked is refused.
 - KeyBit is on for every site by default — there is nothing to switch on.
 
-**Saving**
+💾 **Saving**
 - KeyBit offers to save after you sign in. This works for normal forms, and for sites that sign in with a script button or the Enter key.
 - **Same username, different site, never overwritten.**
   - Different domains, subdomains, ports, and http/https never match.
@@ -44,20 +96,20 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **The update card names the exact login it would change.** It offers Update, **Save as new**, or Not now. You pick when several logins share the username.
 - **Each login keeps its last 5 passwords**, so a wrong update is easy to undo.
 
-**Developer tools**
+🛠️ **Developer tools**
 - **Command palette** (⇧⌘J / Ctrl+Shift+J): a keyboard-driven overlay on the page — search the vault, fill the matching login, generate a password, inspect the form, switch project environments, open KeyBit or the Security Center, create a note, lock. ↑↓ choose, Enter runs, Escape closes. While the vault is locked it shows only generic commands — never login names, project names, or anything else from the vault.
 - **Login form inspector** (popup → site card, or the palette): reports how KeyBit sees the current page, frame by frame — which fields were found, their autocomplete hints, and common problems (missing `autocomplete`, `autocomplete="off"`, readonly/disabled fields, closed shadow roots, cross-origin frames). It lists structure only; typed values never appear.
 - **Project environment switcher:** the popup offers environment chips under project logins that have more than one address. Switching keeps the current path, query, and fragment — `localhost/srms-college/registrar?tab` becomes `srms.example.com/registrar?tab` — and production chips are marked and ask for a second click before navigating (Settings can drop the confirmation). A project view's environment rows are editable; saved overrides merge with the addresses derived from the project's logins.
 - **Site rules** (popup → ⚙ on the site card, or vault → Site rules): per-origin switches for what KeyBit offers — the site entirely, login suggestions, and save prompts — plus optional "include subdomains" widening. Turning a site off is now a rule, so customized sites appear together in Site rules; resetting a card restores the defaults. Rules are local preferences, not vault data.
 - **Right-click menu:** on a link, **KeyBit → Preview with KeyBit**; on an editable field, **Fill with KeyBit**, **Generate password** (fills the field, and both fields on a sign-up form), and **Inspect login form**; on selected text, **Save as secure note** opens the vault's note editor with the text prefilled.
 
-**Passkeys**
+🔐 **Passkeys**
 - When a site offers to create a passkey, a KeyBit card asks to keep it in the vault. The private key is encrypted with everything else on this device — no account, no sync service.
 - Signing in with a saved passkey shows a card naming the site and account. "Not now" or "Use device passkey" hands the call to the browser's built-in handling, as does anything KeyBit can't answer (a credential it doesn't hold, or a site mismatch).
 - A passkey only answers the site that created it: KeyBit checks the calling page's origin against the credential's relying party before signing, and the page never sees the private key.
 - Passkeys live in their own **Passkeys** sidebar section and in `.kvault` backups. They stay out of CSV export, password health, and the login dropdown — they are not passwords.
 
-**Organising**
+🗂️ **Organising**
 - Every login has a site tile; a login can have up to 10 website addresses.
 - **Favourites**, **secure notes**, and **projects**. A project's view groups its logins by environment: Production, Staging, Development, Local — and its **Environments** card lets you name the URL for each environment so the popup switcher can jump between them.
 - Sort by name, recently used, or recently updated. Search covers logins and notes.
@@ -66,7 +118,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
 - **Generator:** random (length and character groups) or memorable ("Acorn-Tulip-Rugby-Mango-Spoon7", from the EFF word list). Your choice is remembered for every Generate button and for sign-up fields.
 - **Copied passwords and 2FA codes clear themselves from the clipboard after 30 seconds**, if you allow the optional clipboard-read permission. The timer runs in the background, so it works even if you close the popup right after copying — and it only clears when the clipboard still holds what KeyBit copied, so it never erases something else you copied since.
 
-**One app window**
+🪟 **One app window**
 - **Sidebar:** All logins, Favorites, Secure notes, Cards & IDs, Passkeys, Recently deleted, Projects, Security Center, Generator, Import, Backup, and Settings. **Site rules** appears only while a site is customized. A **vault health** card at the bottom shows the Security Center score; click it to open the dashboard.
 - **Keyboard:** ⌘K (Ctrl+K on Windows) jumps to search; / does the same when you're not typing.
 - **Adding and editing happen in a dialog**, in the app and in the popup:
@@ -90,7 +142,7 @@ Chromium 127 or newer is required. Helium and Google Chrome pass the full test s
   - / searches, ↑↓ move, Enter fills.
 - **Notices** appear at the top centre.
 
-**Getting logins in and keeping them**
+📦 **Getting logins in and keeping them**
 - **Import** from Chrome, Helium, Edge, Apple Passwords, 1Password, LastPass, Dashlane, and others (CSV), or Bitwarden (CSV or unencrypted JSON).
   - A preview shows what will be added. Duplicates are skipped.
   - An entry without a website is kept as a secure note, not dropped.
@@ -209,7 +261,8 @@ None of these shows an extra warning beyond site access. No history, cookies, do
    3. Then remove the unpacked copy.
 6. **Edge Add-ons** accepts the same zip.
 
-## Source layout
+<details>
+<summary><strong>For developers — source layout</strong></summary>
 
 ```text
 manifest.json          Registration, permissions, shortcuts, CSP
@@ -233,6 +286,8 @@ store/                 Listing text, templates, and generated store images
 scripts/               release.mjs and store-assets.mjs
 tests/                 Unit tests, browser tests (Helium/Chrome), restart test, accessibility audit, fixtures
 ```
+
+</details>
 
 ## Verification
 
