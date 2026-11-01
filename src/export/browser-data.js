@@ -61,7 +61,9 @@ export function bookmarksHtml(roots) {
 // ---- History ----
 export async function collectHistory() {
   const items = await chrome.history.search({ text: "", startTime: 0, maxResults: HISTORY_CAP });
-  return items.map(item => ({ title: item.title ?? "", url: item.url ?? "", visited: item.lastVisitTime, visits: item.visitCount ?? 0 }));
+  // History records extension-page visits too; only real websites belong in an export.
+  return items.filter(item => /^https?:/i.test(item.url ?? ""))
+    .map(item => ({ title: item.title ?? "", url: item.url ?? "", visited: item.lastVisitTime, visits: item.visitCount ?? 0 }));
 }
 
 export function historyCsv(rows) {
