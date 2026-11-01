@@ -8,6 +8,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "check": "npm run lint && npm run typecheck",
     "package": "rm -f keybit.zip && zip -qr keybit.zip manifest.json icons src -x '*.DS_Store' && echo 'Created keybit.zip'",
+    "build:firefox": "node scripts/build-firefox.mjs",
+    "pack:firefox": "npm run build:firefox && cd dist/firefox && zip -qr ../keybit.xpi . && echo 'Created dist/keybit.xpi'",
     "release": "node scripts/release.mjs",
     "store:assets": "node scripts/store-assets.mjs"
   },

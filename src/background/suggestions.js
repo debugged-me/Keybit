@@ -5,8 +5,10 @@ import { MODE_FLAG, normalizeRules, ruleFor, sanitizeRule, isCustomized } from "
 
 // Detection/autofill/dropdown run in every frame; save prompts stay top-frame only on purpose —
 // a cross-origin iframe must not be able to inject captured credentials.
-export const FRAME_SCRIPTS = ["src/content/form-detector.js", "src/content/autofill.js", "src/content/inline.js"];
-export const SITE_SCRIPTS = [...FRAME_SCRIPTS, "src/content/save.js"];
+// Absolute extension URLs: Firefox resolves scripting `files` relative to the background page.
+const ext = path => chrome.runtime.getURL(path);
+export const FRAME_SCRIPTS = ["src/content/form-detector.js", "src/content/autofill.js", "src/content/inline.js"].map(ext);
+export const SITE_SCRIPTS = [...FRAME_SCRIPTS, ext("src/content/save.js")];
 export const sitePattern = origin => {
   const url = parseWebsite(origin);
   return `${url.protocol}//${url.hostname}/*`;
@@ -83,7 +85,7 @@ export class Suggestions {
         if (!next.enabled) await chrome.tabs.sendMessage(tab.id, { event: "keybit-site-disabled", origin: tabSite.origin });
         else if (patch?.enabled === true) {
           await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: FRAME_SCRIPTS });
-          await chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, files: ["src/content/save.js"] });
+          await chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, files: [ext("src/content/save.js")] });
         }
       } catch { /* Navigation may race injection; the manifest covers the next page load. */ }
     }
@@ -169,7 +171,7 @@ export class Suggestions {
         let results;
         try {
           const target = { tabId: context.tabId, documentIds: [context.documentId] };
-          await chrome.scripting.executeScript({ target, files: ["src/content/form-detector.js", "src/content/autofill.js"] });
+          await chrome.scripting.executeScript({ target, files: [ext("src/content/form-detector.js"), ext("src/content/autofill.js")] });
           results = await chrome.scripting.executeScript({ target, func: (origin, password) => globalThis.__keybit.fillNew(origin, password), args: [context.origin, message.password] });
         } catch { throw new Error("The page changed. Click the password field again."); }
         if (!results[0]?.result?.ok) throw new Error(results[0]?.result?.error ?? "Could not fill this form.");

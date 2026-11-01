@@ -10,6 +10,7 @@ import { totpCode } from "../vault/totp.js";
 import { openLoginDialog, closeLoginDialog } from "../ui/login-form.js";
 import { loadPrefs, savePrefs, generate as generateWith } from "../generator/prefs.js";
 import { parseImport } from "../import/parsers.js";
+import { collectBookmarks, bookmarkRows, bookmarksCsv, bookmarksHtml, collectHistory, historyCsv, historyHtml, downloadFile } from "../export/browser-data.js";
 import { getFolder, setFolder, writeBackup } from "../background/auto-backup.js";
 import { biometricAvailable, biometricName, createBiometric } from "../ui/biometric.js";
 
@@ -81,6 +82,10 @@ function layout() {
   $("#merge-backup").hidden = !unlocked;
   $("#csv-export-card").hidden = !unlocked;
   $("#portable-card").hidden = !unlocked;
+  // Browser data can leave without the vault; passwords still need it unlocked.
+  $("#export-passwords").disabled = !unlocked;
+  $("#export-passwords-note").hidden = unlocked;
+  if (!unlocked) $("#export-passwords").checked = false;
   $("#welcome").hidden = !(location.hash === "#welcome" || (client.state.ready && !client.state.exists));
   if (restoring && !unlocked) show("backup", false);
 }
@@ -957,6 +962,43 @@ $("#export-portable").addEventListener("click", async () => {
     const data = await client.request("EXPORT");
     downloadText(`keybit-vault-${new Date().toLocaleDateString("en-CA")}.html`, portableHtml(data));
     announce("Portable vault exported. It opens in any browser — guarded by the same master password.");
+  } catch (error) { announce(error.message, true); }
+});
+let exportFormat = "csv";
+for (const button of all("[data-export-format]")) button.addEventListener("click", () => {
+  exportFormat = button.dataset.exportFormat;
+  for (const candidate of all("[data-export-format]")) candidate.setAttribute("aria-checked", String(candidate === button));
+});
+$("#export-data").addEventListener("click", async () => {
+  const want = { bookmarks: $("#export-bookmarks").checked, passwords: $("#export-passwords").checked, history: $("#export-history").checked };
+  if (!want.bookmarks && !want.passwords && !want.history) { announce("Select at least one thing to export.", true); return; }
+  // Optional browser permissions: requesting inside the click keeps it a user gesture.
+  const needed = [want.bookmarks && "bookmarks", want.history && "history"].filter(Boolean);
+  try {
+    if (needed.length && !await chrome.permissions.request({ permissions: needed })) { announce("KeyBit needs that browser permission to read it.", true); return; }
+    const date = new Date().toLocaleDateString("en-CA");
+    let files = 0;
+    if (want.passwords) {
+      if (exportFormat === "csv") {
+        if (!await confirmAction("Export passwords as readable CSV?", "Anyone who opens it can see your passwords. Keep the file offline and delete it when the move is done.", "Export CSV", false)) return;
+        downloadFile(`keybit-passwords-${date}.csv`, await client.request("EXPORT_CSV"), "text/csv");
+      } else {
+        if (!await confirmAction("Export passwords as a portable vault?", "The HTML file opens your vault in any browser with the master password — keep it like a backup.", "Export vault", false)) return;
+        downloadFile(`keybit-passwords-${date}.html`, portableHtml(await client.request("EXPORT")), "text/html");
+      }
+      files++;
+    }
+    if (want.bookmarks) {
+      const tree = await collectBookmarks();
+      downloadFile(`keybit-bookmarks-${date}.${exportFormat}`, exportFormat === "csv" ? bookmarksCsv(bookmarkRows(tree)) : bookmarksHtml(tree), exportFormat === "csv" ? "text/csv" : "text/html");
+      files++;
+    }
+    if (want.history) {
+      const rows = await collectHistory();
+      downloadFile(`keybit-history-${date}.${exportFormat}`, exportFormat === "csv" ? historyCsv(rows) : historyHtml(rows), exportFormat === "csv" ? "text/csv" : "text/html");
+      files++;
+    }
+    announce(`${files} file${files === 1 ? "" : "s"} downloaded.`);
   } catch (error) { announce(error.message, true); }
 });
 $("#banner-export").addEventListener("click", () => void exportBackup());

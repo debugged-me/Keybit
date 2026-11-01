@@ -22,3 +22,6 @@ $RECYCLE.BIN/
 # Store upload package
 keybit.zip
 keybit-*.zip
+
+# Build output
+dist/

@@ -144,6 +144,8 @@ body.app { display: flex; flex-direction: column; height: 100vh; overflow: hidde
 .gen-output { min-height: 56px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--subtle); font-size: 17px; display: flex; align-items: center; }
 .generator-groups { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; }
 .check { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-weight: 450; font-size: 13px; }
+.check-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 14px; }
+.check-list + .segmented { margin-bottom: 14px; }
 #gen-length { width: 100%; }
 .list-card { padding: 6px 16px; }
 .site-permission { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }

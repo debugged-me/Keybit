@@ -17,7 +17,9 @@
     "contextMenus"
   ],
   "optional_permissions": [
-    "clipboardRead"
+    "clipboardRead",
+    "bookmarks",
+    "history"
   ],
   "host_permissions": [
     "http://*/*",

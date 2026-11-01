@@ -21,10 +21,13 @@ const trustedPages = ["src/popup/popup.html", "src/vault-ui/vault.html", "src/de
 const suggestions = new Suggestions(vault, fill, { usage, steps });
 savePrompts = new SavePrompts(vault, suggestions, Date.now, steps);
 passkeyPrompts = new PasskeyPrompts(vault, suggestions);
-const ready = Promise.all([chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }),
-  chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }).catch(() => {})])
+const ready = Promise.all([chrome.storage.local.setAccessLevel?.({ accessLevel: "TRUSTED_CONTEXTS" }),
+  chrome.storage.session.setAccessLevel?.({ accessLevel: "TRUSTED_CONTEXTS" })?.catch(() => {})])
   .then(() => Promise.all([suggestions.refresh(), usage.load()])).then(restoreUnlock);
 let queue = Promise.resolve();
+// Firefox resolves scripting `files` relative to the background page, not the extension root —
+// always hand it absolute extension URLs so injection works in both engines.
+const extFiles = paths => paths.map(path => chrome.runtime.getURL(path));
 let lockTimer;
 let keepAliveTimer;
 let commandEpoch = 0;
@@ -202,7 +205,7 @@ async function detect(tabId) {
     // Every frame reports its own origin/url and form counts; frames that reject injection
     // (closed roots, PDFs, chrome:// viewers) simply produce no result entry.
     const results = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, world: "ISOLATED",
-      files: ["src/content/form-detector.js", "src/content/autofill.js", "src/content/content.js"] });
+      files: extFiles(["src/content/form-detector.js", "src/content/autofill.js", "src/content/content.js"]) });
     const frames = (results ?? []).filter(result => result?.documentId && result.result?.origin)
       .map(result => ({ frameId: result.frameId, documentId: result.documentId, ...result.result }));
     const main = frames.find(frame => frame.frameId === 0);
@@ -210,7 +213,7 @@ async function detect(tabId) {
     const totals = { forms: 0, newForms: 0, usernameForms: 0, otpForms: 0, cardForms: 0, identityForms: 0 };
     for (const frame of frames) for (const key of Object.keys(totals)) totals[key] += frame[key] ?? 0;
     return { origin, url: tab.url, documentId: main.documentId, frames, ...totals };
-  } catch { throw new Error("Cannot inspect this page. Open a regular HTTP or HTTPS website and reopen the extension."); }
+  } catch (error) { throw new Error(`Cannot inspect this page. Open a regular HTTP or HTTPS website and reopen the extension. (${error?.message ?? "injection failed"})`); }
 }
 // The Developer's form inspector: runs the detector plus structural analysis in every frame of
 // the tab. The analysis script reports metadata only — it never reads a field value — and no
@@ -221,13 +224,13 @@ async function inspect(tabId) {
     const tab = await chrome.tabs.get(tabId);
     const origin = parseWebsite(tab.url).origin;
     const results = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, world: "ISOLATED",
-      files: ["src/content/form-detector.js", "src/developer/form-analysis.js"] });
+      files: extFiles(["src/content/form-detector.js", "src/developer/form-analysis.js"]) });
     const frames = (results ?? []).filter(result => result?.result?.origin)
       .map(result => ({ frameId: result.frameId, documentId: result.documentId, top: result.frameId === 0,
         crossOrigin: result.result.origin !== origin, ...result.result }));
     frames.sort((a, b) => a.frameId - b.frameId);
     return { origin, url: tab.url, title: tab.title, frames };
-  } catch { throw new Error("Cannot inspect this page. Open a regular HTTP or HTTPS website first."); }
+  } catch (error) { throw new Error(`Cannot inspect this page. Open a regular HTTP or HTTPS website first. (${error?.message ?? "injection failed"})`); }
 }
 // Project Environment Switcher: resolves the login's project + environment to a URL and moves the
 // active tab there. Credentials are never auto-filled — after navigation the usual match/dropdown
@@ -506,8 +509,8 @@ chrome.runtime.onInstalled.addListener(async details => {
   // Manifest content scripts only reach pages loaded after install or update.
   for (const tab of await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }).catch(() => [])) {
     chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: FRAME_SCRIPTS }).catch(() => {});
-    chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, world: "MAIN", files: ["src/content/passkey-page.js"] }).catch(() => {});
-    chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, files: ["src/content/save.js", "src/content/passkey.js", "src/command/palette.js"] }).catch(() => {});
+    chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, world: "MAIN", files: extFiles(["src/content/passkey-page.js"]) }).catch(() => {});
+    chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, files: extFiles(["src/content/save.js", "src/content/passkey.js", "src/command/palette.js"]) }).catch(() => {});
   }
   if (details.reason === "install") void chrome.tabs.create({ url: chrome.runtime.getURL("src/vault-ui/vault.html#welcome") });
 });
@@ -550,7 +553,7 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
     if (await chrome.tabs.sendMessage(target.id, { event: "keybit-palette" }, { frameId: 0 }).then(() => true).catch(() => false)) return;
     try {
       // A page loaded before the extension — inject the host script, then signal it.
-      await chrome.scripting.executeScript({ target: { tabId: target.id, frameIds: [0] }, files: ["src/command/palette.js"] });
+      await chrome.scripting.executeScript({ target: { tabId: target.id, frameIds: [0] }, files: extFiles(["src/command/palette.js"]) });
       await chrome.tabs.sendMessage(target.id, { event: "keybit-palette" }, { frameId: 0 });
     } catch {
       // Pages KeyBit can't run on (chrome://, store, PDFs) get the vault page instead.

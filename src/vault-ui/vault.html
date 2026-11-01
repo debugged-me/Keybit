@@ -166,6 +166,21 @@
           <p class="muted">A single HTML file that opens your encrypted vault in any browser — no KeyBit needed. It still needs the master password; the file itself stays encrypted.</p>
           <button id="export-portable" class="secondary-button" type="button">Export portable vault</button>
         </div>
+        <div class="card" id="browser-data-card">
+          <h3>Browser data</h3>
+          <p class="muted">Download a file of what the browser keeps. Bookmarks and history need a browser permission — it asks the first time you export them. Passwords come from your unlocked vault.</p>
+          <p class="muted">Select the data you’d like to export.</p>
+          <div class="check-list">
+            <label class="check"><input id="export-bookmarks" type="checkbox">Bookmarks</label>
+            <label class="check"><input id="export-passwords" type="checkbox" disabled>Saved passwords <span id="export-passwords-note" class="muted">(unlock first)</span></label>
+            <label class="check"><input id="export-history" type="checkbox">Browsing history</label>
+          </div>
+          <div class="segmented" role="radiogroup" aria-label="Export format">
+            <button type="button" role="radio" data-export-format="csv" aria-checked="true">CSV</button>
+            <button type="button" role="radio" data-export-format="html" aria-checked="false">HTML</button>
+          </div>
+          <button id="export-data" class="secondary-button" type="button">Download</button>
+        </div>
         <div class="card" id="auto-backup-card">
           <h3>Automatic backup</h3>
           <p class="muted">Pick a folder, for example in iCloud Drive, Dropbox, or Google Drive. KeyBit saves an encrypted copy there every time your vault changes. On another computer, merge it in below.</p>
