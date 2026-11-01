@@ -73,7 +73,9 @@ export function historyCsv(rows) {
 }
 
 export function historyHtml(rows) {
-  const cells = rows.map(row => `    <tr><td>${escapeHtml(row.title || row.url)}</td><td><a href="${escapeHtml(row.url)}">${escapeHtml(row.url)}</a></td><td>${escapeHtml(row.visited ? new Date(row.visited).toLocaleString() : "")}</td><td>${row.visits}</td></tr>`);
+  // URLs stay plain text, never <a> links: browser bookmark importers scrape anchors from any
+  // HTML file, and feeding this document to one once flooded a profile with history bookmarks.
+  const cells = rows.map(row => `    <tr><td>${escapeHtml(row.title || row.url)}</td><td class="url">${escapeHtml(row.url)}</td><td>${escapeHtml(row.visited ? new Date(row.visited).toLocaleString() : "")}</td><td>${row.visits}</td></tr>`);
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -86,11 +88,13 @@ export function historyHtml(rows) {
   table { width: 100%; border-collapse: collapse; }
   th, td { padding: 6px 10px; border-bottom: 1px solid #ddd; text-align: left; vertical-align: top; word-break: break-word; }
   th { font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
+  .url { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #555; user-select: all; }
 </style>
 </head>
 <body>
 <h1>Browsing history</h1>
 <p>Exported from KeyBit on ${escapeHtml(new Date().toLocaleString())} — ${rows.length} entr${rows.length === 1 ? "y" : "ies"}${rows.length >= HISTORY_CAP ? " (oldest entries trimmed)" : ""}.</p>
+<p>This is a reading copy — browsers cannot import history back. Copy a URL out by hand if you need it.</p>
 <table>
   <thead><tr><th>Title</th><th>URL</th><th>Last visit</th><th>Visits</th></tr></thead>
   <tbody>
