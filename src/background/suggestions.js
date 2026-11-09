@@ -5,8 +5,11 @@ import { MODE_FLAG, normalizeRules, ruleFor, sanitizeRule, isCustomized } from "
 
 // Detection/autofill/dropdown run in every frame; save prompts stay top-frame only on purpose —
 // a cross-origin iframe must not be able to inject captured credentials.
-// Absolute extension URLs: Firefox resolves scripting `files` relative to the background page.
-const ext = path => chrome.runtime.getURL(path);
+// Scripting `files` paths differ by engine: Firefox resolves them relative to the background page and
+// needs absolute extension URLs; Chromium resolves them relative to the extension root and rejects
+// absolute URLs ("Could not load file"). The gecko manifest key only exists in the Firefox build.
+const FIREFOX = !!(/** @type {any} */ (chrome.runtime.getManifest()).browser_specific_settings?.gecko);
+export const ext = path => FIREFOX ? chrome.runtime.getURL(path) : path;
 export const FRAME_SCRIPTS = ["src/content/form-detector.js", "src/content/autofill.js", "src/content/inline.js"].map(ext);
 export const SITE_SCRIPTS = [...FRAME_SCRIPTS, ext("src/content/save.js")];
 export const sitePattern = origin => {

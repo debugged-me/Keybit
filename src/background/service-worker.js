@@ -4,7 +4,7 @@ import { matchesCredential, parseWebsite } from "../matching/url-matcher.js";
 import { totpCode } from "../vault/totp.js";
 import { fromBase64, toBase64 } from "../crypto/encoding.js";
 import { sealRawKey, openRawKey } from "../crypto/biometric.js";
-import { Suggestions, FRAME_SCRIPTS } from "./suggestions.js";
+import { Suggestions, FRAME_SCRIPTS, ext } from "./suggestions.js";
 import { SavePrompts } from "./save-prompts.js";
 import { PasskeyPrompts } from "./passkeys.js";
 import { Usage, Steps } from "./usage.js";
@@ -25,9 +25,9 @@ const ready = Promise.all([chrome.storage.local.setAccessLevel?.({ accessLevel: 
   chrome.storage.session.setAccessLevel?.({ accessLevel: "TRUSTED_CONTEXTS" })?.catch(() => {})])
   .then(() => Promise.all([suggestions.refresh(), usage.load()])).then(restoreUnlock);
 let queue = Promise.resolve();
-// Firefox resolves scripting `files` relative to the background page, not the extension root —
-// always hand it absolute extension URLs so injection works in both engines.
-const extFiles = paths => paths.map(path => chrome.runtime.getURL(path));
+// Scripting `files` paths are engine-dependent (see `ext` in suggestions.js): extension-root-relative
+// on Chromium, absolute extension URLs on Firefox.
+const extFiles = paths => paths.map(ext);
 let lockTimer;
 let keepAliveTimer;
 let commandEpoch = 0;
@@ -213,7 +213,7 @@ async function detect(tabId) {
     const totals = { forms: 0, newForms: 0, usernameForms: 0, otpForms: 0, cardForms: 0, identityForms: 0 };
     for (const frame of frames) for (const key of Object.keys(totals)) totals[key] += frame[key] ?? 0;
     return { origin, url: tab.url, documentId: main.documentId, frames, ...totals };
-  } catch (error) { throw new Error(`Cannot inspect this page. Open a regular HTTP or HTTPS website and reopen the extension. (${error?.message ?? "injection failed"})`); }
+  } catch (error) { throw new Error(`Cannot inspect this page. Open a regular HTTP or HTTPS website and reopen the extension. (${error?.message ?? "injection failed"})`, { cause: error }); }
 }
 // The Developer's form inspector: runs the detector plus structural analysis in every frame of
 // the tab. The analysis script reports metadata only — it never reads a field value — and no
@@ -230,7 +230,7 @@ async function inspect(tabId) {
         crossOrigin: result.result.origin !== origin, ...result.result }));
     frames.sort((a, b) => a.frameId - b.frameId);
     return { origin, url: tab.url, title: tab.title, frames };
-  } catch (error) { throw new Error(`Cannot inspect this page. Open a regular HTTP or HTTPS website first. (${error?.message ?? "injection failed"})`); }
+  } catch (error) { throw new Error(`Cannot inspect this page. Open a regular HTTP or HTTPS website first. (${error?.message ?? "injection failed"})`, { cause: error }); }
 }
 // Project Environment Switcher: resolves the login's project + environment to a URL and moves the
 // active tab there. Credentials are never auto-filled — after navigation the usual match/dropdown
