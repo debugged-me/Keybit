@@ -1,4 +1,7 @@
-body { width: 380px; }
+/* Browsers cap extension popups at 600px tall. Header and footer stay put and only the list
+   scrolls, so the footer is never clipped and the popup never grows a second scrollbar. */
+body { width: 380px; max-height: 600px; display: flex; flex-direction: column; overflow: hidden; }
+.header, .footer { flex-shrink: 0; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px 9px 16px; border-bottom: 1px solid var(--border); }
 .popup .brand-icon { width: 22px; height: 22px; }
 .popup .brand h1 { font-size: 14px; }
@@ -8,7 +11,7 @@ body { width: 380px; }
 .status-pill.unlocked { background: var(--accent-soft); color: var(--accent); }
 .status-pill.unlocked::before { background: #35a06b; box-shadow: 0 0 0 3px #35a06b2b; }
 #toggle-generator[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
-main { max-height: 520px; padding: 10px 14px 14px; overflow-y: auto; }
+main { flex: 1 1 auto; min-height: 0; padding: 10px 14px 14px; overflow-y: auto; }
 
 .generator-drawer { margin-bottom: 10px; padding: 12px; border-radius: var(--r-lg); background: var(--subtle); }
 .generator-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

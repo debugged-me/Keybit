@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PeekBit</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="brand">
+      <span class="brand-mark" aria-hidden="true"><span></span></span>
+      <span class="brand-copy"><strong>PeekBit</strong><small>Browse without losing your place</small></span>
+      <span class="status" id="status">On</span>
+    </header>
+    <main>
+      <section class="hero" aria-label="How to use PeekBit">
+        <span class="gesture"><kbd>⇧</kbd><span>+</span><span class="mouse">↖</span></span>
+        <span><strong>Shift-click any link</strong><small>It opens above the page you are reading.</small></span>
+      </section>
+
+      <section class="settings" aria-label="PeekBit settings">
+        <label class="row" for="enabled">
+          <span class="row-copy"><strong>Link Peek</strong><small>Preview links without leaving the page</small></span>
+          <span class="switch"><input type="checkbox" id="enabled" /><span class="track"></span></span>
+        </label>
+        <label class="row" for="option-click">
+          <span class="row-copy"><strong>Option-click beside</strong><small>Open a link in the side-by-side view</small></span>
+          <span class="switch"><input type="checkbox" id="option-click" /><span class="track"></span></span>
+        </label>
+        <label class="row" for="show-address">
+          <span class="row-copy"><strong>Show page address</strong><small>Keep the live address above the page</small></span>
+          <span class="switch"><input type="checkbox" id="show-address" /><span class="track"></span></span>
+        </label>
+      </section>
+
+      <section class="shortcuts" aria-label="Peek shortcuts">
+        <span><kbd>⇧ click</kbd> Peek</span>
+        <span><kbd>⌥ click</kbd> Beside</span>
+        <span><kbd>Esc</kbd> Close</span>
+      </section>
+    </main>
+    <footer><span>PeekBit 1.1.1</span><span>Made for focused browsing</span></footer>
+    <script src="popup.js"></script>
+  </body>
+</html>

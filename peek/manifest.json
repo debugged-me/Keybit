@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "PeekBit",
+  "short_name": "PeekBit",
+  "version": "1.1.4",
+  "minimum_chrome_version": "120",
+  "description": "Peek at links in a polished floating card or beside the current page without losing your place.",
+  "permissions": [
+    "declarativeNetRequest",
+    "scripting",
+    "storage",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "exclude_matches": [
+        "*://accounts.google.com/*",
+        "*://chrome.google.com/*"
+      ],
+      "js": [
+        "src/content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_title": "PeekBit — peek at links without losing your place",
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
