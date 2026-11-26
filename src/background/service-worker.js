@@ -107,17 +107,11 @@ async function restoreUnlock() {
   } catch { await clearStoredKey(); }
   finally { raw.fill(0); }
 }
-// Vaults created on 1.3 stored "lock when the computer locks" on — it was the default, not a choice.
-// That stored flag is retired once here; the Settings switch can still turn the feature back on.
+// Vaults written before the lock-policy version existed retain their historical behavior once.
+// New vaults carry the current version inside the encrypted payload and keep secure defaults.
 async function migrateScreenLock() {
-  if (vault.currentSettings?.lockOnScreenLock !== true) return null;
-  try {
-    if ((await chrome.storage.local.get("screenLockMigrated")).screenLockMigrated) return null;
-    const { session } = await vault.status();
-    const migrated = session ? await vault.settings(session, { lockOnScreenLock: false }) : null;
-    if (migrated) await chrome.storage.local.set({ screenLockMigrated: true });
-    return migrated;
-  } catch { return null; }
+  try { const { session } = await vault.status(); return session ? vault.migrateLockPolicy(session) : null; }
+  catch { return null; }
 }
 // Clipboard clearing lives in an offscreen document: unlike a page's timer, it fires even if the
 // popup or window that copied is already closed, and it does not keep this worker awake.
@@ -419,6 +413,7 @@ async function handle(message, sender) {
     case "IMPORT_PREVIEW": return vault.previewImport(message.session, message.items);
     case "IMPORT_COMMIT": return vault.importItems(message.session, message.revision, message.items);
     case "MERGE_BACKUP": return vault.mergeBackup(message.session, message.revision, message.text, message.password);
+    case "VERIFY_BACKUP": return vault.verifyBackup(message.text, message.password);
     case "BACKUP_NOW": await autoBackup(); return (await chrome.storage.local.get("autoBackup")).autoBackup ?? null;
     case "DETECT": return detect(message.tabId);
     case "INSPECT": return inspect(message.tabId);
@@ -498,7 +493,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   });
   return true;
 });
-// Lock when the computer's screen locks or it goes to sleep (off by default; Settings can turn it on).
+// Lock when the computer's screen locks or it goes to sleep (on by default for new vaults).
 chrome.idle.onStateChanged.addListener(state => {
   if (state !== "locked" || !vault.unlocked || vault.currentSettings?.lockOnScreenLock === false) return;
   commandEpoch++; vault.lock(); scheduleLock();

@@ -1,7 +1,7 @@
 import { createEncryptedVaultWithRaw, decryptVault, decryptVaultWithRaw, decryptWithKey, encryptVault, parseBackup, validateEnvelope, newKdf } from "../crypto/crypto.js";
 import { splitSecret, encodeShare, recoveryPassphrase } from "./shamir.js";
 import { deriveKey, deriveKeyAndRaw, deriveRawKey, importRawKey } from "../crypto/kdf.js";
-import { emptyVault, createItem, validateSettings, validateProjects, duplicateKey, HISTORY_LIMIT, ENVIRONMENTS } from "./schema.js";
+import { emptyVault, createItem, validateSettings, validateProjects, duplicateKey, HISTORY_LIMIT, ENVIRONMENTS, LOCK_POLICY_VERSION } from "./schema.js";
 import { matcherFor, scopeLabel, specificity, parseWebsite } from "../matching/url-matcher.js";
 import { securityReport, vaultHealth } from "./health.js";
 import { toCsv } from "./csv.js";
@@ -284,6 +284,11 @@ export class Vault {
     // Settings never touch logins, so a newer item revision should not reject the user's choice.
     return this.#save({ ...this.#data, settings: validateSettings({ ...this.#data.settings, ...settings }) }, session, this.#data.revision);
   }
+  async migrateLockPolicy(session) {
+    this.require(session);
+    if (this.#data.settings.lockPolicyVersion >= LOCK_POLICY_VERSION) return null;
+    return this.settings(session, { lockOnScreenLock: false, lockPolicyVersion: LOCK_POLICY_VERSION });
+  }
   async changePassword(session, current, next) {
     this.require(session);
     if (typeof next !== "string" || [...next].length < 12) throw new Error("Use a new master password of at least 12 characters.");
@@ -378,6 +383,20 @@ export class Vault {
     const changed = added || updated || JSON.stringify(projects) !== JSON.stringify(this.#data.projects);
     const state = changed ? await this.#save({ ...this.#data, items, projects }, session, revision) : await this.status();
     return { state, added, updated, unchanged };
+  }
+  async verifyBackup(text, password) {
+    const envelope = parseBackup(text);
+    const { payload } = await decryptVault(envelope, password);
+    const counts = { login: 0, note: 0, passkey: 0, card: 0, identity: 0, secret: 0 };
+    let deleted = 0;
+    let latestUpdate = null;
+    for (const item of payload.items) {
+      if (item.deletedAt) deleted++;
+      else counts[item.type]++;
+      if (!latestUpdate || item.updatedAt > latestUpdate) latestUpdate = item.updatedAt;
+    }
+    return { formatVersion: envelope.formatVersion, kdf: { name: envelope.kdf.name, hash: envelope.kdf.hash, iterations: envelope.kdf.iterations },
+      cipher: envelope.cipher.name, revision: payload.revision, counts, deleted, projects: Object.keys(payload.projects).length, latestUpdate };
   }
   async export() {
     const stored = await this.storage.read();

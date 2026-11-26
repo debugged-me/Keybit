@@ -186,14 +186,16 @@
           <h3>Automatic backup</h3>
           <p class="muted">Pick a folder, for example in iCloud Drive, Dropbox, or Google Drive. KeyBit saves an encrypted copy there every time your vault changes. On another computer, merge it in below.</p>
           <p id="auto-backup-status" class="notice"></p>
+          <p id="backup-verification-status" class="notice"></p>
           <label for="sync-password">Master password for folder sync</label><input id="sync-password" type="password" autocomplete="off" maxlength="1024" placeholder="Required only when merging another device">
-          <div class="button-row"><button id="auto-backup-choose" class="secondary-button" type="button">Choose folder</button><button id="sync-folder" class="secondary-button" type="button" hidden>Sync now</button><button id="auto-backup-reconnect" class="primary-button" type="button" hidden>Reconnect</button><button id="auto-backup-off" class="text-button" type="button" hidden>Turn off</button></div>
+          <div class="button-row"><button id="auto-backup-choose" class="secondary-button" type="button">Choose folder</button><button id="verify-folder" class="secondary-button" type="button" hidden>Verify backups</button><button id="sync-folder" class="secondary-button" type="button" hidden>Sync now</button><button id="auto-backup-reconnect" class="primary-button" type="button" hidden>Reconnect</button><button id="auto-backup-off" class="text-button" type="button" hidden>Turn off</button></div>
         </div>
         <div class="card">
           <h3>Restore</h3>
           <p class="muted">Merge adds the backup's logins and keeps yours; newer copies win, nothing is deleted. Replace swaps your whole vault for the backup.</p>
           <form id="import-form" autocomplete="off"><label for="backup-file">KeyBit backup file (.kvault)</label><input id="backup-file" type="file" accept=".kvault,.cvault,application/json" required><label for="backup-password">Backup's master password</label><input id="backup-password" type="password" autocomplete="off" maxlength="1024" required>
-            <div class="button-row"><button id="merge-backup" class="primary-button" type="button">Merge into vault</button><button id="validate-import" class="secondary-button" type="submit">Replace vault…</button></div></form>
+            <div class="button-row"><button id="verify-backup" class="secondary-button" type="button">Verify only</button><button id="merge-backup" class="primary-button" type="button">Merge into vault</button><button id="validate-import" class="secondary-button" type="submit">Replace vault…</button></div></form>
+          <p id="selected-backup-status" class="notice" hidden></p>
           <div id="import-confirmation" hidden><p id="import-description" class="callout"></p><div class="button-row"><button id="confirm-import" class="primary-button danger-fill" type="button">Replace vault with this backup</button><button id="cancel-import" class="text-button" type="button">Cancel</button></div></div>
         </div>
         <div class="card quiet">

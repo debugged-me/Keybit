@@ -1022,15 +1022,19 @@ $("#banner-later").addEventListener("click", async () => {
 });
 async function renderAutoBackup() {
   const folder = await getFolder();
-  const { autoBackup } = /** @type {any} */ (await chrome.storage.local.get("autoBackup").catch(() => ({})));
+  const { autoBackup, backupVerification } = /** @type {any} */ (await chrome.storage.local.get(["autoBackup", "backupVerification"]).catch(() => ({})));
   const supported = typeof (/** @type {any} */ (window)).showDirectoryPicker === "function";
   $("#auto-backup-card").hidden = !supported && !folder;
   $("#auto-backup-choose").textContent = folder ? "Change folder" : "Choose folder";
   $("#auto-backup-off").hidden = !folder;
+  $("#verify-folder").hidden = !folder;
   $("#sync-folder").hidden = !folder || !client.state.unlocked;
   $("#auto-backup-reconnect").hidden = !folder || autoBackup?.status !== "reconnect";
   $("#auto-backup-status").textContent = !folder ? "Off." : autoBackup?.status === "saved" ? `On: “${folder.name}”, saved ${relativeTime(autoBackup.at)}.`
     : autoBackup?.status === "reconnect" ? `Paused: the browser needs permission for “${folder.name}” again. Click Reconnect.` : autoBackup?.status === "error" ? `Couldn't save to “${folder.name}”. Choose the folder again.` : `On: “${folder.name}”.`;
+  $("#backup-verification-status").textContent = !folder ? "" : backupVerification?.folder !== folder.name ? "Backups have not been verified yet."
+    : backupVerification.failed ? `Last check verified ${backupVerification.verified} of ${backupVerification.total} backups ${relativeTime(backupVerification.at)}. ${backupVerification.failed} could not be opened.`
+      : `Verified ${backupVerification.verified} backup${backupVerification.verified === 1 ? "" : "s"} ${relativeTime(backupVerification.at)}; newest file ${relativeTime(backupVerification.newestModified)}.`;
 }
 async function saveToFolder(ask) {
   // This page asks for folder permission (it needs a click); later saves happen in the background.
@@ -1052,8 +1056,34 @@ $("#auto-backup-reconnect").addEventListener("click", async () => {
   catch (error) { announce(error.message, true); }
 });
 $("#auto-backup-off").addEventListener("click", async () => {
-  await setFolder(null); await chrome.storage.local.remove("autoBackup");
+  await setFolder(null); await chrome.storage.local.remove(["autoBackup", "backupVerification"]);
   await renderAutoBackup(); announce("Automatic backup is off. Files already saved stay in the folder.");
+});
+function backupContents(result) {
+  const labels = { login: "login", note: "note", passkey: "passkey", card: "card", identity: "identity", secret: "developer secret" };
+  const parts = Object.entries(result.counts).filter(([, count]) => count).map(([type, count]) => `${count} ${labels[type]}${count === 1 ? "" : "s"}`);
+  if (result.deleted) parts.push(`${result.deleted} recently deleted`);
+  return parts.length ? parts.join(", ") : "an empty vault";
+}
+$("#verify-folder").addEventListener("click", async () => {
+  if (!$("#sync-password").value) { announce("Enter the master password used by the folder backups.", true); return; }
+  $("#verify-folder").disabled = true;
+  let password = $("#sync-password").value; $("#sync-password").value = "";
+  try {
+    const folder = await getFolder();
+    const snapshots = await folderBackups({ ask: true });
+    if (!snapshots.length) throw new Error("No KeyBit backup files were found in that folder.");
+    let verified = 0, failed = 0;
+    for (const snapshot of snapshots) {
+      try { await client.request("VERIFY_BACKUP", { text: snapshot.text, password }); verified++; }
+      catch { failed++; }
+    }
+    const check = { folder: folder?.name ?? "", at: Date.now(), total: snapshots.length, verified, failed, newestModified: snapshots[0].modified };
+    await chrome.storage.local.set({ backupVerification: check });
+    await renderAutoBackup();
+    announce(failed ? `Verified ${verified} of ${snapshots.length} backups. ${failed} used another password or was corrupted.` : `All ${verified} folder backups opened successfully.`, failed > 0);
+  } catch (error) { announce(error.message, true); }
+  finally { password = ""; $("#verify-folder").disabled = false; }
 });
 $("#sync-folder").addEventListener("click", async () => {
   if (!$("#sync-password").value) { announce("Enter the master password used by the folder backups.", true); return; }
@@ -1083,6 +1113,19 @@ async function readBackupFile() {
   if (!file || file.size > MAX_BACKUP_BYTES) throw new Error("Choose an encrypted KeyBit backup (.kvault) no larger than 48 MB.");
   return file.text();
 }
+$("#verify-backup").addEventListener("click", async () => {
+  if (!$("#backup-password").value) { announce("Enter the backup's master password.", true); return; }
+  $("#verify-backup").disabled = true;
+  $("#selected-backup-status").hidden = true;
+  let password = $("#backup-password").value; $("#backup-password").value = "";
+  try {
+    const result = await client.request("VERIFY_BACKUP", { text: await readBackupFile(), password });
+    $("#selected-backup-status").textContent = `Verified without changing this vault: ${backupContents(result)}. Format ${result.formatVersion}, ${result.kdf.name} ${result.kdf.iterations.toLocaleString()} iterations, ${result.cipher}.`;
+    $("#selected-backup-status").hidden = false;
+    announce("Backup opened successfully. Nothing was restored or changed.");
+  } catch (error) { announce(error.message, true); }
+  finally { password = ""; $("#verify-backup").disabled = false; }
+});
 $("#merge-backup").addEventListener("click", async () => {
   if (!$("#backup-password").value) { announce("Enter the backup's master password.", true); return; }
   $("#merge-backup").disabled = true;

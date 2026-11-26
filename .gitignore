@@ -22,6 +22,8 @@ $RECYCLE.BIN/
 # Store upload package
 keybit.zip
 keybit-*.zip
+peek/*.zip
+peek/*.xpi
 
 # Build output
 dist/

@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { emptyVault, createItem, validatePayload } from "../src/vault/schema.js";
+import { emptyVault, createItem, validatePayload, validateSettings, LOCK_POLICY_VERSION } from "../src/vault/schema.js";
 import { createEncryptedVault, decryptVault } from "../src/crypto/crypto.js";
+import { Vault } from "../src/vault/vault.js";
 import { splitSecret, encodeShare, combineShares } from "../src/vault/shamir.js";
 import { totpCode } from "../src/vault/totp.js";
 import { matchesUrl, loginScope } from "../src/matching/url-matcher.js";
@@ -26,6 +27,8 @@ test("new vaults use secure lock defaults", () => {
   const vault = emptyVault();
   assert.equal(vault.settings.stayUnlocked, false);
   assert.equal(vault.settings.lockOnScreenLock, true);
+  assert.equal(vault.settings.lockPolicyVersion, LOCK_POLICY_VERSION);
+  assert.equal(validateSettings({ autoLockMinutes: 0, lockOnScreenLock: true, stayUnlocked: true }).lockPolicyVersion, 0);
 });
 
 test("schema normalizes tags and validates developer secrets", () => {
@@ -45,6 +48,41 @@ test("encrypted vault round trip authenticates custom fields", async () => {
   const opened = await decryptVault(envelope, "correct horse battery staple");
   assert.equal(opened.payload.items[0].customFields[0].value, "123-456");
   await assert.rejects(() => decryptVault(envelope, "incorrect password"), /Incorrect master password/);
+});
+
+test("backup verification authenticates without writing or exposing item data", async () => {
+  const payload = emptyVault();
+  payload.items.push(createItem({ type: "secret", name: "CI API", notes: "", project: "", favorite: false,
+    secretKind: "api", tags: ["ci"], customFields: [{ name: "Token", value: "never-return-this", concealed: true }] }));
+  const { envelope } = await createEncryptedVault(payload, "backup verification password");
+  let writes = 0;
+  const verifier = new Vault({ read: async () => null, write: async () => { writes++; } });
+  const result = await verifier.verifyBackup(JSON.stringify(envelope), "backup verification password");
+  assert.equal(result.counts.secret, 1);
+  assert.equal(result.kdf.name, "PBKDF2");
+  assert.equal(JSON.stringify(result).includes("never-return-this"), false);
+  assert.equal(writes, 0);
+  await assert.rejects(() => verifier.verifyBackup(JSON.stringify(envelope), "wrong backup password"), /password|corrupted/i);
+  assert.equal(writes, 0);
+});
+
+test("legacy lock policy migrates once while new vault defaults stay secure", async () => {
+  const legacy = emptyVault();
+  delete legacy.settings.lockPolicyVersion;
+  const { envelope } = await createEncryptedVault(legacy, "legacy migration password");
+  let stored = envelope;
+  const vault = new Vault({ read: async () => stored, write: async value => { stored = value; } });
+  const unlocked = await vault.unlock("legacy migration password");
+  const migrated = await vault.migrateLockPolicy(unlocked.session);
+  assert.equal(migrated.settings.lockOnScreenLock, false);
+  assert.equal(migrated.settings.lockPolicyVersion, LOCK_POLICY_VERSION);
+  assert.equal(await vault.migrateLockPolicy(unlocked.session), null);
+
+  stored = null;
+  const fresh = new Vault({ read: async () => stored, write: async value => { stored = value; } });
+  const created = await fresh.create("new secure vault password");
+  assert.equal(await fresh.migrateLockPolicy(created.session), null);
+  assert.equal((await fresh.status()).settings.lockOnScreenLock, true);
 });
 
 test("Shamir recovery rebuilds from the threshold", () => {

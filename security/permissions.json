@@ -1,0 +1,30 @@
+{
+  "manifest.json": {
+    "permissions": ["activeTab", "clipboardWrite", "contextMenus", "favicon", "idle", "offscreen", "scripting", "sidePanel", "storage", "unlimitedStorage"],
+    "optionalPermissions": ["bookmarks", "clipboardRead", "history"],
+    "hostPermissions": ["http://*/*", "https://*/*"],
+    "optionalHostPermissions": [],
+    "contentMatches": ["http://*/*", "https://*/*"]
+  },
+  "manifest.firefox.json": {
+    "permissions": ["activeTab", "clipboardWrite", "contextMenus", "idle", "scripting", "storage", "unlimitedStorage"],
+    "optionalPermissions": ["bookmarks", "clipboardRead", "history"],
+    "hostPermissions": ["http://*/*", "https://*/*"],
+    "optionalHostPermissions": [],
+    "contentMatches": ["http://*/*", "https://*/*"]
+  },
+  "peek/manifest.json": {
+    "permissions": ["activeTab", "declarativeNetRequest", "scripting", "storage", "webNavigation"],
+    "optionalPermissions": [],
+    "hostPermissions": ["http://*/*", "https://*/*"],
+    "optionalHostPermissions": [],
+    "contentMatches": ["http://*/*", "https://*/*"]
+  },
+  "peek/manifest.firefox.json": {
+    "permissions": ["activeTab", "declarativeNetRequest", "scripting", "storage", "webNavigation"],
+    "optionalPermissions": [],
+    "hostPermissions": ["http://*/*", "https://*/*"],
+    "optionalHostPermissions": [],
+    "contentMatches": ["http://*/*", "https://*/*"]
+  }
+}

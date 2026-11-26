@@ -9,6 +9,7 @@ export const HISTORY_LIMIT = 5;
 export const MAX_URLS = 10;
 export const MAX_PROJECTS = 200;
 export const MAX_ENVIRONMENTS = 16;
+export const LOCK_POLICY_VERSION = 1;
 const invalid = () => { throw new Error("The vault data is invalid or unsupported."); };
 const text = (value, max, required = false) => {
   if (typeof value !== "string" || value.length > max || (required && !value.trim())) invalid();
@@ -41,8 +42,10 @@ export function validateSettings(settings) {
   const lockOnScreenLock = settings.lockOnScreenLock ?? false;
   const confirmProduction = settings.confirmProduction ?? true;
   const stayUnlocked = settings.stayUnlocked ?? true;
-  if (typeof lockOnScreenLock !== "boolean" || typeof confirmProduction !== "boolean" || typeof stayUnlocked !== "boolean") invalid();
-  return { autoLockMinutes: settings.autoLockMinutes, lockOnScreenLock, confirmProduction, stayUnlocked };
+  const lockPolicyVersion = settings.lockPolicyVersion ?? 0;
+  if (typeof lockOnScreenLock !== "boolean" || typeof confirmProduction !== "boolean" || typeof stayUnlocked !== "boolean" ||
+      !Number.isInteger(lockPolicyVersion) || lockPolicyVersion < 0 || lockPolicyVersion > LOCK_POLICY_VERSION) invalid();
+  return { autoLockMinutes: settings.autoLockMinutes, lockOnScreenLock, confirmProduction, stayUnlocked, lockPolicyVersion };
 }
 
 export function validateItem(item) {
@@ -148,7 +151,7 @@ export function cardBrand(number) {
 }
 export const expiryDisplay = item => `${String(item.expiryMonth).padStart(2, "0")}/${String(item.expiryYear).padStart(item.expiryYear > 99 ? 4 : 2, "0")}`;
 
-export function emptyVault() { return { version: 1, revision: 0, items: [], settings: { autoLockMinutes: 0, lockOnScreenLock: true, confirmProduction: true, stayUnlocked: false }, projects: {} }; }
+export function emptyVault() { return { version: 1, revision: 0, items: [], settings: { autoLockMinutes: 0, lockOnScreenLock: true, confirmProduction: true, stayUnlocked: false, lockPolicyVersion: LOCK_POLICY_VERSION }, projects: {} }; }
 
 export function createItem(input, previous) {
   const now = new Date().toISOString();

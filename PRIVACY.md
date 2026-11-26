@@ -1,6 +1,6 @@
 # KeyBit privacy policy
 
-Last updated: October 8, 2026
+Last updated: November 26, 2026
 
 KeyBit is a password manager that runs entirely in your browser. This policy explains what it handles and where that data goes.
 
@@ -35,7 +35,7 @@ The command palette searches your vault titles and commands on your device — n
 
 ## What KeyBit shares
 
-KeyBit has no servers and does not send your vault data to a service. It does not collect analytics, usage data, or crash reports, and it does not sell your data. Encrypted backup files are written only where you choose, either with **Export** or to the folder you pick for automatic backups. Folder sync reads only KeyBit backup files in that chosen folder after you explicitly choose **Sync now** and provide the backup password.
+KeyBit has no servers and does not send your vault data to a service. It does not collect analytics, usage data, or crash reports, and it does not sell your data. Encrypted backup files are written only where you choose, either with **Export** or to the folder you pick for automatic backups. Folder sync and backup verification read only KeyBit backup files in that chosen folder after you explicitly choose **Sync now** or **Verify backups** and provide the backup password. Verification decrypts a file locally only to authenticate it and count its contents; it does not merge or replace the current vault.
 
 ## Removing your data
 

@@ -128,7 +128,7 @@ Developers get first-class tools too: project environments with one-click switch
   - you're asked before unsaved typing is discarded.
 - **Auto-lock** is the timer icon in the header. New vaults lock when the browser exits and when the computer locks or sleeps. Settings can opt into staying unlocked across browser restarts on a trusted personal device.
 - **Settings:**
-  - lock when the computer locks or sleeps (off by default);
+  - lock when the computer locks or sleeps (on by default for new vaults);
   - Touch ID or Windows Hello unlock;
   - change master password;
   - theme: System, Light, or Dark;
@@ -152,6 +152,7 @@ Developers get first-class tools too: project environments with one-click switch
 - **Encrypted `.kvault` backups:**
   - **Export** downloads a copy.
   - **Automatic backup** writes a fresh encrypted, device-specific copy to a folder you choose (for example iCloud Drive or Dropbox) after every change, so two computers never overwrite each other. **Sync now** merges the folder snapshots with the password you provide; newer item copies win and nothing is deleted.
+  - **Verify backups** opens every KeyBit backup in the chosen folder with the password you provide and records the last successful check. **Verify only** checks one selected file and reports its item counts and encryption profile without changing the current vault.
   - **Restore** can **merge** (adds logins, newer copies win, nothing deleted) or **replace** the vault.
   - A reminder appears when there's no backup from the last 30 days.
 - **Portable vault** (Backup → Portable vault): a `.kvault` backup as a single HTML file that opens in any browser — no KeyBit install needed. It contains only the encrypted data; type the master password and it decrypts locally, right in the file. For a lost laptop or an emergency, this is the vault that survives everything.
@@ -313,7 +314,10 @@ Prerequisite: **Node.js 22+** for linting and type-checking. The extension itsel
 
 ```sh
 npm install            # dev tooling only — the extension ships zero dependencies
-npm run check          # eslint + typecheck
+npm run check          # eslint + typecheck + permission baseline + unit tests
+npm run test:browser   # Chromium vault/create/secret/backup smoke test in a temporary profile
+npm run test:peek      # PeekBit scoped-rule and protected-route smoke test
+npm run ci             # the complete local equivalent of GitHub Security CI
 npm run package        # build keybit.zip (manifest + icons + src)
 npm run store:assets   # regenerate the store screenshots in store/assets/
 ```
@@ -345,6 +349,8 @@ src/
   vault-ui/            App window: lists, projects and environment maps, details, Security Center, site rules, import, backup, settings
 store/                 Listing text, templates, and generated store images
 scripts/               release.mjs, store-assets.mjs, and the CDP browser harness
+security/              Reviewed permission baseline for every Chromium and Firefox manifest
+.github/workflows/     Security CI: checks, audit, browser tests, Firefox builds, and upload packages
 ```
 
 </details>
