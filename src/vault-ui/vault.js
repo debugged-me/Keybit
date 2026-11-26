@@ -11,12 +11,12 @@ import { openLoginDialog, closeLoginDialog } from "../ui/login-form.js";
 import { loadPrefs, savePrefs, generate as generateWith } from "../generator/prefs.js";
 import { parseImport } from "../import/parsers.js";
 import { collectBookmarks, bookmarkRows, bookmarksCsv, bookmarksHtml, collectHistory, historyCsv, historyHtml, downloadFile } from "../export/browser-data.js";
-import { getFolder, setFolder, writeBackup } from "../background/auto-backup.js";
+import { getFolder, setFolder, writeBackup, folderBackups } from "../background/auto-backup.js";
 import { biometricAvailable, biometricName, createBiometric } from "../ui/biometric.js";
 
 /** @type {(selector: string) => any} Page elements are looked up by known IDs. */
 const $ = selector => document.querySelector(selector);
-const LIST_VIEWS = ["logins", "favorites", "notes", "passkeys", "cards", "trash"];
+const LIST_VIEWS = ["logins", "favorites", "notes", "passkeys", "cards", "secrets", "trash"];
 const VIEWS = [...LIST_VIEWS, "health", "generator", "import", "backup", "settings", "sites"];
 const LOCK_LABELS = { 0: "Never", 1: "1 minute", 5: "5 minutes", 10: "10 minutes", 15: "15 minutes", 30: "30 minutes" };
 const ENV_ORDER = ["production", "staging", "development", "local", "other"];
@@ -118,17 +118,20 @@ function row(item, onClick) {
   const passkey = item.type === "passkey";
   const card = item.type === "card";
   const identity = item.type === "identity";
+  const secret = item.type === "secret";
   const secondary = item.deletedAt ? `Deleted ${relativeTime(Date.parse(item.deletedAt))}` :
     note ? ["Secure note", item.project].filter(Boolean).join(" · ") :
     passkey ? `Passkey · ${item.rpId}` :
     card ? `${item.brand} ···· ${item.last4}` :
     identity ? [item.fullName, item.city, item.country].filter(Boolean).join(" · ") || "Identity" :
+    secret ? `${({ api: "API token", database: "Database", ssh: "SSH key", license: "Licence key", recovery: "Recovery codes", other: "Secret" })[item.secretKind] ?? "Secret"}${item.project ? ` · ${item.project}` : ""}` :
     `${item.username || "No username"} · ${item.scope}`;
   const button = element("div", { className: "item-row login-item", role: "button", tabindex: "0", "data-id": item.id, "aria-current": String(item.id === selectedId) },
     note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) :
     passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) :
     card ? element("span", { className: "tile tone-4", "aria-hidden": "true" }, icon("card")) :
-    identity ? element("span", { className: "tile tone-5", "aria-hidden": "true" }, icon("id")) : siteTile(item.scope, "", item.urls?.[0]),
+    identity ? element("span", { className: "tile tone-5", "aria-hidden": "true" }, icon("id")) :
+    secret ? element("span", { className: "tile tone-3", "aria-hidden": "true" }, icon("shield")) : siteTile(item.scope, "", item.urls?.[0]),
     element("span", { className: "details" }, element("span", { className: "primary" }, item.favorite ? "★ " : "", item.name), element("span", { className: "secondary" }, secondary)),
     element("span", { className: "row-badges" }, item.environment === "production" ? badge("Production", "production") : null,
       passkey ? badge("Passkey") : null, item.hasTotp ? badge("2FA", "totp") : null, flags.reused ? badge("Reused", "warn") : null, flags.weak ? badge("Weak", "weak") : null));
@@ -156,6 +159,7 @@ function inView(item) {
   if (view === "notes") return item.type === "note";
   if (view === "passkeys") return item.type === "passkey";
   if (view === "cards") return item.type === "card" || item.type === "identity";
+  if (view === "secrets") return item.type === "secret";
   if (view.startsWith("project:")) return item.project === view.slice(8);
   return item.type === "login";
 }
@@ -216,9 +220,9 @@ function renderList() {
   const project = view.startsWith("project:") ? view.slice(8) : null;
   $("#env-edit").hidden = !(project && !query);
   if ($("#env-dialog").open) renderEnvEditor(project);
-  const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes", passkeys: "Passkeys", cards: "Cards & IDs", trash: "Recently deleted" };
+  const titles = { logins: "All logins", favorites: "Favorites", notes: "Secure notes", passkeys: "Passkeys", cards: "Cards & IDs", secrets: "Developer secrets", trash: "Recently deleted" };
   $("#list-title").textContent = query ? `Results for “${query}”` : project ?? titles[view];
-  $("#add-label").textContent = view === "notes" ? "Add note" : view === "cards" ? "Add card" : "Add login";
+  $("#add-label").textContent = view === "notes" ? "Add note" : view === "cards" ? "Add card" : view === "secrets" ? "Add secret" : "Add login";
   // Passkeys are created by websites, not by hand; there is nothing to add in that view.
   // The cards view adds either type, so it gets a second button.
   $("#add-login").hidden = view === "passkeys";
@@ -243,6 +247,7 @@ function renderList() {
   else if (view === "notes") $("#items").append(emptyState("note", "No secure notes", "Keep licence keys, server details, or Wi-Fi passwords here, encrypted.", "Add note", () => openAdd("note")));
   else if (view === "passkeys") $("#items").append(emptyState("key", "No passkeys yet", "When a site offers to create one, KeyBit asks to keep it here."));
   else if (view === "cards") $("#items").append(emptyState("card", "No cards or IDs", "Save a payment card or an ID (name, address, phone) and KeyBit fills checkout and sign-up forms.", "Add card", () => openAdd("card")));
+  else if (view === "secrets") $("#items").append(emptyState("shield", "No developer secrets", "Keep API tokens, database access, SSH details, licence keys, and recovery codes in structured encrypted fields.", "Add secret", () => openAdd("secret")));
   else if (view === "trash") $("#items").append(emptyState("trash", "Recently deleted is empty", "Items you delete are kept here for 30 days."));
   else $("#items").append(emptyState("folder", "Nothing in this project", "Logins assigned to this project show up here.", "Add login", () => openAdd()));
 }
@@ -287,6 +292,7 @@ async function refreshList() {
     $("#count-favorites").textContent = String(all.filter(item => item.favorite).length || "");
     $("#count-notes").textContent = String(all.filter(item => item.type === "note").length || "");
     $("#count-cards").textContent = String(all.filter(item => item.type === "card" || item.type === "identity").length || "");
+    $("#count-secrets").textContent = String(all.filter(item => item.type === "secret").length || "");
     $("#count-health").textContent = String(flagged.length); $("#count-health").hidden = !flagged.length;
     $("#health-list").replaceChildren(...flagged.map(item => row(item, () => { show("logins"); void select(item.id); })));
     if (!flagged.length) $("#health-list").append(element("p", { className: "empty" }, "Nothing needs review. Nice."));
@@ -439,8 +445,9 @@ function renderDetail() {
   const passkey = item.type === "passkey";
   const card = item.type === "card";
   const identity = item.type === "identity";
+  const secret = item.type === "secret";
   const flags = health.flags?.[item.id] ?? {};
-  const scope = note || passkey || card || identity ? "" : scopeLabel(item.urls[0]);
+  const scope = note || passkey || card || identity || secret ? "" : scopeLabel(item.urls[0]);
   const back = iconButton("close", "Close", { className: "icon-button back-button" });
   back.addEventListener("click", clearDetail);
   const star = iconButton("star", item.favorite ? "Remove from favorites" : "Add to favorites", { className: `icon-button star${item.favorite ? " on" : ""}`, "aria-pressed": String(item.favorite) });
@@ -466,6 +473,10 @@ function renderDetail() {
     const pairs = [["Name", [item.firstName, item.lastName].filter(Boolean).join(" ")], ["Email", item.email], ["Phone", item.phone], ["Address", [item.address, [item.city, item.region, item.postal].filter(Boolean).join(", "), item.country].filter(Boolean).join("\n")], ["Company", item.company]];
     for (const [label, value] of pairs) if (value) fields.push(fieldBlock(label, copyable(value, label.toLowerCase())));
     if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes)));
+  }
+  else if (secret) {
+    fields.push(fieldBlock("Type", element("span", {}, ({ api: "API token", database: "Database", ssh: "SSH key", license: "Licence key", recovery: "Recovery codes", other: "Other secret" })[item.secretKind] ?? "Other secret")));
+    if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes), element("div", { className: "field-value" }, copyButton(item.notes, "note"))));
   }
   else {
     fields.push(fieldBlock("Username", item.username ? copyable(item.username, "username") : element("span", {}, "—")));
@@ -494,6 +505,10 @@ function renderDetail() {
     }
     if (item.notes) fields.push(element("div", { className: "field" }, element("div", { className: "field-label" }, "Notes"), element("p", { className: "notes" }, item.notes)));
   }
+  for (const custom of item.customFields ?? []) {
+    fields.push(fieldBlock(custom.name, ...(custom.concealed ? secretValue(custom.value, custom.name) : [copyable(custom.value || "—", custom.name)]), copyButton(custom.value, custom.name)));
+  }
+  if (item.tags?.length) fields.push(fieldBlock("Tags", element("span", { className: "tag-list" }, ...item.tags.map(tag => element("span", { className: "badge" }, tag)))));
   const trashed = Boolean(item.deletedAt);
   const warnings = [];
   if (trashed) warnings.push(element("p", { className: "warning" }, icon("trash"), `Deleted ${relativeTime(Date.parse(item.deletedAt))}. Kept for 30 days, then removed forever.`));
@@ -502,7 +517,7 @@ function renderDetail() {
   if (!trashed && item.type === "login" && passwordAge(item.updatedAt) === "old")
     warnings.push(element("p", { className: "warning" }, icon("timer"), "This login has not been updated for over 2 years — worth a review, not necessarily unsafe."));
   let history = null;
-  if (!note && !passkey && item.history.length) {
+  if (item.type === "login" && item.history.length) {
     history = element("details", { className: "history" }, element("summary", {}, `Password history (${item.history.length})`),
       ...item.history.map(entry => {
         const [value, reveal] = secretValue(entry.password);
@@ -537,8 +552,9 @@ function renderDetail() {
     element("div", { className: "detail-header" }, note ? element("span", { className: "tile tone-6", "aria-hidden": "true" }, icon("note")) :
       passkey ? element("span", { className: "tile tone-2", "aria-hidden": "true" }, icon("key")) :
       card ? element("span", { className: "tile tone-4", "aria-hidden": "true" }, icon("card")) :
-      identity ? element("span", { className: "tile tone-5", "aria-hidden": "true" }, icon("id")) : siteTile(scope, "", item.urls?.[0]),
-      element("h3", {}, item.name, element("span", { className: "site" }, note ? "Secure note" : passkey ? `Passkey · ${item.rpId}` : card ? `${item.brand} ···· ${item.last4}` : identity ? "Identity" : scope,
+      identity ? element("span", { className: "tile tone-5", "aria-hidden": "true" }, icon("id")) :
+      secret ? element("span", { className: "tile tone-3", "aria-hidden": "true" }, icon("shield")) : siteTile(scope, "", item.urls?.[0]),
+      element("h3", {}, item.name, element("span", { className: "site" }, note ? "Secure note" : passkey ? `Passkey · ${item.rpId}` : card ? `${item.brand} ···· ${item.last4}` : identity ? "Identity" : secret ? "Developer secret" : scope,
         !note && item.environment !== "other" ? badge(item.environment, item.environment === "production" ? "production" : "") : null)), star, back),
     ...warnings, ...fields, history,
     element("div", { className: "detail-actions" }, ...actions, element("span", { className: "meta" }, meta))
@@ -646,7 +662,7 @@ async function restorePassword(password) {
     await select(detail.item.id);
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
-const kindWord = type => ({ note: "note", passkey: "passkey", card: "card", identity: "identity" }[type] ?? "login");
+const kindWord = type => ({ note: "note", passkey: "passkey", card: "card", identity: "identity", secret: "developer secret" }[type] ?? "login");
 async function deleteItem(id, type = detail?.item.type) {
   if (!await confirmAction(`Delete this ${kindWord(type)}?`, "It is kept in Recently deleted for 30 days.", "Move to trash")) return;
   try {
@@ -665,7 +681,7 @@ async function restoreItem(id, kind = detail?.item.type) {
     const state = await client.request("RESTORE", { id, revision: detail?.revision ?? client.state.revision });
     clearDetail(); client.update(state); announce("Restored.");
     await refreshList();
-    if (["note", "login", "passkey", "card", "identity"].includes(kind)) { show({ note: "notes", passkey: "passkeys", card: "cards", identity: "cards" }[kind] ?? "logins"); await select(id); }
+    if (["note", "login", "passkey", "card", "identity", "secret"].includes(kind)) { show({ note: "notes", passkey: "passkeys", card: "cards", identity: "cards", secret: "secrets" }[kind] ?? "logins"); await select(id); }
   } catch (error) { announce(error.message, true); await client.refresh(); }
 }
 async function purgeItem(id, type = detail?.item.type) {
@@ -685,7 +701,7 @@ $("#empty-trash").addEventListener("click", async () => {
 });
 
 // Add and edit happen in a modal dialog (ui/login-form.js).
-function openAdd(kind = view === "notes" ? "note" : view === "cards" ? "card" : "login", extra = {}) {
+function openAdd(kind = view === "notes" ? "note" : view === "cards" ? "card" : view === "secrets" ? "secret" : "login", extra = {}) {
   const project = view.startsWith("project:") ? view.slice(8) : "";
   openLoginDialog({ client, kind, revision: client.state.revision, existing: items, projects, prefill: { project, ...extra }, onSaved: afterSave });
 }
@@ -707,7 +723,7 @@ $("#add-id").addEventListener("click", () => openAdd("identity"));
 
 // Encrypted share: one item, protected by its own passphrase, merged by the recipient like a backup.
 // Eye toggles for every passphrase/password field in static markup.
-for (const id of ["share-password", "backup-password", "current-password", "next-password", "next-confirm", "recover-password", "recover-confirm"]) {
+for (const id of ["share-password", "backup-password", "sync-password", "current-password", "next-password", "next-confirm", "recover-password", "recover-confirm"]) {
   const input = $(`#${id}`);
   if (input) passwordField(input, revealButton(input));
 }
@@ -788,9 +804,7 @@ let sharingId = null;
 function openShare(item) {
   sharingId = item.id;
   $("#share-title").textContent = `Share “${item.name}”`;
-  $("#share-note").textContent = item.type === "note"
-    ? "Creates an encrypted file holding only this note. Send it however you like — the other person merges it in Backup with the passphrase you set here."
-    : "Creates an encrypted file holding only this login, password and 2FA key included. Send it however you like — the other person merges it in Backup with the passphrase you set here.";
+  $("#share-note").textContent = `Creates an encrypted file holding only this ${kindWord(item.type)}${item.type === "login" ? ", password and 2FA key included" : ", including its custom fields"}. Send it however you like — the other person merges it in Backup with the passphrase you set here.`;
   $("#share-password").value = ""; $("#share-error").hidden = true;
   $("#share-dialog").showModal(); $("#share-password").focus();
 }
@@ -889,8 +903,8 @@ $("#import-file").addEventListener("change", async () => {
     const parsed = parseImport(await file.text(), file.name);
     const preview = await client.request("IMPORT_PREVIEW", { items: parsed.items });
     importItems = parsed.items;
-    const total = preview.logins + preview.notes;
-    const parts = [`Found ${preview.logins} login${preview.logins === 1 ? "" : "s"}${preview.notes ? ` and ${preview.notes} secure note${preview.notes === 1 ? "" : "s"}` : ""} to import.`];
+    const total = preview.logins + preview.notes + (preview.secrets ?? 0);
+    const parts = [`Found ${preview.logins} login${preview.logins === 1 ? "" : "s"}${preview.notes ? `, ${preview.notes} secure note${preview.notes === 1 ? "" : "s"}` : ""}${preview.secrets ? `, and ${preview.secrets} developer secret${preview.secrets === 1 ? "" : "s"}` : ""} to import.`];
     if (preview.duplicates) parts.push(`${preview.duplicates} already in KeyBit will be skipped.`);
     if (preview.invalid + parsed.skipped) parts.push(`${preview.invalid + parsed.skipped} entr${preview.invalid + parsed.skipped === 1 ? "y" : "ies"} (cards, identities, or unreadable rows) can't be imported.`);
     $("#import-summary").textContent = parts.join(" ");
@@ -973,7 +987,7 @@ $("#export-data").addEventListener("click", async () => {
   const want = { bookmarks: $("#export-bookmarks").checked, passwords: $("#export-passwords").checked, history: $("#export-history").checked };
   if (!want.bookmarks && !want.passwords && !want.history) { announce("Select at least one thing to export.", true); return; }
   // Optional browser permissions: requesting inside the click keeps it a user gesture.
-  const needed = [want.bookmarks && "bookmarks", want.history && "history"].filter(Boolean);
+  const needed = /** @type {chrome.runtime.ManifestPermission[]} */ ([want.bookmarks && "bookmarks", want.history && "history"].filter(Boolean));
   try {
     if (needed.length && !await chrome.permissions.request({ permissions: needed })) { announce("KeyBit needs that browser permission to read it.", true); return; }
     const date = new Date().toLocaleDateString("en-CA");
@@ -1013,6 +1027,7 @@ async function renderAutoBackup() {
   $("#auto-backup-card").hidden = !supported && !folder;
   $("#auto-backup-choose").textContent = folder ? "Change folder" : "Choose folder";
   $("#auto-backup-off").hidden = !folder;
+  $("#sync-folder").hidden = !folder || !client.state.unlocked;
   $("#auto-backup-reconnect").hidden = !folder || autoBackup?.status !== "reconnect";
   $("#auto-backup-status").textContent = !folder ? "Off." : autoBackup?.status === "saved" ? `On: “${folder.name}”, saved ${relativeTime(autoBackup.at)}.`
     : autoBackup?.status === "reconnect" ? `Paused: the browser needs permission for “${folder.name}” again. Click Reconnect.` : autoBackup?.status === "error" ? `Couldn't save to “${folder.name}”. Choose the folder again.` : `On: “${folder.name}”.`;
@@ -1039,6 +1054,29 @@ $("#auto-backup-reconnect").addEventListener("click", async () => {
 $("#auto-backup-off").addEventListener("click", async () => {
   await setFolder(null); await chrome.storage.local.remove("autoBackup");
   await renderAutoBackup(); announce("Automatic backup is off. Files already saved stay in the folder.");
+});
+$("#sync-folder").addEventListener("click", async () => {
+  if (!$("#sync-password").value) { announce("Enter the master password used by the folder backups.", true); return; }
+  $("#sync-folder").disabled = true;
+  let password = $("#sync-password").value; $("#sync-password").value = "";
+  try {
+    const snapshots = await folderBackups({ ask: true });
+    let added = 0, updated = 0, unchanged = 0, opened = 0;
+    for (const snapshot of snapshots) {
+      try {
+        const result = await client.request("MERGE_BACKUP", { text: snapshot.text, password, revision: client.state.revision });
+        client.update(result.state); added += result.added; updated += result.updated; unchanged += result.unchanged; opened++;
+      } catch (error) {
+        if (/password|corrupted/i.test(error.message)) continue;
+        throw error;
+      }
+    }
+    if (!opened && snapshots.length) throw new Error("None of the folder backups opened with that password.");
+    await saveToFolder(true);
+    await refreshList();
+    announce(`Folder sync complete: ${added} added, ${updated} updated, ${unchanged} already current. Nothing was deleted.`);
+  } catch (error) { announce(error.message, true); }
+  finally { password = ""; $("#sync-folder").disabled = false; }
 });
 async function readBackupFile() {
   const file = $("#backup-file").files[0];

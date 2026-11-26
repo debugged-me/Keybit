@@ -99,7 +99,7 @@ function render(payload) {
     head.textContent = item.name || "Untitled";
     if (item.type && item.type !== "login") {
       const tag = document.createElement("span");
-      tag.className = "tag"; tag.textContent = { note: "Note", passkey: "Passkey", card: "Card", identity: "ID" }[item.type] ?? item.type;
+      tag.className = "tag"; tag.textContent = { note: "Note", passkey: "Passkey", card: "Card", identity: "ID", secret: "Developer secret" }[item.type] ?? item.type;
       head.append(tag);
     }
     card.append(head);
@@ -124,6 +124,9 @@ function render(payload) {
       if (address) card.append(row("Address", address));
       if (item.company) card.append(row("Company", item.company));
       if (item.notes) card.append(row("Notes", item.notes));
+    } else if (item.type === "secret") {
+      card.append(row("Type", { api: "API token", database: "Database", ssh: "SSH key", license: "Licence key", recovery: "Recovery codes", other: "Other secret" }[item.secretKind] || "Other secret"));
+      if (item.notes) card.append(row("Notes", item.notes));
     } else {
       if (item.urls && item.urls.length) card.append(row("Site", item.urls.join(", ")));
       if (item.username) card.append(row("Username", item.username));
@@ -131,6 +134,8 @@ function render(payload) {
       if (item.totp) card.append(row("2FA", "A setup key is stored (codes are generated inside KeyBit)."));
       if (item.notes) card.append(row("Notes", item.notes));
     }
+    for (const custom of item.customFields || []) card.append(row(custom.name, custom.value || "", !!custom.concealed));
+    if (item.tags && item.tags.length) card.append(row("Tags", item.tags.join(", ")));
     list.append(card);
   }
   if (!items.length) {

@@ -1,5 +1,5 @@
 // Generates icons/icon{16,32,48,128}.png for PeekBit — no dependencies.
-// Draws a green rounded square with two overlapping "peek" cards and an eye.
+// Draws a steel rounded square with two overlapping "peek" cards and an eye.
 import { deflateSync } from "node:zlib";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -11,8 +11,8 @@ mkdirSync(outDir, { recursive: true });
 
 const S = 4; // supersample factor for anti-aliasing
 
-const GREEN = [40, 91, 70, 255]; // #285B46 (Keybit brand)
-const MINT = [184, 220, 196, 255]; // #B8DCC4
+const STEEL = [88, 117, 142, 255]; // #58758E
+const MIST = [199, 216, 227, 255]; // #C7D8E3
 const WHITE = [255, 255, 255, 255];
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -63,14 +63,14 @@ function render(size) {
   }
 
   // background
-  rrect(0, 0, n, n, 0.22 * n, GREEN);
+  rrect(0, 0, n, n, 0.22 * n, STEEL);
   // back card peeking out top-right
-  rrect(0.4 * n, 0.16 * n, 0.42 * n, 0.34 * n, 0.055 * n, MINT);
+  rrect(0.4 * n, 0.16 * n, 0.42 * n, 0.34 * n, 0.055 * n, MIST);
   // front card
   rrect(0.18 * n, 0.34 * n, 0.52 * n, 0.44 * n, 0.06 * n, WHITE);
   // eye: ring + pupil
-  ellipse(0.44 * n, 0.56 * n, 0.135 * n, 0.088 * n, GREEN, 0.32);
-  ellipse(0.44 * n, 0.56 * n, 0.045 * n, 0.045 * n, GREEN);
+  ellipse(0.44 * n, 0.56 * n, 0.135 * n, 0.088 * n, STEEL, 0.32);
+  ellipse(0.44 * n, 0.56 * n, 0.045 * n, 0.045 * n, STEEL);
 
   // downsample SxS blocks with alpha-weighted averaging
   const out = Buffer.alloc(size * size * 4);

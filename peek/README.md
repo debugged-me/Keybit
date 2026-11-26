@@ -1,6 +1,6 @@
 # PeekBit
 
-Peek at links without leaving the page — a Yab-inspired preview experience as a
+Peek at links without leaving the page — an Arc-inspired preview experience as a
 standalone extension. **Shift + Click** opens a refined floating card, while
 **Option/Alt + Click** opens the link beside the page you are reading.
 
@@ -22,6 +22,8 @@ manifest, sources, icons and scripts. Load it as a separate unpacked extension.
 - Floating controls: close · keep as tab · open beside · copy address.
 - `Esc` or clicking the dimmed backdrop closes the peek.
 - Toolbar icon → configure Link Peek, Option-click, and the live address display.
+- The toolbar also controls the current site and a safe sign-in handoff. Login,
+  verification, checkout and payment routes open top-level by default.
 - Ordinary sign-in and account routes are attempted inside Peek, including
   GitHub login and signup pages. Dedicated identity-provider and payment hosts
   still use a normal tab because their session flows require a top-level page.
@@ -65,12 +67,12 @@ manifest, sources, icons and scripts. Load it as a separate unpacked extension.
 - Sites that forbid framing via `<meta>` CSP or JS frame-busting can still
   refuse — the card shows a fallback with an "Open in new tab" button.
 - The iframe is a third-party context. PeekBit now attempts ordinary login and
-  account routes, but a site can still refuse a login or omit session cookies;
-  use **Keep as tab** if that happens.
-- `Esc` doesn't reach the card while the iframe has keyboard focus — use the
-  backdrop or the close button.
-- Dedicated identity-provider and payment hosts use the safe handoff with an
-  explicit “Keep as tab” action instead.
+  account routes. On password-field interaction it requests Storage Access; if
+  the browser or site refuses, PeekBit promotes the login to a centered popup
+  window with a real top-level cookie context instead of letting it fail silently.
+- `Esc` closes Peek even while the embedded page has keyboard focus.
+- Dedicated identity-provider and payment hosts open directly in the centered
+  top-level authentication popup, where their first-party cookie flows work.
 
 ## Firefox
 

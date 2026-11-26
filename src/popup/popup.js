@@ -196,6 +196,15 @@ $("#site-rules").addEventListener("change", async event => {
   } catch (error) { input.checked = !input.checked; announce(error.message, true); }
 });
 $("#manage").addEventListener("click", () => void openPage("src/vault-ui/vault.html"));
+$("#open-side-panel").hidden = !chrome.sidePanel?.open;
+$("#open-side-panel").addEventListener("click", async () => {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!Number.isInteger(tab?.id)) throw new Error("Open a regular browser tab first.");
+    await chrome.sidePanel.open({ tabId: tab.id });
+    window.close();
+  } catch (error) { announce(error.message, true); }
+});
 // Add a login without leaving the popup, starting from the current site.
 $("#add-login").addEventListener("click", async () => {
   const site = page ? parseWebsite(page.url) : null;

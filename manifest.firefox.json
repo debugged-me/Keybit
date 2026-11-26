@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "KeyBit",
   "short_name": "KeyBit",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "A private, local-only encrypted vault that suggests logins in sign-in fields and offers to save passwords.",
   "browser_specific_settings": {
     "gecko": {

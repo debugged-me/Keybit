@@ -16,7 +16,7 @@ export default [
     languageOptions: { sourceType: "script" }
   },
   {
-    files: ["eslint.config.js", "scripts/**/*.mjs", "peek/scripts/**/*.mjs"],
+    files: ["eslint.config.js", "scripts/**/*.mjs", "peek/scripts/**/*.mjs", "tests/**/*.mjs"],
     languageOptions: { ecmaVersion: 2024, sourceType: "module", globals: { ...globals.node, ...globals.browser, chrome: "readonly" } },
     rules: { "no-unused-vars": ["error", { args: "none", caughtErrors: "none" }] }
   }

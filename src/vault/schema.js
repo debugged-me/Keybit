@@ -3,7 +3,8 @@ import { parseTotp } from "./totp.js";
 
 export const AUTO_LOCK_OPTIONS = [1, 5, 10, 15, 30, 0];
 export const ENVIRONMENTS = ["local", "development", "staging", "production", "other"];
-export const ITEM_TYPES = ["login", "note", "passkey", "card", "identity"];
+export const ITEM_TYPES = ["login", "note", "passkey", "card", "identity", "secret"];
+export const SECRET_KINDS = ["api", "database", "ssh", "license", "recovery", "other"];
 export const HISTORY_LIMIT = 5;
 export const MAX_URLS = 10;
 export const MAX_PROJECTS = 200;
@@ -17,11 +18,24 @@ const date = value => {
   if (typeof value !== "string" || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value) invalid();
   return value;
 };
+export function validateTags(value) {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > 50) invalid();
+  const tags = value.map(tag => text(tag, 50).trim()).filter(Boolean);
+  return [...new Set(tags.map(tag => tag.toLocaleLowerCase()))];
+}
+export function validateCustomFields(value) {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > 50) invalid();
+  return value.map(field => {
+    if (!field || typeof field !== "object" || typeof field.concealed !== "boolean") invalid();
+    return { name: text(field.name, 100, true).trim(), value: text(field.value, 4096), concealed: field.concealed };
+  });
+}
 
 // Settings saved before 1.3 have no lockOnScreenLock; before 1.4, no confirmProduction; older still, no stayUnlocked.
-// Screen-lock defaults off: staying unlocked is the expected behavior unless turned on in Settings.
-// stayUnlocked defaults on: the vault key is kept in extension storage so restarts never re-ask the
-// master password. Turning it off restores the boundary for shared machines.
+// Preserve the historical behavior when migrating a vault whose saved settings predate these
+// fields. New vaults use the stricter defaults in emptyVault(): lock on quit and screen lock.
 export function validateSettings(settings) {
   if (!settings || !AUTO_LOCK_OPTIONS.includes(settings.autoLockMinutes)) invalid();
   const lockOnScreenLock = settings.lockOnScreenLock ?? false;
@@ -39,8 +53,14 @@ export function validateItem(item) {
   if (typeof favorite !== "boolean") invalid();
   // Items deleted before 1.4 were removed outright; deletedAt marks the 30-day Recently deleted bin.
   const common = { id: item.id, type, name: text(item.name, 200, true), notes: text(item.notes ?? "", 20000), project: text(project, 100).trim(),
-    favorite, deletedAt: item.deletedAt == null ? null : date(item.deletedAt), createdAt: date(item.createdAt), updatedAt: date(item.updatedAt) };
+    favorite, tags: validateTags(item.tags), customFields: validateCustomFields(item.customFields),
+    deletedAt: item.deletedAt == null ? null : date(item.deletedAt), createdAt: date(item.createdAt), updatedAt: date(item.updatedAt) };
   if (type === "note") return { ...common, urls: [], username: "", environment: "other" };
+  if (type === "secret") {
+    const secretKind = item.secretKind ?? "other";
+    if (!SECRET_KINDS.includes(secretKind) || (!common.customFields.length && !common.notes)) invalid();
+    return { ...common, urls: [], username: "", environment: "other", secretKind, totp: "", history: [] };
+  }
   // Payment cards: digits only, brand derived from the number (never caller-supplied).
   if (type === "card") {
     const number = text(item.number, 32, true).replace(/[\s-]/g, "");
@@ -128,7 +148,7 @@ export function cardBrand(number) {
 }
 export const expiryDisplay = item => `${String(item.expiryMonth).padStart(2, "0")}/${String(item.expiryYear).padStart(item.expiryYear > 99 ? 4 : 2, "0")}`;
 
-export function emptyVault() { return { version: 1, revision: 0, items: [], settings: { autoLockMinutes: 0, lockOnScreenLock: false, confirmProduction: true, stayUnlocked: true }, projects: {} }; }
+export function emptyVault() { return { version: 1, revision: 0, items: [], settings: { autoLockMinutes: 0, lockOnScreenLock: true, confirmProduction: true, stayUnlocked: false }, projects: {} }; }
 
 export function createItem(input, previous) {
   const now = new Date().toISOString();
@@ -142,5 +162,6 @@ export function duplicateKey(item, scopeLabel) {
   if (item.type === "passkey") return `passkey\n${item.rpId}\n${item.credentialId}`;
   if (item.type === "card") return `card\n${item.number}\n${item.expiryMonth}/${item.expiryYear}`;
   if (item.type === "identity") return `identity\n${item.firstName}\n${item.lastName}\n${item.email}`;
+  if (item.type === "secret") return `secret\n${item.name}\n${item.secretKind}\n${JSON.stringify(item.customFields)}`;
   return `login\n${scopeLabel(item.urls[0])}\n${item.username}\n${item.password}`;
 }

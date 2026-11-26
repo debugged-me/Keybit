@@ -8,7 +8,7 @@ KeyBit is a password manager that runs entirely in your browser. This policy exp
 
 KeyBit stores the items you save:
 - **Logins:** website addresses, names, usernames, passwords, 2FA setup keys, notes, and the last five passwords of each login.
-- **Secure notes.**
+- **Secure notes and developer secrets,** including tags and concealed or plain custom fields.
 - **Cards and identity records:** card numbers, expiry, security codes, cardholder names, and the names, addresses, phones, and other fields you save for form filling.
 - **Passkeys:** the private credential material for each passkey you keep, together with its relying party and sign count.
 - **Projects and favourites,** including any environment addresses you set on a project.
@@ -25,7 +25,7 @@ If you turn on Touch ID or Windows Hello, your device creates a passkey for KeyB
 
 Your master password is never stored. Without it, KeyBit cannot decrypt your data, and it cannot recover a forgotten master password.
 
-With **Stay unlocked across restarts** on (the default), KeyBit also keeps the unlocked vault key — never the password — in this browser's extension storage so a browser restart doesn't ask for the password again. Anything able to read this browser profile's files can then open the vault; turn the setting off in Settings on shared machines.
+With **Stay unlocked across restarts** on, KeyBit also keeps the unlocked vault key — never the password — in this browser's extension storage so a browser restart doesn't ask for the password again. This is off for new vaults. Anything able to read this browser profile's files can then open the vault; enable it only on a trusted personal machine.
 
 ## What KeyBit reads on websites
 
@@ -35,7 +35,7 @@ The command palette searches your vault titles and commands on your device — n
 
 ## What KeyBit shares
 
-KeyBit has no servers and does not send your vault data to a service. It does not collect analytics, usage data, or crash reports, and it does not sell your data. Encrypted backup files are written only where you choose, either with **Export** or to the folder you pick for automatic backups.
+KeyBit has no servers and does not send your vault data to a service. It does not collect analytics, usage data, or crash reports, and it does not sell your data. Encrypted backup files are written only where you choose, either with **Export** or to the folder you pick for automatic backups. Folder sync reads only KeyBit backup files in that chosen folder after you explicitly choose **Sync now** and provide the backup password.
 
 ## Removing your data
 
@@ -43,4 +43,4 @@ Removing KeyBit from your browser deletes its stored vault and settings. Backup 
 
 ## Contact
 
-Questions about this policy: [add the contact email for your store listing]
+Questions about this policy can be filed privately with the maintainer through the contact method on the KeyBit store listing, or as a security report in the project repository.

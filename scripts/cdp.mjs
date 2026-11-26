@@ -89,10 +89,10 @@ export async function launch(profile, extraArgs = []) {
   };
   const typeText = (session, text) => send('Input.insertText', { text }, session);
   const shot = async (session, file) => writeFile(file, Buffer.from((await send('Page.captureScreenshot', { captureBeyondViewport: false }, session)).data, 'base64'));
-  const loadExtension = async path => {
+  const loadExtension = async (path, workerPath = '/src/background/service-worker.js') => {
     await send('Extensions.loadUnpacked', { path });
     for (let i = 0; i < 50; i++) {
-      const worker = (await send('Target.getTargets')).targetInfos.find(t => t.type === 'service_worker' && t.url.endsWith('/src/background/service-worker.js'));
+      const worker = (await send('Target.getTargets')).targetInfos.find(t => t.type === 'service_worker' && t.url.endsWith(workerPath));
       if (worker) return { worker, id: new URL(worker.url).host };
       await delay(100);
     }

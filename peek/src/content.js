@@ -43,13 +43,25 @@
 
   function initFrameBridge() {
     let owned = false;
+    let hasStorageAccess = null;
+    let authFallbackPending = false;
 
     runtimeMessage({ type: "peek:frame-status", url: location.href }).then((result) => {
       owned = Boolean(result && result.owned);
     });
+    if (typeof document.hasStorageAccess === "function") {
+      document.hasStorageAccess().then((allowed) => {
+        hasStorageAccess = allowed;
+      }).catch(() => {});
+    }
     chrome.runtime.onMessage.addListener((message) => {
       if (message && message.type === "peek:frame-owned") owned = true;
     });
+    window.addEventListener("keydown", (event) => {
+      if (!owned || event.key !== "Escape") return;
+      event.preventDefault();
+      runtimeMessage({ type: "peek:close-from-frame" });
+    }, true);
 
     window.addEventListener("click", (event) => {
       if (!owned || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -74,14 +86,36 @@
         location.assign(destination.href);
       });
     }, true);
+
+    // Authentication cookies are commonly blocked in a cross-site iframe. Ask
+    // for Storage Access on the user's first interaction with a sign-in form;
+    // if the browser or site refuses, promote the login to a real top-level
+    // popup before the user spends time entering credentials that cannot persist.
+    window.addEventListener("pointerdown", (event) => {
+      if (!owned || authFallbackPending || hasStorageAccess === true || event.button !== 0) return;
+      const path = typeof event.composedPath === "function" ? event.composedPath() : [event.target];
+      const field = path.find((node) => node instanceof HTMLInputElement);
+      const signInForm = field && field.form && field.form.querySelector('input[type="password"]');
+      if (!field || (!signInForm && field.type.toLowerCase() !== "password")) return;
+      if (typeof document.requestStorageAccess !== "function") return;
+      authFallbackPending = true;
+      document.requestStorageAccess().then(() => {
+        hasStorageAccess = true;
+        authFallbackPending = false;
+      }).catch(() => {
+        runtimeMessage({ type: "peek:auth-window", url: location.href }).finally(() => {
+          authFallbackPending = false;
+        });
+      });
+    }, true);
   }
 
   const LOAD_TIMEOUT_MS = 12000;
-  const CLOSE_ANIM_MS = 190;
+  const CLOSE_ANIM_MS = 240;
   const MIN_W = 340;
   const MIN_H = 240;
   const SANDBOX =
-    "allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads";
+    "allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads allow-storage-access-by-user-activation";
 
   const ICON = {
     back:
@@ -189,9 +223,119 @@
 .bar{background:#7fb894}
 .spin{border-color:rgba(127,184,148,.2);border-top-color:#7fb894}
 .grip{background:linear-gradient(135deg,transparent 0 50%,#6b726c 50% 58%,transparent 58% 68%,#6b726c 68% 76%,transparent 76%)}
-}`;
+}
+
+/* Arc-inspired visual layer: soft themed glass, generous radii and spring motion. */
+:host{--pb-ink:#241d31;--pb-muted:#756d81;--pb-accent:#7657d6;--pb-accent-2:#bc70c3;--pb-line:rgba(72,50,101,.11);--pb-shadow:rgba(35,21,54,.28)}
+.backdrop{background:radial-gradient(circle at 18% 8%,rgba(177,130,255,.18),transparent 38%),radial-gradient(circle at 86% 88%,rgba(225,128,191,.12),transparent 34%),rgba(25,18,35,.28);backdrop-filter:blur(3px) saturate(.9);-webkit-backdrop-filter:blur(3px) saturate(.9);animation:pb-fade .32s cubic-bezier(.2,.8,.2,1) both}
+.backdrop.closing{animation:pb-fadeout .22s ease-in forwards}
+.stage{gap:12px;animation:pb-in .48s cubic-bezier(.16,1,.3,1) both;filter:drop-shadow(0 30px 50px var(--pb-shadow))}
+.stage.closing{pointer-events:none;animation:pb-out .22s cubic-bezier(.4,0,1,1) forwards}
+.card{isolation:isolate;border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,.72),0 0 0 2px rgba(61,38,87,.11),0 18px 55px rgba(37,22,57,.18)}
+.card::after{content:"";position:absolute;inset:0;z-index:8;border-radius:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.78);pointer-events:none}
+@keyframes pb-fade{from{opacity:0;backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0)}}
+@keyframes pb-fadeout{to{opacity:0;backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0)}}
+@keyframes pb-in{0%{opacity:0;transform:translateY(26px) scale(.958);filter:blur(5px) drop-shadow(0 16px 28px rgba(35,21,54,.12))}68%{opacity:1;transform:translateY(-3px) scale(1.004);filter:blur(0) drop-shadow(0 32px 54px var(--pb-shadow))}100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0) drop-shadow(0 30px 50px var(--pb-shadow))}}
+@keyframes pb-out{to{opacity:0;transform:translateY(16px) scale(.972);filter:blur(3px) drop-shadow(0 10px 18px rgba(35,21,54,.08))}}
+.chrome{flex-basis:50px;height:50px;gap:8px;padding:7px 9px;background:linear-gradient(110deg,rgba(248,245,255,.97),rgba(242,237,252,.92));border-bottom-color:var(--pb-line)}
+.chrome::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 82% -60%,rgba(172,123,222,.17),transparent 42%);pointer-events:none}
+.nav,.address{position:relative;background:rgba(255,255,255,.68);border-color:rgba(72,50,101,.1);box-shadow:0 1px 1px rgba(255,255,255,.75) inset,0 2px 8px rgba(53,34,77,.06);backdrop-filter:blur(22px) saturate(1.25);-webkit-backdrop-filter:blur(22px) saturate(1.25)}
+.nav{height:36px;padding:3px;border-radius:11px}
+.address{height:36px;max-width:480px;gap:9px;padding:0 13px;border-radius:11px}
+.site-dot{background:linear-gradient(145deg,#9273ea,#c675c5);box-shadow:0 0 0 3px rgba(118,87,214,.11),0 1px 4px rgba(118,87,214,.28)}
+.site-dot.loading{animation:pb-pulse 1.15s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes pb-pulse{50%{opacity:.48;transform:scale(.72);box-shadow:0 0 0 6px rgba(118,87,214,.05)}}
+.title{font-weight:680;letter-spacing:-.01em;color:var(--pb-ink)}
+.url{font-weight:480;color:var(--pb-muted)}
+.btn{border-radius:8px;color:#51475e;transition:background .16s ease,transform .16s cubic-bezier(.2,.9,.2,1),color .16s ease,box-shadow .16s ease}
+.btn:hover{color:var(--pb-accent);background:rgba(118,87,214,.1);box-shadow:inset 0 0 0 1px rgba(118,87,214,.08)}
+.btn:active{transform:scale(.88)}
+.btn.ok{color:var(--pb-accent)}
+.body{background:#eeeaf4}
+.loader{gap:15px;background:radial-gradient(circle at 50% 44%,rgba(135,101,223,.08),transparent 24%),#fcfbff;color:var(--pb-muted);font-size:11.5px;font-weight:550;letter-spacing:.01em}
+.bar{left:-38%;width:38%;background:linear-gradient(90deg,transparent,#7e5cda 50%,#d178bd);box-shadow:0 1px 7px rgba(118,87,214,.38);animation-duration:1.2s}
+.spin{width:24px;height:24px;border-color:rgba(118,87,214,.13);border-top-color:var(--pb-accent);border-right-color:var(--pb-accent-2);box-shadow:0 5px 16px rgba(118,87,214,.12);animation-duration:.8s}
+.blocked{background:radial-gradient(circle at 50% 40%,rgba(118,87,214,.07),transparent 31%),#fcfbff;animation:pb-content-in .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes pb-content-in{from{opacity:0;transform:scale(.985)}}
+.blocked-mark{width:46px;height:46px;border-radius:15px;background:linear-gradient(145deg,#eee8ff,#f8ecfa);color:var(--pb-accent);box-shadow:inset 0 0 0 1px rgba(118,87,214,.09),0 8px 20px rgba(73,48,105,.08);font-size:19px;margin-bottom:5px}
+.blocked-title{font-size:15px;font-weight:700;letter-spacing:-.02em;color:var(--pb-ink)}
+.blocked-sub{color:var(--pb-muted);line-height:1.52}
+.btn-primary{background:linear-gradient(135deg,#7657d6,#9663cf);border-radius:11px;padding:9px 16px;font-weight:650;box-shadow:0 7px 17px rgba(103,73,174,.2),inset 0 1px 0 rgba(255,255,255,.2);transition:transform .16s ease,box-shadow .16s ease,filter .16s ease}
+.btn-primary:hover{background:linear-gradient(135deg,#8060df,#a06bd7);transform:translateY(-1px);box-shadow:0 10px 21px rgba(103,73,174,.26)}
+.btn-ghost{background:rgba(255,255,255,.72);color:#50465d;border-color:rgba(72,50,101,.14);border-radius:11px;padding:9px 16px;transition:background .16s ease,transform .16s ease}
+.btn-ghost:hover{background:#fff;transform:translateY(-1px)}
+.knobs{gap:3px;padding:5px;border:1px solid rgba(255,255,255,.18);border-radius:20px;background:rgba(35,28,45,.78);box-shadow:0 12px 30px rgba(24,15,36,.25),inset 0 1px 0 rgba(255,255,255,.1);backdrop-filter:blur(24px) saturate(1.35);-webkit-backdrop-filter:blur(24px) saturate(1.35);animation:pb-rail-in .48s .09s cubic-bezier(.16,1,.3,1) both}
+@keyframes pb-rail-in{from{opacity:0;transform:translateX(-8px) scale(.92)}}
+.knob{border-radius:14px;background:transparent;color:rgba(255,255,255,.88);box-shadow:none;transition:background .16s ease,transform .16s cubic-bezier(.2,.9,.2,1),color .16s ease,box-shadow .16s ease}
+.knob:hover{background:rgba(255,255,255,.13);color:#fff;transform:scale(1.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+.knob:active{transform:scale(.88)}
+.knob:disabled:hover{background:transparent}
+.knob.active{background:linear-gradient(145deg,#8262df,#a76acb);color:#fff;box-shadow:0 5px 14px rgba(107,71,176,.36)}
+.tip{right:50px;height:30px;padding:0 9px 0 11px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(35,28,45,.92);font-weight:580;box-shadow:0 8px 22px rgba(24,15,36,.22);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);animation:pb-tip .16s ease-out}
+@keyframes pb-tip{from{opacity:0;transform:translate(4px,-50%) scale(.96)}}
+.grip{z-index:9;right:7px;bottom:7px;opacity:.3;background:linear-gradient(135deg,transparent 0 50%,#83748f 50% 57%,transparent 57% 67%,#83748f 67% 74%,transparent 74%);transition:opacity .16s ease}
+.grip:hover{opacity:.7}
+.stage.docked{filter:drop-shadow(-12px 0 30px rgba(35,21,54,.2))}
+.stage.docked .card{border-radius:18px 0 0 18px}
+.backdrop.docked{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+@media (prefers-reduced-motion:reduce){.backdrop,.stage,.knobs,.bar,.spin,.btn,.knob,.tip,.blocked{animation:none!important;transition:none!important}}
+@media (prefers-color-scheme:dark){
+:host{--pb-ink:#f2edf8;--pb-muted:#aaa0b5;--pb-accent:#ad92ff;--pb-accent-2:#d88bd2;--pb-line:rgba(255,255,255,.08);--pb-shadow:rgba(8,5,13,.48)}
+.backdrop{background:radial-gradient(circle at 18% 8%,rgba(123,82,190,.18),transparent 38%),radial-gradient(circle at 86% 88%,rgba(168,80,145,.11),transparent 34%),rgba(8,6,12,.48)}
+.card{background:#1d1824;box-shadow:0 0 0 1px rgba(255,255,255,.11),0 0 0 2px rgba(13,8,18,.5),0 22px 60px rgba(5,3,8,.46)}
+.chrome{background:linear-gradient(110deg,rgba(42,34,51,.98),rgba(35,28,44,.96));border-bottom-color:rgba(255,255,255,.07)}
+.nav,.address{background:rgba(55,45,66,.82);border-color:rgba(255,255,255,.08);box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 3px 10px rgba(0,0,0,.16)}
+.title{color:var(--pb-ink)}.url{color:var(--pb-muted)}.btn{color:#cbc1d5}.btn:hover{color:#fff;background:rgba(255,255,255,.1)}
+.body{background:#120e17}.loader,.blocked{background:radial-gradient(circle at 50% 42%,rgba(137,91,205,.1),transparent 28%),#1d1824}
+.blocked-title{color:var(--pb-ink)}.blocked-sub,.loader{color:var(--pb-muted)}
+.blocked-mark{background:linear-gradient(145deg,#332940,#2a2134);color:#b99cff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 8px 20px rgba(0,0,0,.16)}
+.btn-ghost{color:#d4cadc;border-color:rgba(255,255,255,.1);background:rgba(255,255,255,.04)}.btn-ghost:hover{background:rgba(255,255,255,.07)}
+.btn.ok{color:#b99cff}.bar{background:linear-gradient(90deg,transparent,#a98bff 50%,#e48bd4)}.spin{border-color:rgba(173,146,255,.16);border-top-color:#ad92ff;border-right-color:#d88bd2}
+}
+
+/* Neutral graphite palette: color supports status and never washes the page. */
+:host{--pb-ink:#22272d;--pb-muted:#727a83;--pb-accent:#58758e;--pb-accent-2:#769997;--pb-line:rgba(43,53,63,.11);--pb-shadow:rgba(14,20,26,.27)}
+.backdrop{background:rgba(23,27,31,.24);backdrop-filter:blur(2.5px) saturate(.86);-webkit-backdrop-filter:blur(2.5px) saturate(.86)}
+.card{box-shadow:0 0 0 1px rgba(255,255,255,.74),0 0 0 2px rgba(38,47,56,.12),0 18px 55px rgba(15,21,27,.18)}
+@keyframes pb-in{0%{opacity:0;transform:translateY(26px) scale(.958);filter:blur(5px) drop-shadow(0 16px 28px rgba(14,20,26,.12))}68%{opacity:1;transform:translateY(-3px) scale(1.004);filter:blur(0) drop-shadow(0 32px 54px var(--pb-shadow))}100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0) drop-shadow(0 30px 50px var(--pb-shadow))}}
+@keyframes pb-out{to{opacity:0;transform:translateY(16px) scale(.972);filter:blur(3px) drop-shadow(0 10px 18px rgba(14,20,26,.08))}}
+.chrome{background:linear-gradient(110deg,rgba(249,249,248,.98),rgba(240,242,243,.95));border-bottom-color:var(--pb-line)}
+.chrome::before{background:radial-gradient(circle at 82% -70%,rgba(104,137,160,.1),transparent 43%)}
+.nav,.address{background:rgba(255,255,255,.72);border-color:rgba(43,53,63,.1);box-shadow:0 1px 1px rgba(255,255,255,.8) inset,0 2px 8px rgba(20,29,36,.055)}
+.site-dot{background:linear-gradient(145deg,#698aa3,#7ba3a0);box-shadow:0 0 0 3px rgba(88,117,142,.1),0 1px 4px rgba(56,79,97,.22)}
+@keyframes pb-pulse{50%{opacity:.48;transform:scale(.72);box-shadow:0 0 0 6px rgba(88,117,142,.045)}}
+.btn{color:#4d565f}.btn:hover{color:var(--pb-accent);background:rgba(88,117,142,.1);box-shadow:inset 0 0 0 1px rgba(88,117,142,.07)}
+.body{background:#edf0f2}
+.loader{background:radial-gradient(circle at 50% 44%,rgba(88,117,142,.065),transparent 24%),#fbfcfc}
+.bar{background:linear-gradient(90deg,transparent,#58758e 52%,#769997);box-shadow:0 1px 7px rgba(66,92,112,.28)}
+.spin{border-color:rgba(88,117,142,.14);border-top-color:var(--pb-accent);border-right-color:var(--pb-accent-2);box-shadow:0 5px 16px rgba(54,75,91,.1)}
+.blocked{background:radial-gradient(circle at 50% 40%,rgba(88,117,142,.055),transparent 31%),#fbfcfc}
+.blocked-mark{background:linear-gradient(145deg,#edf2f5,#f4f7f7);color:var(--pb-accent);box-shadow:inset 0 0 0 1px rgba(55,74,89,.08),0 8px 20px rgba(23,32,40,.07)}
+.btn-primary{background:linear-gradient(135deg,#3f5567,#557581);box-shadow:0 7px 17px rgba(37,54,67,.19),inset 0 1px 0 rgba(255,255,255,.18)}
+.btn-primary:hover{background:linear-gradient(135deg,#465e72,#5d7e89);box-shadow:0 10px 21px rgba(37,54,67,.23)}
+.btn-ghost{color:#4c555e;border-color:rgba(43,53,63,.14)}
+.knobs{background:rgba(29,33,37,.84);box-shadow:0 12px 30px rgba(10,14,18,.24),inset 0 1px 0 rgba(255,255,255,.1)}
+.knob.active{background:linear-gradient(145deg,#506f88,#66898c);box-shadow:0 5px 14px rgba(39,59,74,.32)}
+.tip{background:rgba(29,33,37,.94);box-shadow:0 8px 22px rgba(10,14,18,.22)}
+.stage.docked{filter:drop-shadow(-12px 0 30px rgba(14,20,26,.2))}
+@media (prefers-color-scheme:dark){
+:host{--pb-ink:#edf1f3;--pb-muted:#a6afb6;--pb-accent:#8eb0c9;--pb-accent-2:#8eb8b2;--pb-line:rgba(255,255,255,.08);--pb-shadow:rgba(2,5,7,.48)}
+.backdrop{background:rgba(6,9,12,.48)}
+.card{background:#181c20;box-shadow:0 0 0 1px rgba(255,255,255,.1),0 0 0 2px rgba(5,8,10,.54),0 22px 60px rgba(2,4,6,.46)}
+.chrome{background:linear-gradient(110deg,rgba(39,44,49,.98),rgba(31,36,40,.97));border-bottom-color:rgba(255,255,255,.07)}
+.chrome::before{background:radial-gradient(circle at 82% -70%,rgba(104,137,160,.09),transparent 43%)}
+.nav,.address{background:rgba(49,55,61,.84);border-color:rgba(255,255,255,.08)}
+.btn{color:#c8d0d5}.btn:hover{color:#fff;background:rgba(255,255,255,.09)}
+.body{background:#101316}.loader,.blocked{background:radial-gradient(circle at 50% 42%,rgba(95,128,151,.07),transparent 28%),#181c20}
+.blocked-mark{background:linear-gradient(145deg,#293138,#22292f);color:#9bbbd1}
+.btn-ghost{color:#d0d7db;border-color:rgba(255,255,255,.1);background:rgba(255,255,255,.04)}
+.btn.ok{color:#9bbbd1}.bar{background:linear-gradient(90deg,transparent,#8eb0c9 52%,#8eb8b2)}.spin{border-color:rgba(142,176,201,.15);border-top-color:#8eb0c9;border-right-color:#8eb8b2}
+}
+`;
 
   let enabled = true;
+  let globallyEnabled = true;
+  let blockedHosts = [];
   let optionClick = true;
   let showAddress = true;
   let peek = null;
@@ -248,6 +392,10 @@
 
   function openPeek(url, label, mode = "peek") {
     send({ type: "peek:open", url }).then((result) => {
+      if (result && result.openedAuth) {
+        if (peek) closePeek(true);
+        return;
+      }
       const policy = {
         // Only an explicit policy rejection should block the iframe. A worker
         // startup/message failure should still attempt the preview instead of
@@ -306,7 +454,7 @@
             </div>
             <div class="body">
               <span class="bar"></span>
-              <iframe class="frame" sandbox="${SANDBOX}" allowfullscreen></iframe>
+              <iframe class="frame" sandbox="${SANDBOX}" allow="storage-access *" allowfullscreen></iframe>
               <div class="loader"><span class="spin"></span><span>Opening preview…</span></div>
               <div class="blocked" hidden>
                 <div class="blocked-card">
@@ -665,6 +813,14 @@
       showGenericFailure();
       return;
     }
+    if (message.type === "peek:auth-popup") {
+      closePeek(true);
+      return;
+    }
+    if (message.type === "peek:close-request") {
+      closePeek();
+      return;
+    }
     if (message.type !== "peek:location") return;
     if (typeof message.url === "string" && /^https?:\/\//i.test(message.url)) {
       peek.url = message.url;
@@ -688,17 +844,25 @@
   });
 
   try {
-    chrome.storage.sync.get({ peekEnabled: true, peekOptionClick: true, peekShowAddress: true }, (items) => {
-      enabled = items.peekEnabled !== false;
+    const refreshEnabled = () => {
+      const host = location.hostname.toLowerCase();
+      enabled = globallyEnabled && !blockedHosts.some(blocked => host === blocked || host.endsWith(`.${blocked}`));
+      if (!enabled) closePeek();
+    };
+    chrome.storage.sync.get({ peekEnabled: true, peekOptionClick: true, peekShowAddress: true, peekBlockedHosts: [] }, (items) => {
+      globallyEnabled = items.peekEnabled !== false;
+      blockedHosts = Array.isArray(items.peekBlockedHosts) ? items.peekBlockedHosts : [];
+      refreshEnabled();
       optionClick = items.peekOptionClick !== false;
       showAddress = items.peekShowAddress !== false;
     });
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "sync") return;
       if (changes.peekEnabled) {
-        enabled = changes.peekEnabled.newValue !== false;
-        if (!enabled) closePeek();
+        globallyEnabled = changes.peekEnabled.newValue !== false;
+        refreshEnabled();
       }
+      if (changes.peekBlockedHosts) { blockedHosts = Array.isArray(changes.peekBlockedHosts.newValue) ? changes.peekBlockedHosts.newValue : []; refreshEnabled(); }
       if (changes.peekOptionClick) optionClick = changes.peekOptionClick.newValue !== false;
       if (changes.peekShowAddress) {
         showAddress = changes.peekShowAddress.newValue !== false;

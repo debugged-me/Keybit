@@ -33,6 +33,7 @@
       <button class="nav-item" type="button" data-view="favorites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9z"/></svg><span>Favorites</span><span id="count-favorites" class="count"></span></button>
       <button class="nav-item" type="button" data-view="notes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg><span>Secure notes</span><span id="count-notes" class="count"></span></button>
       <button class="nav-item" type="button" data-view="cards"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg><span>Cards &amp; IDs</span><span id="count-cards" class="count"></span></button>
+      <button class="nav-item" type="button" data-view="secrets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="M9 12h6M12 9v6"/></svg><span>Developer secrets</span><span id="count-secrets" class="count"></span></button>
       <button id="nav-passkeys" class="nav-item" type="button" data-view="passkeys" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M14 9l2 2"/></svg><span>Passkeys</span><span id="count-passkeys" class="count"></span></button>
       <button class="nav-item" type="button" data-view="trash"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/><path d="M10 11v6M14 11v6"/></svg><span>Recently deleted</span><span id="count-trash" class="count"></span></button>
         </div>
@@ -64,7 +65,7 @@
           <button type="button" role="menuitemradio" data-minutes="10">10 minutes</button>
           <button type="button" role="menuitemradio" data-minutes="15">15 minutes</button>
           <button type="button" role="menuitemradio" data-minutes="30">30 minutes</button>
-          <p class="menu-note">Quitting the browser always locks KeyBit.</p>
+          <p class="menu-note">Browser exit locks unless “Stay unlocked across restarts” is enabled.</p>
         </div>
       </div>
       <button id="lock" class="icon-button" type="button" title="Lock now" aria-label="Lock now"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
@@ -185,7 +186,8 @@
           <h3>Automatic backup</h3>
           <p class="muted">Pick a folder, for example in iCloud Drive, Dropbox, or Google Drive. KeyBit saves an encrypted copy there every time your vault changes. On another computer, merge it in below.</p>
           <p id="auto-backup-status" class="notice"></p>
-          <div class="button-row"><button id="auto-backup-choose" class="secondary-button" type="button">Choose folder</button><button id="auto-backup-reconnect" class="primary-button" type="button" hidden>Reconnect</button><button id="auto-backup-off" class="text-button" type="button" hidden>Turn off</button></div>
+          <label for="sync-password">Master password for folder sync</label><input id="sync-password" type="password" autocomplete="off" maxlength="1024" placeholder="Required only when merging another device">
+          <div class="button-row"><button id="auto-backup-choose" class="secondary-button" type="button">Choose folder</button><button id="sync-folder" class="secondary-button" type="button" hidden>Sync now</button><button id="auto-backup-reconnect" class="primary-button" type="button" hidden>Reconnect</button><button id="auto-backup-off" class="text-button" type="button" hidden>Turn off</button></div>
         </div>
         <div class="card">
           <h3>Restore</h3>
@@ -208,8 +210,8 @@
         <div class="view-header"><h2>Settings</h2></div>
         <div class="settings-group">
           <h3>Security</h3>
-          <label class="switch-row setting"><span><span class="switch-title">Stay unlocked across restarts</span><span class="switch-hint muted">Keeps the vault key in this browser's storage so quitting never asks for the master password. Turn off on shared machines.</span></span><input id="stay-unlocked" type="checkbox" role="switch" checked></label>
-          <label class="switch-row setting"><span><span class="switch-title">Lock when the computer locks or sleeps</span><span class="switch-hint muted">Recommended, especially with auto-lock set to Never.</span></span><input id="lock-on-sleep" type="checkbox" role="switch"></label>
+          <label class="switch-row setting"><span><span class="switch-title">Stay unlocked across restarts</span><span class="switch-hint muted">Keeps the vault key in this browser's storage. Enable only on a trusted personal machine.</span></span><input id="stay-unlocked" type="checkbox" role="switch"></label>
+          <label class="switch-row setting"><span><span class="switch-title">Lock when the computer locks or sleeps</span><span class="switch-hint muted">On by default for new vaults.</span></span><input id="lock-on-sleep" type="checkbox" role="switch" checked></label>
           <label class="switch-row setting"><span><span class="switch-title">Confirm before opening Production</span><span class="switch-hint muted">The environment switcher asks first before moving a tab to a project's production address.</span></span><input id="confirm-production" type="checkbox" role="switch" checked></label>
           <label class="switch-row setting" id="biometric-row" hidden><span><span class="switch-title" id="biometric-title">Unlock with Touch ID</span><span class="switch-hint muted">Your master password still works and is never stored.</span></span><input id="biometric" type="checkbox" role="switch"></label>
           <div class="setting setting-action"><span><span class="switch-title">Master password</span><span class="switch-hint muted">Older backups still need the password they were made with.</span></span><button id="change-password" class="secondary-button" type="button">Change</button></div>

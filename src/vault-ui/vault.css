@@ -110,6 +110,7 @@ body.app { display: flex; flex-direction: column; height: 100vh; overflow: hidde
 .field-value > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .field-value .secret { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; letter-spacing: .3px; }
 .field-value .masked { letter-spacing: 2px; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 5px; }
 .copyable { transition: color .12s; }
 .copyable:hover { color: var(--accent); }
 .copyable.copied { color: var(--accent); }

@@ -41,14 +41,27 @@
       }
     }, { signal: events.signal });
   }
+  const conditional = new Map();
+  const webauthnField = target => target instanceof HTMLInputElement && String(target.autocomplete).split(/\s+/).includes("webauthn");
   window.addEventListener("message", async event => {
     if (event.source !== window || event.data?.__keybit !== "passkey-request") return;
     const { id, kind, options } = event.data;
-    let response = null;
-    try { response = await chrome.runtime.sendMessage({ type: kind === "create" ? "PASSKEY_CREATE" : "PASSKEY_GET", options }); } catch { /* Extension reloaded mid-call. */ }
-    const data = response?.ok ? response.data : null;
-    if (data?.token) { show(id, data.token); return; }
-    answer(id, { action: data?.action === "cancel" ? "cancel" : "delegate" });
+    const request = async () => {
+      const waiting = conditional.get(id);
+      if (waiting) { clearTimeout(waiting.timer); document.removeEventListener("focusin", waiting.focus, true); conditional.delete(id); }
+      let response = null;
+      try { response = await chrome.runtime.sendMessage({ type: kind === "create" ? "PASSKEY_CREATE" : "PASSKEY_GET", options }); } catch { /* Extension reloaded mid-call. */ }
+      const data = response?.ok ? response.data : null;
+      if (data?.token) { show(id, data.token); return; }
+      answer(id, { action: data?.action === "cancel" ? "cancel" : "delegate" });
+    };
+    if (kind === "get" && options?.mediation === "conditional" && !webauthnField(document.activeElement)) {
+      const focus = focusEvent => { if (webauthnField(focusEvent.target)) { document.removeEventListener("focusin", focus, true); void request(); } };
+      const timer = setTimeout(() => { document.removeEventListener("focusin", focus, true); conditional.delete(id); answer(id, { action: "delegate" }); }, 140000);
+      conditional.set(id, { focus, timer }); document.addEventListener("focusin", focus, true);
+      return;
+    }
+    await request();
   }, { signal: lifecycle.signal });
   function onRuntimeMessage(message) {
     if (message?.event === "keybit-site-disabled") close();
@@ -59,5 +72,5 @@
     answer(open.id, message.result ?? { action: "delegate" });
   }
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
-  window.addEventListener("pagehide", () => close(), { signal: lifecycle.signal });
+  window.addEventListener("pagehide", () => { for (const waiting of conditional.values()) { clearTimeout(waiting.timer); document.removeEventListener("focusin", waiting.focus, true); } conditional.clear(); close(); }, { signal: lifecycle.signal });
 })();

@@ -20,6 +20,7 @@ export function strength(password) {
 }
 
 const ENVIRONMENTS = [["other", "Other"], ["local", "Local"], ["development", "Development"], ["staging", "Staging"], ["production", "Production"]];
+const SECRET_KINDS = [["api", "API token"], ["database", "Database"], ["ssh", "SSH key"], ["license", "Licence key"], ["recovery", "Recovery codes"], ["other", "Other secret"]];
 let dialog = null;
 let hooks = null;
 /** @type {any} The open dialog's context: { client, item, kind, revision, existing, onSaved, onDelete, snapshot }. */
@@ -75,13 +76,22 @@ function build() {
           element("div", { className: "field-row" },
             field("Country", element("input", { id: "id-country", maxlength: 120, autocomplete: "off" })),
             field("Company", element("input", { id: "id-company", maxlength: 200, autocomplete: "off" })))),
+        element("div", { className: "secret-only" },
+          field("Secret type", element("select", { id: "secret-kind" }, ...SECRET_KINDS.map(([value, label]) => element("option", { value }, label))))),
         element("div", { className: "login-only" },
           element("div", { id: "totp-field", className: "form-field", hidden: true },
             element("label", { for: "totp" }, "2FA setup key"), element("input", { id: "totp", maxlength: 1024, autocomplete: "off", spellcheck: "false", placeholder: "Setup key or otpauth:// link from the website" }),
-            element("button", { type: "button", id: "scan-qr", className: "text-button", hidden: !(/** @type {any} */ (window).BarcodeDetector) }, "Scan a QR image"),
+            element("span", { className: "button-row compact" },
+              element("button", { type: "button", id: "scan-qr-page", className: "text-button", hidden: !(/** @type {any} */ (window).BarcodeDetector) }, "Scan current tab"),
+              element("button", { type: "button", id: "scan-qr", className: "text-button", hidden: !(/** @type {any} */ (window).BarcodeDetector) }, "Choose QR image")),
             element("input", { type: "file", id: "qr-file", accept: "image/*", hidden: true, "aria-label": "Choose a 2FA QR image" }),
             element("p", { className: "hint" }, "The key a website shows when you turn on an authenticator app. KeyBit then shows the 6-digit codes."))),
         element("div", { className: "form-field", id: "notes-field", hidden: true }, element("label", { for: "notes", id: "notes-label" }, "Notes"), element("textarea", { id: "notes", maxlength: 20000, spellcheck: "false" })),
+        field("Tags", element("input", { id: "tags", maxlength: 1000, placeholder: "client, production, server", autocomplete: "off", spellcheck: "false" }),
+          element("p", { className: "hint" }, "Comma-separated. Tags are encrypted with this item.")),
+        element("div", { className: "form-field" },
+          element("label", {}, "Custom fields"), element("div", { id: "custom-fields", className: "custom-fields" }),
+          element("button", { type: "button", id: "add-custom-field", className: "text-button" }, "+ Add custom field")),
         element("div", { className: "more-fields" },
           element("button", { type: "button", id: "toggle-totp", className: "text-button login-only" }, "+ Add 2FA code"),
           element("button", { type: "button", id: "toggle-notes", className: "text-button" }, "+ Add notes")),
@@ -94,6 +104,26 @@ function build() {
   document.body.append(dialog);
 
   const urlInputs = () => [$("website"), ...dialog.querySelectorAll(".extra-url input")];
+  const addCustomField = (field = {}) => {
+    const name = element("input", { maxlength: 100, placeholder: "Label", "aria-label": "Custom field label", autocomplete: "off" });
+    const value = element("input", { maxlength: 4096, placeholder: "Value", "aria-label": "Custom field value", autocomplete: "off", spellcheck: "false" });
+    const concealed = element("input", { type: "checkbox", "aria-label": "Conceal this custom field" });
+    name.value = field.name ?? ""; value.value = field.value ?? ""; concealed.checked = field.concealed ?? true;
+    const remove = iconButton("close", "Remove custom field");
+    const row = element("div", { className: "custom-field-row" }, name, value,
+      element("label", { className: "custom-conceal", title: "Hide the value until revealed" }, concealed, "Secret"), remove);
+    remove.addEventListener("click", () => row.remove());
+    $("custom-fields").append(row);
+    return name;
+  };
+  const metadata = () => ({
+    tags: $("tags").value.split(",").map(tag => tag.trim()).filter(Boolean),
+    customFields: [...$("custom-fields").querySelectorAll(".custom-field-row")].flatMap(row => {
+      const inputs = row.querySelectorAll("input");
+      const name = inputs[0].value.trim(), value = inputs[1].value;
+      return name ? [{ name, value, concealed: inputs[2].checked }] : [];
+    })
+  });
   const addUrl = (value = "") => {
     const input = element("input", { maxlength: 2048, placeholder: "Another address for the same login", autocapitalize: "off", spellcheck: "false", "aria-label": "Another website address" });
     input.value = value;
@@ -135,6 +165,7 @@ function build() {
   $("website").addEventListener("blur", () => { $("website").value = normalizeWebsite($("website").value); preview(); });
   $("username").addEventListener("input", preview);
   $("add-url").addEventListener("click", () => addUrl().focus());
+  $("add-custom-field").addEventListener("click", () => addCustomField().focus());
   passwordInput.addEventListener("input", meter);
   generateButton.addEventListener("click", async () => {
     try {
@@ -147,21 +178,29 @@ function build() {
   $("toggle-totp").addEventListener("click", () => { $("totp-field").hidden = false; $("toggle-totp").hidden = true; $("totp").focus(); });
   // Reads the site photo/screenshot of a setup QR entirely in-browser (BarcodeDetector is
   // a local Web API — nothing is uploaded). Accepts an otpauth:// link or a bare key.
+  const detectQr = async bitmap => {
+    try {
+      const Detector = /** @type {any} */ (window).BarcodeDetector;
+      const codes = await new Detector({ formats: ["qr_code"] }).detect(bitmap);
+      const found = codes.map((/** @type {any} */ code) => String(code.rawValue ?? "").trim()).find((/** @type {string} */ value) => /^otpauth:\/\//i.test(value) || /^[A-Z2-7][A-Z2-7\s=]{5,}$/i.test(value));
+      if (!found) throw new Error("No 2FA QR code was visible.");
+      parseTotp(found); $("totp").value = found; showError("");
+    } finally { bitmap.close(); }
+  };
+  $("scan-qr-page").addEventListener("click", async () => {
+    try {
+      const dataUrl = await chrome.tabs.captureVisibleTab(undefined, { format: "png" });
+      const image = new Image(); image.src = dataUrl; await image.decode();
+      await detectQr(await createImageBitmap(image)); image.src = "";
+    } catch (error) { showError(error instanceof Error ? error.message : "Couldn't scan the current tab."); }
+  });
   $("scan-qr").addEventListener("click", () => $("qr-file").click());
   $("qr-file").addEventListener("change", async () => {
     const file = /** @type {HTMLInputElement} */ ($("qr-file")).files?.[0];
     /** @type {HTMLInputElement} */ ($("qr-file")).value = "";
     if (!file) return;
     try {
-      const bitmap = await createImageBitmap(file);
-      const Detector = /** @type {any} */ (window).BarcodeDetector;
-      const codes = await new Detector({ formats: ["qr_code"] }).detect(bitmap);
-      bitmap.close();
-      const found = codes.map((/** @type {any} */ code) => String(code.rawValue ?? "").trim()).find((/** @type {string} */ value) => /^otpauth:\/\//i.test(value) || /^[A-Z2-7][A-Z2-7\s=]{5,}$/i.test(value));
-      if (!found) throw new Error("That image doesn't contain a 2FA QR code.");
-      parseTotp(found);
-      /** @type {HTMLInputElement} */ ($("totp")).value = found;
-      showError("");
+      await detectQr(await createImageBitmap(file));
     } catch (error) { showError(error instanceof Error ? error.message : "Couldn't read that image."); }
   });
   $("close-dialog").addEventListener("click", () => requestClose());
@@ -181,7 +220,13 @@ function build() {
     let item;
     if (note) {
       if (!$("name").value.trim()) { showError("Give the note a title."); $("name").focus(); return; }
-      item = { id: current.item?.id ?? null, type: "note", name: $("name").value.trim(), notes: $("notes").value, project: $("project").value.trim(), favorite: current.item?.favorite ?? false };
+      item = { id: current.item?.id ?? null, type: "note", name: $("name").value.trim(), notes: $("notes").value, project: $("project").value.trim(), favorite: current.item?.favorite ?? false, ...metadata() };
+    } else if (current.kind === "secret") {
+      const meta = metadata();
+      if (!$("name").value.trim()) { showError("Give the secret a name."); $("name").focus(); return; }
+      if (!meta.customFields.length && !$("notes").value.trim()) { showError("Add a custom field or notes for this secret."); $("add-custom-field").focus(); return; }
+      item = { id: current.item?.id ?? null, type: "secret", secretKind: $("secret-kind").value, name: $("name").value.trim(), notes: $("notes").value,
+        project: $("project").value.trim(), favorite: current.item?.favorite ?? false, ...meta };
     } else if (current.kind === "card") {
       const number = $("card-number").value.replace(/[\s-]/g, "");
       if (!/^\d{12,19}$/.test(number)) { showError("Enter the 12–19 digit card number."); $("card-number").focus(); return; }
@@ -193,14 +238,14 @@ function build() {
       const cvv = $("card-cvv").value.trim();
       if (cvv && !/^\d{3,4}$/.test(cvv)) { showError("Security codes are 3–4 digits."); $("card-cvv").focus(); return; }
       const name = $("name").value.trim() || $("cardholder").value.trim() || `Card ····${number.slice(-4)}`;
-      item = { id: current.item?.id ?? null, type: "card", name, cardholder: $("cardholder").value.trim(), number, expiryMonth, expiryYear, cvv, notes: $("notes").value, project: $("project").value.trim(), favorite: current.item?.favorite ?? false };
+      item = { id: current.item?.id ?? null, type: "card", name, cardholder: $("cardholder").value.trim(), number, expiryMonth, expiryYear, cvv, notes: $("notes").value, project: $("project").value.trim(), favorite: current.item?.favorite ?? false, ...metadata() };
     } else if (current.kind === "identity") {
       const firstName = $("id-first").value.trim(), lastName = $("id-last").value.trim(), email = $("id-email").value.trim();
       if (![firstName, lastName, email, $("id-address").value.trim(), $("id-phone").value.trim()].some(Boolean)) { showError("Give the ID at least a name, email, phone, or address."); $("id-first").focus(); return; }
       const name = $("name").value.trim() || [firstName, lastName].filter(Boolean).join(" ") || email;
       item = { id: current.item?.id ?? null, type: "identity", name, firstName, lastName, email, phone: $("id-phone").value.trim(),
         address: $("id-address").value.trim(), city: $("id-city").value.trim(), region: $("id-region").value.trim(), postal: $("id-postal").value.trim(),
-        country: $("id-country").value.trim(), company: $("id-company").value.trim(), notes: $("notes").value, project: $("project").value.trim(), favorite: current.item?.favorite ?? false };
+        country: $("id-country").value.trim(), company: $("id-company").value.trim(), notes: $("notes").value, project: $("project").value.trim(), favorite: current.item?.favorite ?? false, ...metadata() };
     } else {
       const urls = [];
       for (const input of urlInputs()) {
@@ -212,7 +257,7 @@ function build() {
       const totp = $("totp").value.trim();
       if (totp) { try { parseTotp(totp); } catch (error) { showError(error.message); $("totp").focus(); return; } }
       item = { id: current.item?.id ?? null, type: "login", urls, name: $("name").value.trim() || scopeLabel(urls[0]), username: $("username").value.trim(),
-        password: passwordInput.value, environment: $("environment").value, notes: $("notes").value, project: $("project").value.trim(), totp, favorite: current.item?.favorite ?? false };
+        password: passwordInput.value, environment: $("environment").value, notes: $("notes").value, project: $("project").value.trim(), totp, favorite: current.item?.favorite ?? false, ...metadata() };
     }
     $("save").disabled = true;
     try {
@@ -223,7 +268,7 @@ function build() {
     } catch (error) { showError(error.message); }
     finally { item = null; $("save").disabled = false; }
   });
-  return { preview, meter, addUrl };
+  return { preview, meter, addUrl, addCustomField };
 }
 function showError(text) { const node = $("form-error"); node.textContent = text; node.hidden = !text; }
 function values() { return [...dialog.querySelectorAll("input, select, textarea")].map(input => input.value).join("\u0000"); }
@@ -235,6 +280,7 @@ function reset() {
   if (!dialog) return;
   clearFields($("login-form")); $("login-form").reset();
   $("extra-urls").replaceChildren();
+  $("custom-fields").replaceChildren();
   $("password").type = "password"; $("reveal").setAttribute("aria-pressed", "false");
   showError(""); current = null;
   document.documentElement.classList.remove("dialog-open");
@@ -253,7 +299,8 @@ export function openLoginDialog({ client, item = null, kind = item?.type ?? "log
   dialog.classList.toggle("note-mode", note);
   dialog.classList.toggle("card-mode", kind === "card");
   dialog.classList.toggle("identity-mode", kind === "identity");
-  $("editor-title").textContent = `${item ? "Edit" : "Add"} ${{ note: "secure note", card: "card", identity: "ID" }[kind] ?? "login"}`;
+  dialog.classList.toggle("secret-mode", kind === "secret");
+  $("editor-title").textContent = `${item ? "Edit" : "Add"} ${{ note: "secure note", card: "card", identity: "ID", secret: "developer secret" }[kind] ?? "login"}`;
   $("name").previousElementSibling.textContent = note ? "Title" : "Name";
   $("notes-label").textContent = note ? "Note" : "Notes";
   $("website").value = item?.urls?.[0] ?? prefill.website ?? "";
@@ -265,6 +312,8 @@ export function openLoginDialog({ client, item = null, kind = item?.type ?? "log
   $("environment").value = item?.environment ?? prefill.environment ?? "other";
   $("project").value = item?.project ?? prefill.project ?? "";
   $("project-list").replaceChildren(...projects.map(project => element("option", { value: project })));
+  $("tags").value = (item?.tags ?? []).join(", ");
+  for (const field of item?.customFields ?? []) hooks.addCustomField(field);
   $("totp").value = item?.totp ?? "";
   $("notes").value = item?.notes ?? prefill.notes ?? "";
   if (kind === "card") {
@@ -273,6 +322,10 @@ export function openLoginDialog({ client, item = null, kind = item?.type ?? "log
   }
   if (kind === "identity") for (const [fieldName, inputId] of [["firstName", "id-first"], ["lastName", "id-last"], ["email", "id-email"], ["phone", "id-phone"], ["address", "id-address"], ["city", "id-city"], ["region", "id-region"], ["postal", "id-postal"], ["country", "id-country"], ["company", "id-company"]])
     $(inputId).value = item?.[fieldName] ?? "";
+  if (kind === "secret") {
+    $("secret-kind").value = item?.secretKind ?? "api";
+    if (!item?.customFields?.length) hooks.addCustomField({ concealed: true });
+  }
   $("notes-field").hidden = !note && !item?.notes && !prefill.notes; $("toggle-notes").hidden = note || !!item?.notes || !!prefill.notes;
   $("totp-field").hidden = !item?.totp; $("toggle-totp").hidden = !!item?.totp;
   $("delete").hidden = !item;
@@ -281,6 +334,6 @@ export function openLoginDialog({ client, item = null, kind = item?.type ?? "log
   document.documentElement.classList.add("dialog-open");
   dialog.showModal();
   // Start where typing is needed.
-  const focusTarget = note ? $("name") : kind === "card" ? $("cardholder") : kind === "identity" ? $("id-first") : $("website").value ? (item ? $("name") : $("username")) : $("website");
+  const focusTarget = note || kind === "secret" ? $("name") : kind === "card" ? $("cardholder") : kind === "identity" ? $("id-first") : $("website").value ? (item ? $("name") : $("username")) : $("website");
   focusTarget.focus();
 }

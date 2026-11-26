@@ -119,11 +119,12 @@ export class Vault {
     const needle = query.toLocaleLowerCase();
     const fits = url ? matcherFor(url) : null;
     const items = this.#data.items.filter(item => !item.deletedAt && (!fits || fits(item)) &&
-      (!needle || [item.name, item.username, item.project, item.rpId ?? "", item.cardholder ?? "", item.firstName ?? "", item.lastName ?? "", item.email ?? "", item.number?.slice(-4) ?? "", ...item.urls].some(value => value.toLocaleLowerCase().includes(needle))));
+      (!needle || [item.name, item.username, item.project, item.rpId ?? "", item.cardholder ?? "", item.firstName ?? "", item.lastName ?? "", item.email ?? "", item.number?.slice(-4) ?? "",
+        ...(item.tags ?? []), ...(item.customFields ?? []).flatMap(field => [field.name, field.value]), ...item.urls].some(value => value.toLocaleLowerCase().includes(needle))));
     // On a page, a project-folder login is a better match than a whole-site one.
     if (url) items.sort((a, b) => specificity(b) - specificity(a));
-    return items.map(({ id, type, name, urls, username, environment, project, favorite, totp, updatedAt, rpId, credentialId, userName, lastUsedAt, cardholder, brand, number, firstName, lastName, email, city, country }) => ({ id, type, name, urls: [...urls],
-      scope: urls.length ? scopeLabel(urls[0]) : "", username, environment, project, favorite, hasTotp: !!totp, updatedAt,
+    return items.map(({ id, type, name, urls, username, environment, project, favorite, tags, secretKind, totp, updatedAt, rpId, credentialId, userName, lastUsedAt, cardholder, brand, number, firstName, lastName, email, city, country }) => ({ id, type, name, urls: [...urls],
+      scope: urls.length ? scopeLabel(urls[0]) : "", username, environment, project, favorite, tags: [...(tags ?? [])], secretKind, hasTotp: !!totp, updatedAt,
       ...(type === "passkey" ? { rpId, credentialId, userName, lastUsedAt } : {}),
       // Only display-safe card/identity fields join the list; the PAN, CVV, and street stay in the encrypted item.
       ...(type === "card" ? { cardholder, brand, last4: number.slice(-4), lastUsedAt } : {}),
@@ -200,8 +201,8 @@ export class Vault {
     this.require(session);
     return this.#data.items.filter(item => item.deletedAt)
       .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt))
-      .map(({ id, type, name, urls, username, environment, project, favorite, totp, updatedAt, deletedAt, rpId, credentialId, userName, lastUsedAt, cardholder, brand, number, firstName, lastName, email, city, country }) => ({ id, type, name, urls: [...urls],
-        scope: urls.length ? scopeLabel(urls[0]) : "", username, environment, project, favorite, hasTotp: !!totp, updatedAt, deletedAt,
+      .map(({ id, type, name, urls, username, environment, project, favorite, tags, secretKind, totp, updatedAt, deletedAt, rpId, credentialId, userName, lastUsedAt, cardholder, brand, number, firstName, lastName, email, city, country }) => ({ id, type, name, urls: [...urls],
+        scope: urls.length ? scopeLabel(urls[0]) : "", username, environment, project, favorite, tags: [...(tags ?? [])], secretKind, hasTotp: !!totp, updatedAt, deletedAt,
         ...(type === "passkey" ? { rpId, credentialId, userName, lastUsedAt } : {}),
         ...(type === "card" ? { cardholder, brand, last4: number.slice(-4) } : {}),
         ...(type === "identity" ? { fullName: [firstName, lastName].filter(Boolean).join(" "), email, city, country } : {}) }));
@@ -314,10 +315,12 @@ export class Vault {
     const items = [];
     let duplicates = 0, invalid = 0;
     for (const input of inputs) {
-      const clean = { type: input?.type === "note" ? "note" : "login", name: String(input?.name ?? "").slice(0, 200).trim(), urls: Array.isArray(input?.urls) ? input.urls.slice(0, 10) : [],
+      const type = ["note", "secret"].includes(input?.type) ? input.type : "login";
+      const clean = { type, name: String(input?.name ?? "").slice(0, 200).trim(), urls: Array.isArray(input?.urls) ? input.urls.slice(0, 10) : [],
         username: String(input?.username ?? "").slice(0, 1024), password: String(input?.password ?? ""), notes: String(input?.notes ?? "").slice(0, 20000),
         environment: ENVIRONMENTS.includes(input?.environment) ? input.environment : "other", project: String(input?.project ?? "").slice(0, 100),
-        favorite: input?.favorite === true, totp: String(input?.totp ?? "") };
+        favorite: input?.favorite === true, totp: String(input?.totp ?? ""), secretKind: String(input?.secretKind ?? "other"),
+        tags: Array.isArray(input?.tags) ? input.tags : [], customFields: Array.isArray(input?.customFields) ? input.customFields : [] };
       let item;
       try { item = createItem(clean, null); }
       catch {
@@ -333,7 +336,8 @@ export class Vault {
   previewImport(session, inputs) {
     this.require(session);
     const { items, duplicates, invalid } = this.#importable(inputs);
-    return { logins: items.filter(item => item.type === "login").length, notes: items.filter(item => item.type === "note").length, duplicates, invalid };
+    return { logins: items.filter(item => item.type === "login").length, notes: items.filter(item => item.type === "note").length,
+      secrets: items.filter(item => item.type === "secret").length, duplicates, invalid };
   }
   async importItems(session, revision, inputs) {
     this.require(session);
@@ -384,7 +388,7 @@ export class Vault {
   // passkeys are never exported: a private key in a spreadsheet is a leak, not a migration.
   exportCsv(session) {
     this.require(session);
-    return toCsv(this.#data.items.filter(item => !item.deletedAt && (item.type === "login" || item.type === "note")));
+    return toCsv(this.#data.items.filter(item => !item.deletedAt && ["login", "note", "secret"].includes(item.type)));
   }
   // One item encrypted with a share passphrase, as a .kvault the recipient merges like a backup.
   async shareItem(session, id, passphrase) {

@@ -11,6 +11,10 @@ const PROTECTED_HOSTS = [
   "login.microsoftonline.com",
   "paypal.com"
 ];
+const SENSITIVE_ROUTE = /(?:^|[/?#&_.-])(login|log-in|signin|sign-in|signup|sign-up|authenticate|authorization|oauth|checkout|payment|billing|verify|verification)(?:$|[/?#&_.=-])/i;
+let safeAuth = true;
+chrome.storage.sync.get({ peekSafeAuth: true }, items => { safeAuth = items.peekSafeAuth !== false; });
+chrome.storage.onChanged.addListener((changes, area) => { if (area === "sync" && changes.peekSafeAuth) safeAuth = changes.peekSafeAuth.newValue !== false; });
 
 const peekFrames = new Map(); // tabId -> { frameId, expectedUrl, previewable }
 const peekRules = new Map(); // tabId -> { id, domainKey }
@@ -44,6 +48,7 @@ function previewPolicy(value) {
     if (!/^https?:$/.test(url.protocol)) return { previewable: false, reason: "unsupported" };
     if (url.username || url.password) return { previewable: false, reason: "sensitive" };
     if (isProtectedHost(url.hostname)) return { previewable: false, reason: "protected-site" };
+    if (safeAuth && SENSITIVE_ROUTE.test(`${url.pathname}${url.search}${url.hash}`)) return { previewable: false, reason: "protected-route" };
     return { previewable: true, reason: "" };
   } catch {
     return { previewable: false, reason: "invalid" };
@@ -118,6 +123,37 @@ function sendToFrame(tabId, frameId, message) {
   } catch {}
 }
 
+async function openAuthWindow(tab, url) {
+  if (!tab || !/^https?:\/\//i.test(url)) return false;
+  try {
+    const source = await chrome.windows.get(tab.windowId);
+    const availableWidth = Math.max(520, Number(source.width) || 1100);
+    const availableHeight = Math.max(620, Number(source.height) || 850);
+    const width = Math.min(960, Math.max(720, availableWidth - 180));
+    const height = Math.min(820, Math.max(680, availableHeight - 120));
+    const left = Math.round((Number(source.left) || 0) + (availableWidth - width) / 2);
+    const top = Math.round((Number(source.top) || 0) + (availableHeight - height) / 2);
+    await chrome.windows.create({
+      url,
+      type: "popup",
+      focused: true,
+      incognito: Boolean(tab.incognito),
+      width,
+      height,
+      left,
+      top
+    });
+    return true;
+  } catch {
+    try {
+      await chrome.tabs.create({ url, active: true, index: tab.index + 1 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 function matchesExpected(actual, expected) {
   if (!expected) return false;
   const a = normalizeUrl(actual);
@@ -172,11 +208,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
         const policy = previewPolicy(msg.url);
         if (!policy.previewable) {
-          state.previewable = false;
-          state.expectedUrl = msg.url;
-          clearPreviewRule(tabId).then(() => {
-            sendToPeek(tabId, { type: "peek:safety", url: msg.url, reason: policy.reason });
-            sendResponse({ ok: true, owned: true, previewable: false });
+          openAuthWindow(tab, msg.url).then((openedAuth) => {
+            if (openedAuth) {
+              sendToPeek(tabId, { type: "peek:auth-popup" });
+            } else {
+              state.previewable = false;
+              state.expectedUrl = msg.url;
+              clearPreviewRule(tabId);
+              sendToPeek(tabId, { type: "peek:safety", url: msg.url, reason: policy.reason });
+            }
+            sendResponse({ ok: true, owned: true, previewable: false, openedAuth });
           });
           return true;
         }
@@ -187,6 +228,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         });
       }
       return true;
+    case "peek:auth-window":
+      {
+        const state = tabId === null ? null : peekFrames.get(tabId);
+        const frameId = typeof sender.frameId === "number" ? sender.frameId : 0;
+        if (!state || frameId <= 0 || state.frameId !== frameId || typeof msg.url !== "string") {
+          sendResponse({ ok: false });
+          return;
+        }
+        openAuthWindow(tab, msg.url).then((ok) => {
+          if (ok) sendToPeek(tabId, { type: "peek:auth-popup" });
+          sendResponse({ ok });
+        });
+      }
+      return true;
     case "peek:open":
       if (tabId === null) {
         sendResponse({ ok: false });
@@ -194,6 +249,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       {
         const policy = previewPolicy(msg.url);
+        if (!policy.previewable && ["protected-site", "protected-route"].includes(policy.reason)) {
+          openAuthWindow(tab, msg.url).then((openedAuth) => {
+            sendResponse({
+              ok: true,
+              previewable: false,
+              reason: policy.reason,
+              openedAuth
+            });
+          });
+          return true;
+        }
         peekFrames.set(tabId, {
           frameId: null,
           expectedUrl: typeof msg.url === "string" ? msg.url : "",
@@ -204,6 +270,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         setPreviewRule(tabId, msg.url, policy.previewable).then(() => {
           sendResponse({ ok: true, previewable: policy.previewable, reason: policy.reason });
         });
+      }
+      return true;
+    case "peek:close-from-frame":
+      {
+        const state = tabId === null ? null : peekFrames.get(tabId);
+        const frameId = typeof sender.frameId === "number" ? sender.frameId : 0;
+        if (!state || frameId <= 0 || state.frameId !== frameId) { sendResponse({ ok: false }); return; }
+        sendToPeek(tabId, { type: "peek:close-request" });
+        peekFrames.delete(tabId);
+        clearPreviewRule(tabId).then(() => sendResponse({ ok: true }));
       }
       return true;
     case "peek:close":
@@ -241,6 +317,11 @@ chrome.webNavigation.onCommitted.addListener((details) => {
   }
   const state = peekFrames.get(details.tabId);
   if (!state || !state.previewable) return;
+  // Ignore nested frames created by the previewed site. A late about:blank,
+  // blob: or ad iframe must never replace the actual Peek with a safety card.
+  if (state.frameId !== null && state.frameId !== details.frameId) return;
+  if (state.frameId === null && !matchesExpected(details.url, state.expectedUrl)) return;
+  if (state.frameId === null) state.frameId = details.frameId;
   const policy = previewPolicy(details.url);
   if (!policy.previewable) {
     state.previewable = false;
@@ -249,8 +330,6 @@ chrome.webNavigation.onCommitted.addListener((details) => {
     sendToPeek(details.tabId, { type: "peek:safety", url: details.url, reason: policy.reason });
     return;
   }
-  if (state.frameId === null && matchesExpected(details.url, state.expectedUrl)) state.frameId = details.frameId;
-  if (state.frameId !== details.frameId) return;
   state.expectedUrl = details.url;
   setPreviewRule(details.tabId, details.url, true);
   sendToFrame(details.tabId, details.frameId, { type: "peek:frame-owned" });
@@ -261,6 +340,11 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   if (details.frameId === 0) return;
   const state = peekFrames.get(details.tabId);
   if (!state || !state.previewable) return;
+  // Apply policy only to the one iframe that owns Peek, never to child frames
+  // inside the destination page.
+  if (state.frameId !== null && state.frameId !== details.frameId) return;
+  if (state.frameId === null && !matchesExpected(details.url, state.expectedUrl)) return;
+  if (state.frameId === null) state.frameId = details.frameId;
   const policy = previewPolicy(details.url);
   if (!policy.previewable) {
     state.previewable = false;
@@ -269,14 +353,11 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
     sendToPeek(details.tabId, { type: "peek:safety", url: details.url, reason: policy.reason });
     return;
   }
-  if (state.frameId === null && matchesExpected(details.url, state.expectedUrl)) state.frameId = details.frameId;
-  if (state.frameId === details.frameId) {
-    state.expectedUrl = details.url;
-    // Links in a preview can cross domains. Move the narrowly-scoped framing
-    // rule to the destination instead of leaving it attached to the first host.
-    setPreviewRule(details.tabId, details.url, true);
-    sendToPeek(details.tabId, { type: "peek:location", url: details.url, loading: true });
-  }
+  state.expectedUrl = details.url;
+  // Links in a preview can cross domains. Move the narrowly-scoped framing
+  // rule to the destination instead of leaving it attached to the first host.
+  setPreviewRule(details.tabId, details.url, true);
+  sendToPeek(details.tabId, { type: "peek:location", url: details.url, loading: true });
 });
 
 chrome.webNavigation.onCompleted.addListener(async (details) => {

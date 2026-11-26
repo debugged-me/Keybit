@@ -36,7 +36,9 @@ const COLUMNS = {
   totp: ["totp", "otpauth", "login_totp", "one-time password", "otp", "2fa", "otpurl"],
   project: ["folder", "grouping", "group", "category", "collection", "vault", "project"],
   favorite: ["favorite", "fav", "favourite"],
-  type: ["type"]
+  type: ["type"],
+  tags: ["tags", "labels"],
+  customFields: ["custom_fields", "custom fields", "fields"]
 };
 function columnsOf(header) {
   const names = header.map(name => name.trim().toLowerCase());
@@ -59,16 +61,16 @@ export function websiteFrom(value) {
 }
 const hostOf = url => { try { return new URL(url).host; } catch { return ""; } };
 // Entries with a password but no usable website keep their data as a secure note rather than being dropped.
-/** @param {{ url?: string, username?: string, password?: string, name?: string, notes?: string, totp?: string, project?: string, favorite?: boolean, isNote?: boolean }} entry */
-function toItem({ url, username, password, name, notes, totp, project, favorite, isNote }) {
+/** @param {{ url?: string, username?: string, password?: string, name?: string, notes?: string, totp?: string, project?: string, favorite?: boolean, isNote?: boolean, tags?: string[], customFields?: any[] }} entry */
+function toItem({ url, username, password, name, notes, totp, project, favorite, isNote, tags = [], customFields = [] }) {
   const website = websiteFrom(url);
   const title = String(name ?? "").trim();
   if (!isNote && website && password) {
-    return { type: "login", name: title || hostOf(website), urls: [website], username: username ?? "", password, notes: notes ?? "", totp: totp ?? "", project: project ?? "", favorite: !!favorite };
+    return { type: "login", name: title || hostOf(website), urls: [website], username: username ?? "", password, notes: notes ?? "", totp: totp ?? "", project: project ?? "", favorite: !!favorite, tags, customFields };
   }
   const lines = [username && `Username: ${username}`, password && `Password: ${password}`, url && !website && `Address: ${url}`, totp && `2FA: ${totp}`, notes].filter(Boolean);
   if (!lines.length && !title) return null;
-  return { type: "note", name: title || "Imported note", notes: lines.join("\n"), project: project ?? "", favorite: !!favorite };
+  return { type: "note", name: title || "Imported note", notes: lines.join("\n"), project: project ?? "", favorite: !!favorite, tags, customFields };
 }
 function fromCsv(text) {
   const [header, ...rows] = parseCsv(text);
@@ -80,12 +82,25 @@ function fromCsv(text) {
   let skipped = 0;
   for (const row of rows) {
     const type = value(row, "type").toLowerCase();
+    const tags = value(row, "tags").split(";").map(tag => tag.trim()).filter(Boolean);
+    let customFields = [];
+    if (value(row, "customFields")) {
+      try { customFields = JSON.parse(row[columns.customFields]); } catch { skipped++; continue; }
+      if (!Array.isArray(customFields)) { skipped++; continue; }
+    }
+    if (type === "secret") {
+      const name = value(row, "name");
+      if (!name || (!customFields.length && !value(row, "notes"))) { skipped++; continue; }
+      items.push({ type: "secret", secretKind: "other", name, notes: columns.notes === undefined ? "" : row[columns.notes] ?? "", project: value(row, "project"),
+        favorite: ["1", "true", "yes"].includes(value(row, "favorite").toLowerCase()), tags, customFields });
+      continue;
+    }
     // Bitwarden marks notes, cards and identities by type; LastPass marks secure notes with the URL http://sn.
     const isNote = ["note", "securenote", "secure note", "2"].includes(type) || value(row, "url") === "http://sn";
     if (["card", "identity", "3", "4"].includes(type)) { skipped++; continue; }
     const item = toItem({ url: isNote ? "" : value(row, "url"), username: value(row, "username"), password: row[columns.password] ?? "",
       name: value(row, "name"), notes: columns.notes === undefined ? "" : row[columns.notes] ?? "", totp: value(row, "totp"),
-      project: value(row, "project"), favorite: ["1", "true", "yes"].includes(value(row, "favorite").toLowerCase()), isNote });
+      project: value(row, "project"), favorite: ["1", "true", "yes"].includes(value(row, "favorite").toLowerCase()), isNote, tags, customFields });
     if (item) items.push(item); else skipped++;
   }
   return { items, skipped };
@@ -99,8 +114,9 @@ function fromBitwardenJson(data) {
     const project = folders.get(entry.folderId) ?? "";
     if (entry.type === 1 && entry.login) {
       const urls = (entry.login.uris ?? []).map(uri => websiteFrom(uri?.uri)).filter(Boolean).slice(0, 10);
+      const customFields = (entry.fields ?? []).flatMap(field => typeof field?.name === "string" ? [{ name: field.name, value: String(field.value ?? ""), concealed: field.type === 1 }] : []);
       const item = toItem({ url: urls[0] ?? entry.login.uris?.[0]?.uri, username: entry.login.username ?? "", password: entry.login.password ?? "", name: entry.name,
-        notes: entry.notes ?? "", totp: entry.login.totp ?? "", project, favorite: entry.favorite });
+        notes: entry.notes ?? "", totp: entry.login.totp ?? "", project, favorite: entry.favorite, customFields });
       if (item?.type === "login") item.urls = urls.length ? urls : item.urls;
       if (item) items.push(item); else skipped++;
     } else if (entry.type === 2) items.push(toItem({ name: entry.name, notes: entry.notes ?? "", project, favorite: entry.favorite, isNote: true }));

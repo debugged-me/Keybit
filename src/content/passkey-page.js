@@ -52,10 +52,10 @@
         excludeIds: ids(publicKey.excludeCredentials) };
     } catch { return null; }
   }
-  function encodeGet(publicKey) {
+  function encodeGet(publicKey, mediation) {
     if (!publicKey || !publicKey.challenge) return null;
     try {
-      return { challenge: b64url(publicKey.challenge), rpId: publicKey.rpId ?? null, allowIds: ids(publicKey.allowCredentials) };
+      return { challenge: b64url(publicKey.challenge), rpId: publicKey.rpId ?? null, allowIds: ids(publicKey.allowCredentials), mediation: mediation ?? null };
     } catch { return null; }
   }
 
@@ -93,8 +93,9 @@
     };
   }
 
-  // Conditional UI (passkey autofill) and silent mediation belong to the browser, not to a prompt card.
-  const ours = options => !!options?.publicKey && (!options.mediation || options.mediation === "optional" || options.mediation === "required");
+  // Silent mediation belongs to the browser. Conditional mediation is relayed to the isolated
+  // script, which waits for focus in an autocomplete="webauthn" field before showing KeyBit.
+  const ours = options => !!options?.publicKey && options.mediation !== "silent";
 
   credentials.create = function (options, ...rest) {
     if (!ours(options)) return originalCreate(options, ...rest);
@@ -108,7 +109,7 @@
   };
   credentials.get = function (options, ...rest) {
     if (!ours(options)) return originalGet(options, ...rest);
-    const encoded = encodeGet(options.publicKey);
+    const encoded = encodeGet(options.publicKey, options.mediation);
     if (!encoded) return originalGet(options, ...rest);
     return ask("get", encoded).then(result => {
       if (result.action === "keybit") return assertionCredential(result.credential);

@@ -6,6 +6,10 @@ body { width: 380px; max-height: 600px; display: flex; flex-direction: column; o
 .popup .brand-icon { width: 22px; height: 22px; }
 .popup .brand h1 { font-size: 14px; }
 .header-actions { display: flex; align-items: center; gap: 2px; }
+@media (min-width: 460px) {
+  body.popup { width: auto; min-width: 360px; min-height: 100vh; max-height: none; overflow: auto; }
+  .rows { max-height: none; }
+}
 .status-pill { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; padding: 3px 10px; border-radius: 999px; background: var(--subtle); color: var(--muted); font-size: 11px; font-weight: 600; }
 .status-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); }
 .status-pill.unlocked { background: var(--accent-soft); color: var(--accent); }

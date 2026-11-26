@@ -11,7 +11,7 @@
 <h4 align="center">
   <a href="#usage"><img src="https://img.shields.io/badge/Chromium-127%2B-000000?style=flat-square" alt="Chromium 127+" style="height: 20px;"></a>
   <a href="#development"><img src="https://img.shields.io/badge/Manifest-V3-555555?style=flat-square" alt="Manifest V3" style="height: 20px;"></a>
-  <a href="https://github.com/debugged-me/Keybit/releases"><img src="https://img.shields.io/badge/version-1.4-2E6B4F?style=flat-square" alt="Version 1.4" style="height: 20px;"></a>
+  <a href="https://github.com/debugged-me/Keybit/releases"><img src="https://img.shields.io/badge/version-1.4.0-2E6B4F?style=flat-square" alt="Version 1.4.0" style="height: 20px;"></a>
   <br>
   <a href="#security"><img src="https://img.shields.io/badge/encryption-AES--256--GCM-1F4D3A?style=flat-square" alt="AES-256-GCM" style="height: 20px;"></a>
   <a href="#development"><img src="https://img.shields.io/badge/dependencies-zero-74B087?style=flat-square" alt="Zero dependencies" style="height: 20px;"></a>
@@ -57,7 +57,7 @@ Developers get first-class tools too: project environments with one-click switch
 - The dropdown appears when you click a login field on any site, including a field that already has focus. It follows the field when the page scrolls.
 - **Typing narrows the list**, and the account you used last comes first.
 - **Two-step sign-ins:** on a username-only page, choosing the account fills it and continues to the password page, where the same account is listed first ("Continue").
-- **2FA codes:** add a login's authenticator setup key — type it, paste the `otpauth://` link, or **Scan a QR image** (a screenshot of the site's setup QR, decoded entirely on-device). KeyBit then shows the 6-digit code in the login's details and in the dropdown on code fields, including six one-digit boxes.
+- **2FA codes:** add a login's authenticator setup key — type it, paste the `otpauth://` link, **scan the QR visible in the current tab**, or choose a QR image. Decoding stays on-device. KeyBit then shows the code in the login's details and in the dropdown on code fields, including six one-digit boxes.
 - **Cards and IDs:** save a payment card or an ID (name, address, phone) in **Cards & IDs**. Focusing a card field or an address form shows the same dropdown — one click fills the number, expiry, CVV, or the whole address. Cards and IDs aren't site-bound; a masked number and cardholder name are all that ever leave the vault until you fill.
 - **Lookalike-site warnings:** if a page's address only *resembles* a saved site — swapped letters, Cyrillic lookalikes, punycode, a one-letter typo — the dropdown leads with a warning instead of filling. Saved credentials never autofill on a different site; this adds the "wait, this isn't right" moment for the near-misses.
 - **Sign-up and change-password fields** get a generated password in both fields.
@@ -86,7 +86,7 @@ Developers get first-class tools too: project environments with one-click switch
 - **Login form inspector** (popup → site card, or the palette): reports how KeyBit sees the current page, frame by frame — which fields were found, their autocomplete hints, and common problems (missing `autocomplete`, `autocomplete="off"`, readonly/disabled fields, closed shadow roots, cross-origin frames). It lists structure only; typed values never appear.
 - **Project environment switcher:** the popup offers environment chips under project logins that have more than one address. Switching keeps the current path, query, and fragment — `localhost/my-app/registrar?tab` becomes `myapp.example.com/registrar?tab` — and production chips are marked and ask for a second click before navigating (Settings can drop the confirmation). A project view's environment rows are editable; saved overrides merge with the addresses derived from the project's logins.
 - **Site rules** (popup → ⚙ on the site card, or vault → Site rules): per-origin switches for what KeyBit offers — the site entirely, login suggestions, and save prompts — plus optional "include subdomains" widening. Turning a site off is now a rule, so customized sites appear together in Site rules; resetting a card restores the defaults. Rules are local preferences, not vault data.
-- **Right-click menu:** on a link, **KeyBit → Preview with KeyBit**; on an editable field, **Fill with KeyBit**, **Generate password** (fills the field, and both fields on a sign-up form), and **Inspect login form**; on selected text, **Save as secure note** opens the vault's note editor with the text prefilled.
+- **Right-click menu:** on an editable field, **Fill with KeyBit**, **Generate password** (fills the field, and both fields on a sign-up form), and **Inspect login form**; on selected text, **Save as secure note** opens the vault's note editor with the text prefilled. Link previews remain in the separate, optional PeekBit companion under `peek/`, keeping network-header access outside the password vault.
 
 </details>
 
@@ -94,6 +94,7 @@ Developers get first-class tools too: project environments with one-click switch
 <summary>🔐 <strong>Passkeys & 2FA</strong> — stored in the vault, bound to their origin</summary>
 
 - When a site offers to create a passkey, a KeyBit card asks to keep it in the vault. The private key is encrypted with everything else on this device — no account, no sync service.
+- Conditional passkey requests wait until you focus a field marked for WebAuthn, then offer the matching KeyBit passkeys without interrupting page load.
 - Signing in with a saved passkey shows a card naming the site and account. "Not now" or "Use device passkey" hands the call to the browser's built-in handling, as does anything KeyBit can't answer (a credential it doesn't hold, or a site mismatch).
 - A passkey only answers the site that created it: KeyBit checks the calling page's origin against the credential's relying party before signing, and the page never sees the private key.
 - Passkeys live in their own **Passkeys** sidebar section and in `.kvault` backups. They stay out of CSV export, password health, and the login dropdown — they are not passwords.
@@ -104,7 +105,7 @@ Developers get first-class tools too: project environments with one-click switch
 <summary>🗂️ <strong>Organising</strong> — projects, favourites, notes, Security Center, generator</summary>
 
 - Every login has a site tile; a login can have up to 10 website addresses.
-- **Favourites**, **secure notes**, and **projects**. A project's view groups its logins by environment: Production, Staging, Development, Local — and its **Environments** card lets you name the URL for each environment so the popup switcher can jump between them.
+- **Favourites**, **secure notes**, **developer secrets**, tags, custom fields, and projects. Developer-secret templates cover API tokens, databases, SSH details, licence keys, and recovery codes; custom fields can be concealed individually. A project's view groups its items by environment.
 - Sort by name, recently used, or recently updated. Search covers logins and notes.
 - **Security Center** scores the vault and shows its working — every factor lists its count and points, so "82%" reads as "−12 for two reused logins, +4 for two accounts with 2FA". Metric tiles count strong, weak, reused, duplicate, fresh/aging/old passwords, 2FA and passkey coverage, production logins, and what needs review. All of it is computed on this device; password age is flagged as a prompt to review, not a verdict.
 - **Recently deleted** keeps deleted logins and notes for 30 days, then removes them forever. Restore them or empty the bin sooner.
@@ -116,7 +117,8 @@ Developers get first-class tools too: project environments with one-click switch
 <details>
 <summary>🪟 <strong>The app window</strong> — sidebar, dialogs, popup, auto-lock, themes</summary>
 
-- **Sidebar:** All logins, Favorites, Secure notes, Cards & IDs, Passkeys, Recently deleted, Projects, Security Center, Generator, Import, Backup, and Settings. **Site rules** appears only while a site is customized. A **vault health** card at the bottom shows the Security Center score; click it to open the dashboard.
+- **Sidebar:** All logins, Favorites, Secure notes, Cards & IDs, Developer secrets, Passkeys, Recently deleted, Projects, Security Center, Generator, Import, Backup, and Settings. **Site rules** appears only while a site is customized. A **vault health** card at the bottom shows the Security Center score; click it to open the dashboard.
+- **Browser side panel:** keep the popup workflow open beside the current tab for persistent site logins, TOTP codes, the generator, and environment switching.
 - **Keyboard:** ⌘K (Ctrl+K on Windows) jumps to search; / does the same when you're not typing.
 - **Adding and editing happen in a dialog**, in the app and in the popup:
   - typing `example.com` is enough; KeyBit adds the http/https part;
@@ -124,7 +126,7 @@ Developers get first-class tools too: project environments with one-click switch
   - generate and show/hide sit inside the password field, with a strength meter;
   - you're warned about a duplicate username on the same site;
   - you're asked before unsaved typing is discarded.
-- **Auto-lock** is the timer icon in the header (hover shows "Auto-lock: Never"). The vault stays unlocked while the browser runs — and by default across browser restarts too (Settings → **Stay unlocked across restarts**); only locking it yourself or an auto-lock timer you set will lock it.
+- **Auto-lock** is the timer icon in the header. New vaults lock when the browser exits and when the computer locks or sleeps. Settings can opt into staying unlocked across browser restarts on a trusted personal device.
 - **Settings:**
   - lock when the computer locks or sleeps (off by default);
   - Touch ID or Windows Hello unlock;
@@ -149,7 +151,7 @@ Developers get first-class tools too: project environments with one-click switch
   - An entry without a website is kept as a secure note, not dropped.
 - **Encrypted `.kvault` backups:**
   - **Export** downloads a copy.
-  - **Automatic backup** writes a fresh encrypted copy to a folder you choose (for example iCloud Drive or Dropbox) after every change.
+  - **Automatic backup** writes a fresh encrypted, device-specific copy to a folder you choose (for example iCloud Drive or Dropbox) after every change, so two computers never overwrite each other. **Sync now** merges the folder snapshots with the password you provide; newer item copies win and nothing is deleted.
   - **Restore** can **merge** (adds logins, newer copies win, nothing deleted) or **replace** the vault.
   - A reminder appears when there's no backup from the last 30 days.
 - **Portable vault** (Backup → Portable vault): a `.kvault` backup as a single HTML file that opens in any browser — no KeyBit install needed. It contains only the encrypted data; type the master password and it decrypts locally, right in the file. For a lost laptop or an emergency, this is the vault that survives everything.
@@ -166,7 +168,7 @@ Developers get first-class tools too: project environments with one-click switch
 **Keeping your logins:**
 
 - **Restarting the browser or the computer keeps everything** — the vault is saved on disk in your browser profile, encrypted.
-- With **Stay unlocked across restarts** on (the default), the vault reopens by itself. Turn it off on a shared machine: the key then lives in memory only and quitting locks the vault.
+- With **Stay unlocked across restarts** on, the vault reopens by itself. It is off for new vaults; enable it only on a trusted personal machine.
 - **Removing KeyBit from the browser deletes its vault** — this is how Chromium handles extension storage. Keep a backup; automatic folder backup does this for you.
 - **A copy of KeyBit installed another way starts empty** — a moved folder or the Web Store version is a different extension. Restore or merge your backup there.
 

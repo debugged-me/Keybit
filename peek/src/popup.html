@@ -30,6 +30,14 @@
           <span class="row-copy"><strong>Show page address</strong><small>Keep the live address above the page</small></span>
           <span class="switch"><input type="checkbox" id="show-address" /><span class="track"></span></span>
         </label>
+        <label class="row" for="safe-auth">
+          <span class="row-copy"><strong>Safe sign-in handoff</strong><small>Open login and payment pages top-level</small></span>
+          <span class="switch"><input type="checkbox" id="safe-auth" /><span class="track"></span></span>
+        </label>
+        <label class="row" for="site-enabled">
+          <span class="row-copy"><strong>On this site</strong><small id="site-host">Current website</small></span>
+          <span class="switch"><input type="checkbox" id="site-enabled" /><span class="track"></span></span>
+        </label>
       </section>
 
       <section class="shortcuts" aria-label="Peek shortcuts">
@@ -37,8 +45,9 @@
         <span><kbd>⌥ click</kbd> Beside</span>
         <span><kbd>Esc</kbd> Close</span>
       </section>
+      <p class="privacy-note"><span aria-hidden="true">◆</span> Compatibility access is limited to the previewed host and removed when Peek closes.</p>
     </main>
-    <footer><span>PeekBit 1.1.1</span><span>Made for focused browsing</span></footer>
+    <footer><span>PeekBit 1.2.2</span><span>Made for focused browsing</span></footer>
     <script src="popup.js"></script>
   </body>
 </html>
